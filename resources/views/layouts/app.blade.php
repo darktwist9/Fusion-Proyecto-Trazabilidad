@@ -446,7 +446,10 @@
 
 
                         {{-- ENVÍOS (todos) --}}
-                        @canany(['envios.view', 'envios.create', 'envios.admin.view', 'vehiculos.view', 'transportistas.view', 'direcciones.view', 'reportes.view'])
+                        @php
+                            $enviosPermissions = ['envios.view', 'envios.create', 'envios.admin.view', 'vehiculos.view', 'transportistas.view', 'direcciones.view', 'reportes.view'];
+                        @endphp
+                        @if($isAdmin || ($authUser && $authUser->hasAnyPermission($enviosPermissions)))
                         <li class="nav-item {{ request()->routeIs('envios.*') ? 'menu-open' : '' }}">
                             <a href="#" class="nav-link {{ request()->routeIs('envios.*') ? 'active' : '' }}">
                                 <i class="nav-icon fas fa-truck"></i>
@@ -520,17 +523,17 @@
                                 </li>
                                 @endcan
                                 @can('pedidos.view')
-                                    <li class="nav-item {{ request()->routeIs('pedidos.*') ? 'menu-open' : '' }}">
-                                        <a href="{{ route('pedidos.index') }}"
-                                            class="nav-link {{ request()->routeIs('pedidos.*') ? 'active' : '' }}">
-                                            <i class="nav-icon fas fa-clipboard-list"></i>
-                                            <p>Pedidos</p>
-                                        </a>
-                                    </li>
-                                @endcan
+                                        <li class="nav-item {{ request()->routeIs('pedidos.*') ? 'menu-open' : '' }}">
+                                            <a href="{{ route('pedidos.index') }}"
+                                                class="nav-link {{ request()->routeIs('pedidos.*') ? 'active' : '' }}">
+                                                <i class="nav-icon fas fa-clipboard-list"></i>
+                                                <p>Pedidos</p>
+                                            </a>
+                                        </li>
+                                    @endcan
                             </ul>
                         </li>
-                        @endcanany
+                            @endif
 
                         {{-- OPERACIÓN LOGÍSTICA --}}
                         @canany(['panel_planta.view', 'panel_transportista.view', 'panel_almacen.view', 'asignaciones.view', 'rutas_multi.view', 'incidentes.view', 'documentos.view'])
@@ -776,7 +779,7 @@
                             </li>
 
                             {{-- GESTIÓN DE USUARIOS (solo admin) --}}
-                            @can('usuarios.view')
+                            @if($isAdmin || auth()->user()?->can('usuarios.view'))
                             <li class="nav-item {{ request()->routeIs('gestion.*') ? 'menu-open' : '' }}">
                                 <a href="{{ route('gestion.index') }}"
                                     class="nav-link {{ request()->routeIs('gestion.*') ? 'active' : '' }}">
@@ -784,7 +787,7 @@
                                     <p>Gestión de Usuarios</p>
                                 </a>
                             </li>
-                            @endcan
+                            @endif
 
                         @endif
                         {{-- FIN SECCIONES SOLO ADMIN --}}
