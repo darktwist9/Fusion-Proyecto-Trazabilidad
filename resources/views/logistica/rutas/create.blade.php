@@ -25,8 +25,14 @@
                             <input name="nombre" class="form-control" required>
                         </div>
                         <div class="col-md-3 form-group">
-                            <label>ID transportista (usuarioid)</label>
-                            <input type="number" name="transportista_usuarioid" class="form-control">
+                            <label>Transportista</label>
+                            @php $drivers = \App\Models\Usuario::where('role','transportista')->where('activo', true)->orderBy('nombre')->get(); @endphp
+                            <select name="transportista_usuarioid" class="form-control">
+                                <option value="">-- Ninguno --</option>
+                                @foreach($drivers as $d)
+                                    <option value="{{ $d->usuarioid }}">{{ $d->nombre }} {{ $d->apellido }} ({{ $d->nombreusuario }})</option>
+                                @endforeach
+                            </select>
                         </div>
                         <div class="col-md-3 form-group">
                             <label>Fecha salida</label>
