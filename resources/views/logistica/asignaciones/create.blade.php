@@ -132,17 +132,39 @@ document.getElementById('submit-wizard').addEventListener('click', async () => {
     envioIds.forEach(id => form.append('envio_ids[]', id));
     form.append('transportista_usuarioid', transportista);
     form.append('vehiculo_ref', vehiculo);
-    form.append('productos', JSON.stringify(productos));
 
-    const res = await fetch('{{ route('logistica.asignaciones.store') }}', {
-        method: 'POST',
-        headers: { 'X-CSRF-TOKEN': token },
-        body: form
+    // Append productos as form fields so Laravel validation sees them as arrays
+    productos.forEach((p, i) => {
+        form.append(`productos[${i}][sku]`, p.sku);
+        form.append(`productos[${i}][cantidad]`, p.cantidad);
     });
-    if (res.redirected) {
-        window.location = res.url;
-    } else {
-        window.location.reload();
+
+    try {
+        const res = await fetch('{{ route('logistica.asignaciones.store-batch') }}', {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': token },
+            body: form
+        });
+
+        console.log('Asignación response status:', res.status);
+
+        if (res.status >= 200 && res.status < 300) {
+            // If server redirects (post-redirect), follow; otherwise reload to show flash
+            if (res.redirected) {
+                window.location = res.url;
+            } else {
+                window.location.reload();
+            }
+            return;
+        }
+
+        // Try to show error details
+        let text = await res.text();
+        console.error('Asignación error response:', res.status, text);
+        alert('Error al crear asignaciones: ' + (text || res.status));
+    } catch (err) {
+        console.error('Fetch error', err);
+        alert('Error de red al crear asignaciones: ' + err.message);
     }
 });
 </script>
