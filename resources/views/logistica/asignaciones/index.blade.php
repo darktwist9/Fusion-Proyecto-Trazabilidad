@@ -32,66 +32,13 @@
 
         @if(auth()->user()?->can('asignaciones.create') || auth()->user()?->can('asignaciones.multiple'))
         <div class="row">
-            @can('asignaciones.create')
-            <div class="col-md-5">
-                <div class="card x-card">
-                    <div class="card-header bg-primary"><h3 class="card-title x-head">Asignar un envío</h3></div>
-                    <div class="card-body">
-                        <form method="POST" action="{{ route('logistica.asignaciones.store') }}">
-                            @csrf
-                            <div class="form-group">
-                                <label>ID de envío</label>
-                                <input name="externo_envio_id" class="form-control" required>
-                            </div>
-                            <div class="form-group">
-                                <label>ID pedido (opcional)</label>
-                                <input type="number" name="pedidoid" class="form-control">
-                            </div>
-                            <div class="form-group">
-                                <label>ID transportista (usuarioid)</label>
-                                <input type="number" name="transportista_usuarioid" class="form-control" required>
-                            </div>
-                            <div class="form-group">
-                                <label>Ruta multi-entrega (opcional)</label>
-                                <input type="number" name="rutamultientregaid" class="form-control">
-                            </div>
-                            <div class="form-group">
-                                <label>Vehículo referencia (opcional)</label>
-                                <input name="vehiculo_ref" class="form-control">
-                            </div>
-                            <button class="btn btn-primary">Asignar</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-            @endcan
-
             @can('asignaciones.multiple')
             <div class="col-md-7">
                 <div class="card x-card">
                     <div class="card-header bg-success"><h3 class="card-title x-head">Asignación por lote</h3></div>
                     <div class="card-body">
-                        <form method="POST" action="{{ route('logistica.asignaciones.store-batch') }}">
-                            @csrf
-                            <div class="form-group">
-                                <label>IDs de envío (separados por coma)</label>
-                                <textarea id="envios_lote" class="form-control" rows="3" placeholder="EJ-1001,EJ-1002,EJ-1003"></textarea>
-                            </div>
-                            <input type="hidden" name="envio_ids[]" id="envio_ids_hidden">
-                            <div class="form-group">
-                                <label>ID transportista (usuarioid)</label>
-                                <input type="number" name="transportista_usuarioid" class="form-control" required>
-                            </div>
-                            <div class="form-group">
-                                <label>Ruta multi-entrega (opcional)</label>
-                                <input type="number" name="rutamultientregaid" class="form-control">
-                            </div>
-                            <div class="form-group">
-                                <label>Vehículo referencia (opcional)</label>
-                                <input name="vehiculo_ref" class="form-control">
-                            </div>
-                            <button class="btn btn-success">Aplicar asignación múltiple</button>
-                        </form>
+                        <p>Usa el asistente para realizar asignaciones por lote con selección por dropdown y añadir productos al vehículo.</p>
+                        <a href="{{ route('logistica.asignaciones.create') }}" class="btn btn-success">Abrir Wizard de Asignación</a>
                     </div>
                 </div>
             </div>

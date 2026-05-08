@@ -6,6 +6,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <title>@yield('title', 'Fusion-Proyectos | Panel')</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
 
     {{-- FONT AWESOME (CDN) --}}
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
@@ -384,9 +385,9 @@
                         {{-- INVENTARIO (todos pueden ver, solo admin edita) --}}
                         @canany(['inventario.view', 'inventario.create', 'inventario.update', 'inventario.delete'])
                         <li
-                            class="nav-item {{ request()->routeIs('insumos.*', 'lote-insumos.*', 'almacenes.*', 'producciones_almacenamiento.*', 'actores-abastecimiento.*', 'recursos-productivos.*', 'almacen-movimientos.*') ? 'menu-open' : '' }}">
+                            class="nav-item {{ request()->routeIs('insumos.*', 'lote-insumos.*', 'almacenes.*', 'actores-abastecimiento.*', 'recursos-productivos.*', 'almacen-movimientos.*') ? 'menu-open' : '' }}">
                             <a href="#"
-                                class="nav-link {{ request()->routeIs('insumos.*', 'lote-insumos.*', 'almacenes.*', 'producciones_almacenamiento.*', 'actores-abastecimiento.*', 'recursos-productivos.*', 'almacen-movimientos.*') ? 'active' : '' }}">
+                                class="nav-link {{ request()->routeIs('insumos.*', 'lote-insumos.*', 'almacenes.*', 'actores-abastecimiento.*', 'recursos-productivos.*', 'almacen-movimientos.*') ? 'active' : '' }}">
                                 <i class="nav-icon fas fa-warehouse"></i>
                                 <p>
                                     Inventario
@@ -429,13 +430,7 @@
                                         <p>Almacenes</p>
                                     </a>
                                 </li>
-                                <li class="nav-item">
-                                    <a href="{{ route('producciones_almacenamiento.index') }}"
-                                        class="nav-link {{ request()->routeIs('producciones_almacenamiento.*') ? 'active' : '' }}">
-                                        <i class="far fa-circle nav-icon"></i>
-                                        <p>Almacenamiento</p>
-                                    </a>
-                                </li>
+                                {{-- Almacenamiento eliminado del menú; usar 'Almacenes' (/almacenes) como punto único de Inventario. --}}
                                 @can('almacen.movimientos.view')
                                 <li class="nav-item">
                                     <a href="{{ route('almacen-movimientos.index') }}"
@@ -452,7 +447,10 @@
 
 
                         {{-- ENVÍOS (todos) --}}
-                        @canany(['envios.view', 'envios.create', 'envios.admin.view', 'vehiculos.view', 'transportistas.view', 'direcciones.view', 'reportes.view'])
+                        @php
+                            $enviosPermissions = ['envios.view', 'envios.create', 'envios.admin.view', 'vehiculos.view', 'transportistas.view', 'direcciones.view', 'reportes.view'];
+                        @endphp
+                        @if($isAdmin || ($authUser && $authUser->hasAnyPermission($enviosPermissions)))
                         <li class="nav-item {{ request()->routeIs('envios.*') ? 'menu-open' : '' }}">
                             <a href="#" class="nav-link {{ request()->routeIs('envios.*') ? 'active' : '' }}">
                                 <i class="nav-icon fas fa-truck"></i>
@@ -462,7 +460,7 @@
                                 </p>
                             </a>
                             <ul class="nav nav-treeview">
-                                @can('envios.create')
+                                @if($isAdmin || auth()->user()?->can('envios.create'))
                                 <li class="nav-item">
                                     <a href="{{ route('envios.mandar') }}"
                                         class="nav-link {{ request()->routeIs('envios.mandar') ? 'active' : '' }}">
@@ -470,8 +468,8 @@
                                         <p>Crear envío</p>
                                     </a>
                                 </li>
-                                @endcan
-                                @can('envios.view')
+                                @endif
+                                @if($isAdmin || auth()->user()?->can('envios.view'))
                                 <li class="nav-item">
                                     <a href="{{ route('envios.seguimiento') }}"
                                         class="nav-link {{ request()->routeIs('envios.seguimiento') ? 'active' : '' }}">
@@ -479,8 +477,8 @@
                                         <p>Seguimiento de envíos</p>
                                     </a>
                                 </li>
-                                @endcan
-                                @can('envios.admin.view')
+                                @endif
+                                @if($isAdmin || auth()->user()?->can('envios.admin.view'))
                                 <li class="nav-item">
                                     <a href="{{ route('envios.admin') }}"
                                         class="nav-link {{ request()->routeIs('envios.admin') ? 'active' : '' }}">
@@ -488,8 +486,8 @@
                                         <p>Dashboard logístico</p>
                                     </a>
                                 </li>
-                                @endcan
-                                @can('transportistas.view')
+                                @endif
+                                @if($isAdmin || auth()->user()?->can('transportistas.view'))
                                 <li class="nav-item">
                                     <a href="{{ route('envios.transportistas') }}"
                                         class="nav-link {{ request()->routeIs('envios.transportistas') ? 'active' : '' }}">
@@ -497,8 +495,8 @@
                                         <p>Transportistas</p>
                                     </a>
                                 </li>
-                                @endcan
-                                @can('vehiculos.view')
+                                @endif
+                                @if($isAdmin || auth()->user()?->can('vehiculos.view'))
                                 <li class="nav-item">
                                     <a href="{{ route('envios.vehiculos') }}"
                                         class="nav-link {{ request()->routeIs('envios.vehiculos') ? 'active' : '' }}">
@@ -506,8 +504,8 @@
                                         <p>Vehículos</p>
                                     </a>
                                 </li>
-                                @endcan
-                                @can('direcciones.view')
+                                @endif
+                                @if($isAdmin || auth()->user()?->can('direcciones.view'))
                                 <li class="nav-item">
                                     <a href="{{ route('envios.direcciones') }}"
                                         class="nav-link {{ request()->routeIs('envios.direcciones') ? 'active' : '' }}">
@@ -515,8 +513,8 @@
                                         <p>Direcciones</p>
                                     </a>
                                 </li>
-                                @endcan
-                                @can('reportes.view')
+                                @endif
+                                @if($isAdmin || auth()->user()?->can('reportes.view'))
                                 <li class="nav-item">
                                     <a href="{{ route('envios.reportes-distribucion') }}"
                                         class="nav-link {{ request()->routeIs('envios.reportes-distribucion') ? 'active' : '' }}">
@@ -524,19 +522,19 @@
                                         <p>Reportes de distribución</p>
                                     </a>
                                 </li>
-                                @endcan
+                                @endif
                                 @can('pedidos.view')
-                                    <li class="nav-item {{ request()->routeIs('pedidos.*') ? 'menu-open' : '' }}">
-                                        <a href="{{ route('pedidos.index') }}"
-                                            class="nav-link {{ request()->routeIs('pedidos.*') ? 'active' : '' }}">
-                                            <i class="nav-icon fas fa-clipboard-list"></i>
-                                            <p>Pedidos</p>
-                                        </a>
-                                    </li>
-                                @endcan
+                                        <li class="nav-item {{ request()->routeIs('pedidos.*') ? 'menu-open' : '' }}">
+                                            <a href="{{ route('pedidos.index') }}"
+                                                class="nav-link {{ request()->routeIs('pedidos.*') ? 'active' : '' }}">
+                                                <i class="nav-icon fas fa-clipboard-list"></i>
+                                                <p>Pedidos</p>
+                                            </a>
+                                        </li>
+                                    @endcan
                             </ul>
                         </li>
-                        @endcanany
+                            @endif
 
                         {{-- OPERACIÓN LOGÍSTICA --}}
                         @canany(['panel_planta.view', 'panel_transportista.view', 'panel_almacen.view', 'asignaciones.view', 'rutas_multi.view', 'incidentes.view', 'documentos.view'])
@@ -782,7 +780,7 @@
                             </li>
 
                             {{-- GESTIÓN DE USUARIOS (solo admin) --}}
-                            @can('usuarios.view')
+                            @if($isAdmin || auth()->user()?->can('usuarios.view'))
                             <li class="nav-item {{ request()->routeIs('gestion.*') ? 'menu-open' : '' }}">
                                 <a href="{{ route('gestion.index') }}"
                                     class="nav-link {{ request()->routeIs('gestion.*') ? 'active' : '' }}">
@@ -790,7 +788,7 @@
                                     <p>Gestión de Usuarios</p>
                                 </a>
                             </li>
-                            @endcan
+                            @endif
 
                         @endif
                         {{-- FIN SECCIONES SOLO ADMIN --}}
