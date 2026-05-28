@@ -163,17 +163,25 @@ Route::middleware('auth')->group(function () {
     // Evita conflicto /almacenes/create vs /almacenes/{almacen} (404 por model binding)
     Route::get('almacenes', [AlmacenController::class, 'index'])->name('almacenes.index')->middleware('action.permission:inventario,read');
     Route::get('almacenes/create', [AlmacenController::class, 'create'])->name('almacenes.create')->middleware('action.permission:inventario,create');
+    Route::get('almacenes/selector-ubicacion', [AlmacenController::class, 'selectorUbicacion'])->name('almacenes.selector-ubicacion')->middleware('action.permission:inventario,read');
     Route::post('almacenes', [AlmacenController::class, 'store'])->name('almacenes.store')->middleware('action.permission:inventario,create');
     Route::get('almacenes/{almacen}', [AlmacenController::class, 'show'])->name('almacenes.show')->middleware('action.permission:inventario,read');
     Route::get('almacenes/{almacen}/edit', [AlmacenController::class, 'edit'])->name('almacenes.edit')->middleware('action.permission:inventario,update');
     Route::put('almacenes/{almacen}', [AlmacenController::class, 'update'])->name('almacenes.update')->middleware('action.permission:inventario,update');
     Route::delete('almacenes/{almacen}', [AlmacenController::class, 'destroy'])->name('almacenes.destroy')->middleware('action.permission:inventario,delete');
-    Route::resource('producciones_almacenamiento', ProduccionAlmacenamientoController::class)->only(['index', 'show'])->middleware('action.permission:inventario,read');
     Route::resource('producciones_almacenamiento', ProduccionAlmacenamientoController::class)->only(['create', 'store'])->middleware('action.permission:inventario,create');
     Route::resource('producciones_almacenamiento', ProduccionAlmacenamientoController::class)->only(['edit', 'update'])->middleware('action.permission:inventario,update');
     Route::resource('producciones_almacenamiento', ProduccionAlmacenamientoController::class)->only(['destroy'])->middleware('action.permission:inventario,delete');
+    Route::resource('producciones_almacenamiento', ProduccionAlmacenamientoController::class)->only(['index', 'show'])->middleware('action.permission:inventario,read');
     Route::get('almacen-movimientos', [AlmacenMovimientoController::class, 'index'])
         ->name('almacen-movimientos.index')
+        ->middleware('action.permission:almacen_movimientos,read');
+    Route::get('almacen-movimientos/referencias-disponibles', [AlmacenMovimientoController::class, 'referenciasDisponibles'])
+        ->name('almacen-movimientos.referencias')
+        ->middleware('action.permission:almacen_movimientos,read');
+    Route::get('almacen-movimientos/{almacenMovimiento}', [AlmacenMovimientoController::class, 'show'])
+        ->whereNumber('almacenMovimiento')
+        ->name('almacen-movimientos.show')
         ->middleware('action.permission:almacen_movimientos,read');
     Route::get('almacen-movimientos/{naturaleza}/create', [AlmacenMovimientoController::class, 'create'])
         ->name('almacen-movimientos.create')

@@ -263,7 +263,22 @@
                             placeholder="Buscar almacén...">
                     </div>
                 </div>
-                <div class="col-md-7 text-md-right mt-3 mt-md-0 d-flex justify-content-md-end align-items-center gap-2">
+                <div class="col-md-2 mt-3 mt-md-0">
+                    <select id="filterTipo" class="form-control form-control-sm">
+                        <option value="">Todos los tipos</option>
+                        @foreach($almacenes->pluck('tipoAlmacen.nombre')->filter()->unique()->sort() as $tipoNombre)
+                            <option value="{{ strtolower($tipoNombre) }}">{{ $tipoNombre }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-2 mt-3 mt-md-0">
+                    <select id="filterEstado" class="form-control form-control-sm">
+                        <option value="">Todos los estados</option>
+                        <option value="active">Activos</option>
+                        <option value="inactive">Inactivos</option>
+                    </select>
+                </div>
+                <div class="col-md-3 text-md-right mt-3 mt-md-0 d-flex justify-content-md-end align-items-center gap-2">
                     @can('inventario.create')
                     <a href="{{ route('almacenes.create') }}" class="btn btn-success text-white mr-3"
                         style="border-radius: 20px; background-color: #28a745; border-color: #28a745;">
@@ -286,7 +301,9 @@
     <div id="cardView">
         @forelse($almacenes as $a)
             <div class="list-card search-item"
-                data-nombre="{{ strtolower($a->nombre) }} {{ strtolower($a->tipoAlmacen->nombre ?? '') }}">
+                data-nombre="{{ strtolower($a->nombre) }} {{ strtolower($a->tipoAlmacen->nombre ?? '') }}"
+                data-tipo="{{ strtolower($a->tipoAlmacen->nombre ?? '') }}"
+                data-estado="{{ $a->activo ? 'active' : 'inactive' }}">
                 <div class="list-header">
                     <div class="d-flex align-items-center">
                         <div class="rounded-circle bg-light p-2 mr-3"
@@ -371,7 +388,9 @@
                         <tbody>
                             @foreach($almacenes as $a)
                                 <tr class="search-item-row"
-                                    data-nombre="{{ strtolower($a->nombre) }} {{ strtolower($a->tipoAlmacen->nombre ?? '') }}">
+                                    data-nombre="{{ strtolower($a->nombre) }} {{ strtolower($a->tipoAlmacen->nombre ?? '') }}"
+                                    data-tipo="{{ strtolower($a->tipoAlmacen->nombre ?? '') }}"
+                                    data-estado="{{ $a->activo ? 'active' : 'inactive' }}">
                                     <td class="font-weight-bold" style="color: #2c5530;">{{ $a->nombre }}</td>
                                     <td>{{ $a->tipoAlmacen->nombre ?? '-' }}</td>
                                     <td>{{ $a->capacidad }}</td>
@@ -430,17 +449,26 @@
             });
 
             // Buscador
-            $('#searchInput').keyup(function () {
-                var val = $(this).val().toLowerCase();
+            function aplicarFiltros() {
+                var val = ($('#searchInput').val() || '').toLowerCase();
+                var tipo = ($('#filterTipo').val() || '').toLowerCase();
+                var estado = ($('#filterEstado').val() || '').toLowerCase();
+
                 $('.search-item').each(function () {
-                    var match = $(this).data('nombre').indexOf(val) > -1;
-                    $(this).toggle(match);
+                    var matchNombre = ($(this).data('nombre') || '').indexOf(val) > -1;
+                    var matchTipo = !tipo || ($(this).data('tipo') || '') === tipo;
+                    var matchEstado = !estado || ($(this).data('estado') || '') === estado;
+                    $(this).toggle(matchNombre && matchTipo && matchEstado);
                 });
                 $('.search-item-row').each(function () {
-                    var match = $(this).data('nombre').indexOf(val) > -1;
-                    $(this).toggle(match);
+                    var matchNombre = ($(this).data('nombre') || '').indexOf(val) > -1;
+                    var matchTipo = !tipo || ($(this).data('tipo') || '') === tipo;
+                    var matchEstado = !estado || ($(this).data('estado') || '') === estado;
+                    $(this).toggle(matchNombre && matchTipo && matchEstado);
                 });
-            });
+            }
+            $('#searchInput').on('keyup', aplicarFiltros);
+            $('#filterTipo, #filterEstado').on('change', aplicarFiltros);
 
             // Confirmar eliminación
             $('.on-submit-confirm').submit(function (e) {

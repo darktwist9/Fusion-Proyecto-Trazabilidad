@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Almacen;
 use App\Models\TipoAlmacen;
 use App\Models\UnidadMedida;
+use App\Services\UbicacionesAlmacenService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class AlmacenController extends Controller
 {
@@ -24,25 +26,23 @@ class AlmacenController extends Controller
         $tipos    = TipoAlmacen::all();
         $unidades = UnidadMedida::all();
 
-        return view('almacenes.create', compact('tipos', 'unidades'));
+        return view('almacenes.create', $this->datosFormulario($tipos, $unidades));
+    }
+
+    public function selectorUbicacion(Request $request)
+    {
+        $excluirAlmacenId = $request->integer('excluir_almacen_id') ?: null;
+        $ubicacionesGrupos = app(UbicacionesAlmacenService::class)
+            ->listarParaFormulario($excluirAlmacenId);
+
+        return view('almacenes.selector-ubicacion', [
+            'ubicacionesGrupos' => $ubicacionesGrupos,
+        ]);
     }
 
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'nombre'         => 'required|string|max:100|unique:almacen,nombre',
-            'descripcion'    => 'nullable|string|max:250',
-            'ubicacion'      => 'nullable|string|max:200',
-            'capacidad'      => 'nullable|numeric|min:0',
-            'unidadmedidaid' => 'nullable|exists:unidadmedida,unidadmedidaid',
-            'tipoalmacenid'  => 'nullable|exists:tipoalmacen,tipoalmacenid',
-            'activo'         => 'boolean',
-        ]);
-
-        // si no viene activo, lo dejamos por defecto de BD (true)
-        if (!isset($data['activo'])) {
-            unset($data['activo']);
-        }
+        $data = $this->validarAlmacen($request);
 
         Almacen::create($data);
 
@@ -63,22 +63,12 @@ class AlmacenController extends Controller
         $tipos    = TipoAlmacen::all();
         $unidades = UnidadMedida::all();
 
-        return view('almacenes.edit', compact('almacen', 'tipos', 'unidades'));
+        return view('almacenes.edit', $this->datosFormulario($tipos, $unidades, $almacen));
     }
 
     public function update(Request $request, Almacen $almacen)
     {
-        $data = $request->validate([
-            'nombre'         => 'required|string|max:100|unique:almacen,nombre,' . $almacen->almacenid . ',almacenid',
-            'descripcion'    => 'nullable|string|max:250',
-            'ubicacion'      => 'nullable|string|max:200',
-            'capacidad'      => 'nullable|numeric|min:0',
-            'unidadmedidaid' => 'nullable|exists:unidadmedida,unidadmedidaid',
-            'tipoalmacenid'  => 'nullable|exists:tipoalmacen,tipoalmacenid',
-            'activo'         => 'boolean',
-        ]);
-
-        $almacen->update($data);
+        $almacen->update($this->validarAlmacen($request, $almacen));
 
         return redirect()
             ->route('almacenes.index')
@@ -92,5 +82,77 @@ class AlmacenController extends Controller
         return redirect()
             ->route('almacenes.index')
             ->with('success', 'Almacén eliminado.');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function datosFormulario($tipos, $unidades, ?Almacen $almacen = null): array
+    {
+        $ubicacionesGrupos = app(UbicacionesAlmacenService::class)
+            ->listarParaFormulario($almacen?->almacenid);
+
+        $ubicacionValor = trim((string) old('ubicacion', $almacen->ubicacion ?? ''));
+        $ubicacionEnCatalogo = false;
+        foreach ($ubicacionesGrupos as $grupo) {
+            foreach ($grupo['items'] as $item) {
+                if (strcasecmp($ubicacionValor, $item['valor']) === 0) {
+                    $ubicacionEnCatalogo = true;
+                    break 2;
+                }
+            }
+        }
+
+        $tiposConfig = config('almacenes.tipos', []);
+        $tiposAyuda = [];
+        foreach ($tipos as $tipo) {
+            if (isset($tiposConfig[$tipo->nombre])) {
+                $tiposAyuda[$tipo->nombre] = $tiposConfig[$tipo->nombre];
+            }
+        }
+
+        return [
+            'tipos' => $tipos,
+            'unidades' => $unidades,
+            'almacen' => $almacen,
+            'guias' => config('almacenes', []),
+            'ubicacionesGrupos' => $ubicacionesGrupos,
+            'ubicacionEnCatalogo' => $ubicacionEnCatalogo,
+            'tiposAyuda' => $tiposAyuda,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function validarAlmacen(Request $request, ?Almacen $almacen = null): array
+    {
+        $reglas = [
+            'nombre'         => 'required|string|max:100|unique:almacen,nombre'.($almacen ? ','.$almacen->almacenid.',almacenid' : ''),
+            'descripcion'    => 'nullable|string|max:250',
+            'ubicacion'      => 'nullable|string|max:200',
+            'capacidad'      => 'nullable|numeric|min:0',
+            'unidadmedidaid' => 'nullable|exists:unidadmedida,unidadmedidaid',
+            'tipoalmacenid'  => 'nullable|exists:tipoalmacen,tipoalmacenid',
+            'activo'         => 'boolean',
+        ];
+
+        if (Schema::hasColumn('almacen', 'direccionlogisticaid')) {
+            $reglas['direccionlogisticaid'] = 'nullable|exists:direccion_logistica,direccionlogisticaid';
+        }
+
+        $data = $request->validate($reglas);
+
+        if (! isset($data['activo'])) {
+            unset($data['activo']);
+        }
+
+        if (! Schema::hasColumn('almacen', 'direccionlogisticaid')) {
+            unset($data['direccionlogisticaid']);
+        } elseif (empty($data['direccionlogisticaid'])) {
+            $data['direccionlogisticaid'] = null;
+        }
+
+        return $data;
     }
 }

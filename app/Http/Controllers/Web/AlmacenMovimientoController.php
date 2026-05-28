@@ -7,6 +7,9 @@ use App\Models\Almacen;
 use App\Models\AlmacenMovimiento;
 use App\Models\Insumo;
 use App\Models\TipoMovimientoAlmacen;
+use App\Services\DestinosMotivoAlmacenService;
+use App\Services\ReferenciasAlmacenDisponiblesService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -28,13 +31,28 @@ class AlmacenMovimientoController extends Controller
             }
         }
 
-        if ($request->filled('naturaleza')) {
-            $q->whereHas('tipo', fn($t) => $t->where('naturaleza', $request->string('naturaleza')));
+        $statsBase = clone $q;
+
+        $filtroNaturaleza = $request->string('naturaleza')->toString();
+        if (in_array($filtroNaturaleza, ['ingreso', 'salida'], true)) {
+            $q->whereHas('tipo', fn ($t) => $t->where('naturaleza', $filtroNaturaleza));
+        } else {
+            $filtroNaturaleza = '';
         }
+
+        $totalIngresos = (clone $statsBase)->whereHas('tipo', fn ($t) => $t->where('naturaleza', 'ingreso'))->count();
+        $totalSalidas = (clone $statsBase)->whereHas('tipo', fn ($t) => $t->where('naturaleza', 'salida'))->count();
+        $totalMovimientos = (clone $statsBase)->count();
 
         $movimientos = $q->paginate(20)->withQueryString();
 
-        return view('almacen_movimientos.index', compact('movimientos'));
+        return view('almacen_movimientos.index', compact(
+            'movimientos',
+            'filtroNaturaleza',
+            'totalIngresos',
+            'totalSalidas',
+            'totalMovimientos'
+        ));
     }
 
     public function create(Request $request, string $naturaleza)
@@ -55,17 +73,115 @@ class AlmacenMovimientoController extends Controller
             $insumos->where('almacenid', $user->almacenid);
         }
 
-        $tipos = TipoMovimientoAlmacen::query()
-            ->where('activo', true)
-            ->where('naturaleza', $naturaleza)
-            ->orderBy('nombre')
-            ->get();
+        $insumosList = $insumos->get();
+        $guias = config('almacen_movimientos', []);
+        $tiposAyuda = $guias['tipos'][$naturaleza] ?? [];
+        $tipos = TipoMovimientoAlmacen::activosPorNaturaleza($naturaleza);
+        $tiposAyudaPorId = $tipos->mapWithKeys(function (TipoMovimientoAlmacen $tipo) use ($tiposAyuda) {
+            $texto = $tiposAyuda[$tipo->nombre] ?? collect($tiposAyuda)->first(
+                fn ($_, string $nombre) => TipoMovimientoAlmacen::normalizeNombre($nombre) === TipoMovimientoAlmacen::normalizeNombre($tipo->nombre)
+            );
+
+            return [$tipo->tipo_movimiento_almacenid => $texto ?? 'Motivo del movimiento según su operación interna.'];
+        });
+
+        $almacenesList = $almacenes->get();
+        $almacenIdInicial = (int) old('almacenid', $almacenesList->first()?->almacenid ?? 0) ?: null;
+        $insumoIdInicial = (int) old('insumoid') ?: null;
+        $tipoIdInicial = (int) old('tipo_movimiento_almacenid') ?: null;
+
+        $referenciasService = app(ReferenciasAlmacenDisponiblesService::class);
+        $destinosService = app(DestinosMotivoAlmacenService::class);
+
+        $sugerenciasIniciales = [
+            'almacenid' => $almacenIdInicial,
+            'grupos' => [],
+            'destinos' => [],
+            'destino_sugerido' => null,
+        ];
+
+        if ($almacenIdInicial) {
+            $sugerenciasIniciales['grupos'] = $referenciasService->listar($naturaleza, $almacenIdInicial, $insumoIdInicial);
+            $sugerenciasIniciales['destinos'] = $destinosService->listar(
+                $naturaleza,
+                $almacenIdInicial,
+                $insumoIdInicial,
+                $tipoIdInicial,
+                old('referencia')
+            );
+            $sugerenciasIniciales['destino_sugerido'] = $sugerenciasIniciales['destinos'][0]['items'][0]['valor'] ?? null;
+        }
 
         return view('almacen_movimientos.create', [
             'naturaleza' => $naturaleza,
-            'almacenes' => $almacenes->get(),
-            'insumos' => $insumos->get(),
+            'almacenes' => $almacenesList,
+            'insumos' => $insumosList,
+            'insumosPorAlmacen' => $insumosList->groupBy('almacenid')->map(fn ($items) => $items->values()),
             'tipos' => $tipos,
+            'guias' => $guias,
+            'tiposAyudaPorId' => $tiposAyudaPorId,
+            'sugerenciasIniciales' => $sugerenciasIniciales,
+        ]);
+    }
+
+    public function referenciasDisponibles(
+        Request $request,
+        ReferenciasAlmacenDisponiblesService $referenciasService,
+        DestinosMotivoAlmacenService $destinosService,
+    ) {
+        $user = $request->user();
+        abort_unless(
+            $user?->can('almacen.movimientos.view')
+            || $user?->can('almacen.ingresos.view')
+            || $user?->can('almacen.ingresos.create')
+            || $user?->can('almacen.salidas.view')
+            || $user?->can('almacen.salidas.create'),
+            403
+        );
+
+        $naturaleza = $request->string('naturaleza')->toString();
+        abort_unless(in_array($naturaleza, ['ingreso', 'salida'], true), 422);
+
+        $almacenId = $request->integer('almacenid') ?: null;
+        $insumoId = $request->integer('insumoid') ?: null;
+        $tipoId = $request->integer('tipo_movimiento_almacenid') ?: null;
+        $referencia = $request->string('referencia')->toString();
+
+        if ($user?->hasRole('almacen') && $user->almacenid) {
+            $almacenId = (int) $user->almacenid;
+        }
+
+        $destinos = $destinosService->listar($naturaleza, $almacenId, $insumoId, $tipoId, $referencia ?: null);
+        $destinoSugerido = $destinos[0]['items'][0]['valor'] ?? null;
+
+        if ($referencia) {
+            $desdeRef = $referenciasService->resolverDestinoPorReferencia($naturaleza, $almacenId, $referencia);
+            if ($desdeRef) {
+                $destinoSugerido = $desdeRef;
+            }
+        }
+
+        return response()->json([
+            'grupos' => $referenciasService->listar($naturaleza, $almacenId, $insumoId),
+            'destinos' => $destinos,
+            'destino_sugerido' => $destinoSugerido,
+        ]);
+    }
+
+    public function show(Request $request, AlmacenMovimiento $almacenMovimiento)
+    {
+        $user = $request->user();
+        if ($user?->hasRole('almacen')) {
+            if (! $user->almacenid || (int) $user->almacenid !== (int) $almacenMovimiento->almacenid) {
+                abort(403);
+            }
+        }
+
+        $almacenMovimiento->load(['almacen', 'insumo.unidadMedida', 'tipo', 'usuario']);
+
+        return view('almacen_movimientos.show', [
+            'movimiento' => $almacenMovimiento,
+            'filtroNaturaleza' => $request->string('naturaleza')->toString(),
         ]);
     }
 
@@ -102,32 +218,45 @@ class AlmacenMovimientoController extends Controller
         $insumo = Insumo::query()->findOrFail($data['insumoid']);
         if ((int) $insumo->almacenid !== (int) $data['almacenid']) {
             return back()->withInput()->withErrors([
-                'insumoid' => 'El insumo seleccionado no pertenece al almacen indicado.',
+                'insumoid' => 'El insumo no pertenece al almacén seleccionado. Elija un insumo de ese mismo almacén.',
             ]);
         }
 
-        DB::transaction(function () use ($data, $insumo, $tipo, $user) {
-            AlmacenMovimiento::create($data + [
-                'usuarioid' => $user->usuarioid,
-                'tipo_movimiento_almacenid' => $tipo->tipo_movimiento_almacenid,
+        if ($tipo->naturaleza === 'salida' && ! $insumo->tieneStockSuficiente((float) $data['cantidad'])) {
+            return back()->withInput()->withErrors([
+                'cantidad' => 'Stock insuficiente. Disponible: '.number_format((float) $insumo->stock, 3),
             ]);
+        }
 
-            if ($tipo->naturaleza === 'ingreso') {
-                $insumo->incrementarStock((float) $data['cantidad']);
-            } else {
-                $insumo->decrementarStock((float) $data['cantidad']);
-            }
-        });
+        try {
+            DB::transaction(function () use ($data, $insumo, $tipo, $user) {
+                AlmacenMovimiento::create($data + [
+                    'usuarioid' => $user->usuarioid,
+                    'tipo_movimiento_almacenid' => $tipo->tipo_movimiento_almacenid,
+                ]);
+
+                if ($tipo->naturaleza === 'ingreso') {
+                    $insumo->incrementarStock((float) $data['cantidad']);
+                } else {
+                    $insumo->decrementarStock((float) $data['cantidad']);
+                }
+            });
+        } catch (\Throwable $e) {
+            return back()->withInput()->withErrors([
+                'cantidad' => $e->getMessage(),
+            ]);
+        }
 
         return redirect()
             ->route('almacen-movimientos.index', ['naturaleza' => $naturaleza])
-            ->with('success', 'Movimiento de almacen registrado correctamente.');
+            ->with('success', 'Movimiento de almacén registrado correctamente.');
     }
 
     public function reportes(Request $request)
     {
         $user = $request->user();
         $almacenId = $request->integer('almacenid') ?: null;
+        [$fechaDesde, $fechaHasta, $periodoActivo] = $this->resolverPeriodoReportes($request);
 
         if ($user?->hasRole('almacen')) {
             $almacenId = $user->almacenid ?: 0;
@@ -136,8 +265,8 @@ class AlmacenMovimientoController extends Controller
         $base = AlmacenMovimiento::query()
             ->with(['almacen', 'insumo', 'tipo'])
             ->when($almacenId, fn($q) => $q->where('almacenid', $almacenId))
-            ->when($request->filled('fecha_desde'), fn($q) => $q->whereDate('fecha', '>=', $request->string('fecha_desde')))
-            ->when($request->filled('fecha_hasta'), fn($q) => $q->whereDate('fecha', '<=', $request->string('fecha_hasta')));
+            ->whereDate('fecha', '>=', $fechaDesde)
+            ->whereDate('fecha', '<=', $fechaHasta);
 
         $movimientos = (clone $base)->orderByDesc('fecha')->limit(200)->get();
 
@@ -165,6 +294,74 @@ class AlmacenMovimientoController extends Controller
             ->orderBy('nombre')
             ->get();
 
-        return view('almacen_movimientos.reportes', compact('movimientos', 'resumenProducto', 'stockPorAlmacen', 'almacenes', 'almacenId'));
+        return view('almacen_movimientos.reportes', compact(
+            'movimientos',
+            'resumenProducto',
+            'stockPorAlmacen',
+            'almacenes',
+            'almacenId',
+            'fechaDesde',
+            'fechaHasta',
+            'periodoActivo'
+        ));
+    }
+
+    /**
+     * @return array{0:string,1:string,2:string}
+     */
+    private function resolverPeriodoReportes(Request $request): array
+    {
+        $periodo = $request->string('periodo')->toString();
+        $desde = $request->string('fecha_desde')->toString();
+        $hasta = $request->string('fecha_hasta')->toString();
+        $hoy = Carbon::today();
+
+        $usarFechasManual = $periodo === 'personalizado' || ($periodo === '' && ($desde !== '' || $hasta !== ''));
+
+        if ($usarFechasManual) {
+            $fechaDesde = $desde !== '' ? Carbon::parse($desde) : $hoy->copy()->subDays(29);
+            $fechaHasta = $hasta !== '' ? Carbon::parse($hasta) : $hoy->copy();
+            if ($fechaDesde->gt($fechaHasta)) {
+                [$fechaDesde, $fechaHasta] = [$fechaHasta, $fechaDesde];
+            }
+
+            return [$fechaDesde->toDateString(), $fechaHasta->toDateString(), 'personalizado'];
+        }
+
+        switch ($periodo) {
+            case 'hoy':
+                $fechaDesde = $hoy->copy();
+                $fechaHasta = $hoy->copy();
+                $periodoActivo = 'hoy';
+                break;
+            case '7d':
+                $fechaDesde = $hoy->copy()->subDays(6);
+                $fechaHasta = $hoy->copy();
+                $periodoActivo = '7d';
+                break;
+            case 'mes_actual':
+                $fechaDesde = $hoy->copy()->startOfMonth();
+                $fechaHasta = $hoy->copy()->endOfMonth();
+                $periodoActivo = 'mes_actual';
+                break;
+            case 'mes_pasado':
+                $fechaDesde = $hoy->copy()->subMonthNoOverflow()->startOfMonth();
+                $fechaHasta = $hoy->copy()->subMonthNoOverflow()->endOfMonth();
+                $periodoActivo = 'mes_pasado';
+                break;
+            case '90d':
+                $fechaDesde = $hoy->copy()->subDays(89);
+                $fechaHasta = $hoy->copy();
+                $periodoActivo = '90d';
+                break;
+            case '30d':
+            default:
+                $fechaDesde = $hoy->copy()->subDays(29);
+                $fechaHasta = $hoy->copy();
+                $periodoActivo = '30d';
+                break;
+        }
+
+        return [$fechaDesde->toDateString(), $fechaHasta->toDateString(), $periodoActivo];
     }
 }

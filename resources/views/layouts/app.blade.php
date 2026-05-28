@@ -385,9 +385,9 @@
                         {{-- INVENTARIO (todos pueden ver, solo admin edita) --}}
                         @canany(['inventario.view', 'inventario.create', 'inventario.update', 'inventario.delete'])
                         <li
-                            class="nav-item {{ request()->routeIs('insumos.*', 'lote-insumos.*', 'almacenes.*', 'actores-abastecimiento.*', 'recursos-productivos.*', 'almacen-movimientos.*') ? 'menu-open' : '' }}">
+                            class="nav-item {{ request()->routeIs('insumos.*', 'lote-insumos.*', 'almacenes.*', 'actores-abastecimiento.*', 'recursos-productivos.*', 'almacen-movimientos.*', 'producciones_almacenamiento.*') ? 'menu-open' : '' }}">
                             <a href="#"
-                                class="nav-link {{ request()->routeIs('insumos.*', 'lote-insumos.*', 'almacenes.*', 'actores-abastecimiento.*', 'recursos-productivos.*', 'almacen-movimientos.*') ? 'active' : '' }}">
+                                class="nav-link {{ request()->routeIs('insumos.*', 'lote-insumos.*', 'almacenes.*', 'actores-abastecimiento.*', 'recursos-productivos.*', 'almacen-movimientos.*', 'producciones_almacenamiento.*') ? 'active' : '' }}">
                                 <i class="nav-icon fas fa-warehouse"></i>
                                 <p>
                                     Inventario
@@ -430,7 +430,13 @@
                                         <p>Almacenes</p>
                                     </a>
                                 </li>
-                                {{-- Almacenamiento eliminado del menú; usar 'Almacenes' (/almacenes) como punto único de Inventario. --}}
+                                <li class="nav-item">
+                                    <a href="{{ route('producciones_almacenamiento.index') }}"
+                                        class="nav-link {{ request()->routeIs('producciones_almacenamiento.*') ? 'active' : '' }}">
+                                        <i class="far fa-circle nav-icon"></i>
+                                        <p>Almacenamiento de producción</p>
+                                    </a>
+                                </li>
                                 @can('almacen.movimientos.view')
                                 <li class="nav-item">
                                     <a href="{{ route('almacen-movimientos.index') }}"

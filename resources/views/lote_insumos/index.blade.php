@@ -253,7 +253,23 @@
                             placeholder="Buscar por lote, insumo o encargado...">
                     </div>
                 </div>
-                <div class="col-md-7 text-md-right mt-3 mt-md-0 d-flex justify-content-md-end align-items-center gap-2">
+                <div class="col-md-2 mt-3 mt-md-0">
+                    <select id="filterEstado" class="form-control form-control-sm">
+                        <option value="">Todos los estados</option>
+                        @foreach($loteInsumos->pluck('estado.nombre')->filter()->unique()->sort() as $estadoNombre)
+                            <option value="{{ strtolower($estadoNombre) }}">{{ $estadoNombre }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-2 mt-3 mt-md-0">
+                    <select id="filterEncargado" class="form-control form-control-sm">
+                        <option value="">Todos los encargados</option>
+                        @foreach($loteInsumos->pluck('usuario.nombre')->filter()->unique()->sort() as $encargado)
+                            <option value="{{ strtolower($encargado) }}">{{ $encargado }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-3 text-md-right mt-3 mt-md-0 d-flex justify-content-md-end align-items-center gap-2">
                     @can('inventario.create')
                     <a href="{{ route('lote-insumos.create') }}" class="btn btn-success text-white mr-3"
                         style="border-radius: 20px; background-color: #28a745; border-color: #28a745;">
@@ -276,7 +292,9 @@
     <div id="cardView">
         @forelse($loteInsumos as $li)
             <div class="list-card search-item"
-                data-nombre="{{ strtolower($li->lote->nombre ?? '') }} {{ strtolower($li->insumo->nombre ?? '') }} {{ strtolower($li->usuario->nombre ?? '') }}">
+                data-nombre="{{ strtolower($li->lote->nombre ?? '') }} {{ strtolower($li->insumo->nombre ?? '') }} {{ strtolower($li->usuario->nombre ?? '') }}"
+                data-estado="{{ strtolower($li->estado->nombre ?? '') }}"
+                data-encargado="{{ strtolower($li->usuario->nombre ?? '') }}">
                 <div class="list-header">
                     <div class="d-flex align-items-center">
                         <div class="rounded-circle bg-light p-2 mr-3"
@@ -366,7 +384,9 @@
                         <tbody>
                             @foreach($loteInsumos as $li)
                                 <tr class="search-item-row"
-                                    data-nombre="{{ strtolower($li->lote->nombre ?? '') }} {{ strtolower($li->insumo->nombre ?? '') }} {{ strtolower($li->usuario->nombre ?? '') }}">
+                                    data-nombre="{{ strtolower($li->lote->nombre ?? '') }} {{ strtolower($li->insumo->nombre ?? '') }} {{ strtolower($li->usuario->nombre ?? '') }}"
+                                    data-estado="{{ strtolower($li->estado->nombre ?? '') }}"
+                                    data-encargado="{{ strtolower($li->usuario->nombre ?? '') }}">
                                     <td class="font-weight-bold" style="color: #2c5530;">{{ $li->lote->nombre ?? '-' }}</td>
                                     <td>{{ $li->insumo->nombre ?? '-' }}</td>
                                     <td>{{ $li->cantidadusada }}</td>
@@ -420,17 +440,26 @@
             });
 
             // Buscador
-            $('#searchInput').keyup(function () {
-                var val = $(this).val().toLowerCase();
+            function aplicarFiltros() {
+                var val = ($('#searchInput').val() || '').toLowerCase();
+                var estado = ($('#filterEstado').val() || '').toLowerCase();
+                var encargado = ($('#filterEncargado').val() || '').toLowerCase();
+
                 $('.search-item').each(function () {
-                    var match = $(this).data('nombre').indexOf(val) > -1;
-                    $(this).toggle(match);
+                    var matchNombre = ($(this).data('nombre') || '').indexOf(val) > -1;
+                    var matchEstado = !estado || ($(this).data('estado') || '') === estado;
+                    var matchEncargado = !encargado || ($(this).data('encargado') || '') === encargado;
+                    $(this).toggle(matchNombre && matchEstado && matchEncargado);
                 });
                 $('.search-item-row').each(function () {
-                    var match = $(this).data('nombre').indexOf(val) > -1;
-                    $(this).toggle(match);
+                    var matchNombre = ($(this).data('nombre') || '').indexOf(val) > -1;
+                    var matchEstado = !estado || ($(this).data('estado') || '') === estado;
+                    var matchEncargado = !encargado || ($(this).data('encargado') || '') === encargado;
+                    $(this).toggle(matchNombre && matchEstado && matchEncargado);
                 });
-            });
+            }
+            $('#searchInput').on('keyup', aplicarFiltros);
+            $('#filterEstado, #filterEncargado').on('change', aplicarFiltros);
 
             // Confirmar eliminación
             $('.on-submit-confirm').submit(function (e) {

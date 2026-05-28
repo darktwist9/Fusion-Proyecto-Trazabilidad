@@ -281,7 +281,23 @@
                             placeholder="Buscar por almacén o producción...">
                     </div>
                 </div>
-                <div class="col-md-7 text-md-right mt-3 mt-md-0 d-flex justify-content-md-end align-items-center gap-2">
+                <div class="col-md-2 mt-3 mt-md-0">
+                    <select id="filterAlmacen" class="form-control form-control-sm">
+                        <option value="">Todos los almacenes</option>
+                        @foreach($registros->pluck('almacen.nombre')->filter()->unique()->sort() as $nombreAlmacen)
+                            <option value="{{ strtolower($nombreAlmacen) }}">{{ $nombreAlmacen }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-2 mt-3 mt-md-0">
+                    <select id="filterUnidad" class="form-control form-control-sm">
+                        <option value="">Todas las unidades</option>
+                        @foreach($registros->pluck('unidadMedida.nombre')->filter()->unique()->sort() as $nombreUnidad)
+                            <option value="{{ strtolower($nombreUnidad) }}">{{ $nombreUnidad }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-3 text-md-right mt-3 mt-md-0 d-flex justify-content-md-end align-items-center gap-2">
                     <a href="{{ route('producciones_almacenamiento.create') }}" class="btn btn-success text-white mr-3"
                         style="border-radius: 20px; background-color: #28a745; border-color: #28a745;">
                         <i class="fas fa-plus mr-1"></i> Nuevo Registro
@@ -302,7 +318,9 @@
     <div id="cardView">
         @forelse($registros as $r)
             <div class="list-card search-item"
-                data-nombre="{{ strtolower($r->almacen->nombre ?? '') }} {{ strtolower($r->produccion->lote->nombre ?? '') }}">
+                data-nombre="{{ strtolower($r->almacen->nombre ?? '') }} {{ strtolower($r->produccion->lote->nombre ?? '') }}"
+                data-almacen="{{ strtolower($r->almacen->nombre ?? '') }}"
+                data-unidad="{{ strtolower($r->unidadMedida->nombre ?? '') }}">
                 <div class="list-header">
                     <div class="d-flex align-items-center">
                         <div class="rounded-circle bg-light p-2 mr-3"
@@ -393,7 +411,9 @@
                         <tbody>
                             @foreach($registros as $r)
                                 <tr class="search-item-row"
-                                    data-nombre="{{ strtolower($r->almacen->nombre ?? '') }} {{ strtolower($r->produccion->lote->nombre ?? '') }}">
+                                    data-nombre="{{ strtolower($r->almacen->nombre ?? '') }} {{ strtolower($r->produccion->lote->nombre ?? '') }}"
+                                    data-almacen="{{ strtolower($r->almacen->nombre ?? '') }}"
+                                    data-unidad="{{ strtolower($r->unidadMedida->nombre ?? '') }}">
                                     <td class="font-weight-bold" style="color: #2c5530;">
                                         Producción N°{{ $r->produccionid }}
                                         <br><small class="text-muted">{{ $r->produccion->lote->nombre ?? '-' }}</small>
@@ -446,17 +466,26 @@
             });
 
             // Buscador
-            $('#searchInput').keyup(function () {
-                var val = $(this).val().toLowerCase();
+            function aplicarFiltros() {
+                var val = ($('#searchInput').val() || '').toLowerCase();
+                var almacen = ($('#filterAlmacen').val() || '').toLowerCase();
+                var unidad = ($('#filterUnidad').val() || '').toLowerCase();
+
                 $('.search-item').each(function () {
-                    var match = $(this).data('nombre').indexOf(val) > -1;
-                    $(this).toggle(match);
+                    var matchNombre = ($(this).data('nombre') || '').indexOf(val) > -1;
+                    var matchAlmacen = !almacen || ($(this).data('almacen') || '') === almacen;
+                    var matchUnidad = !unidad || ($(this).data('unidad') || '') === unidad;
+                    $(this).toggle(matchNombre && matchAlmacen && matchUnidad);
                 });
                 $('.search-item-row').each(function () {
-                    var match = $(this).data('nombre').indexOf(val) > -1;
-                    $(this).toggle(match);
+                    var matchNombre = ($(this).data('nombre') || '').indexOf(val) > -1;
+                    var matchAlmacen = !almacen || ($(this).data('almacen') || '') === almacen;
+                    var matchUnidad = !unidad || ($(this).data('unidad') || '') === unidad;
+                    $(this).toggle(matchNombre && matchAlmacen && matchUnidad);
                 });
-            });
+            }
+            $('#searchInput').on('keyup', aplicarFiltros);
+            $('#filterAlmacen, #filterUnidad').on('change', aplicarFiltros);
 
             // Confirmar eliminación
             $('.on-submit-confirm').submit(function (e) {

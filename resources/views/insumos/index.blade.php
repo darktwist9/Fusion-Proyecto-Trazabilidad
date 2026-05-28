@@ -267,7 +267,31 @@
                             placeholder="Buscar insumo...">
                     </div>
                 </div>
-                <div class="col-md-7 text-md-right mt-3 mt-md-0 d-flex justify-content-md-end align-items-center gap-2">
+                <div class="col-md-2 mt-3 mt-md-0">
+                    <select id="filterTipo" class="form-control form-control-sm">
+                        <option value="">Todos los tipos</option>
+                        @foreach($insumos->pluck('tipo.nombre')->filter()->unique()->sort() as $tipoNombre)
+                            <option value="{{ strtolower($tipoNombre) }}">{{ $tipoNombre }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-2 mt-3 mt-md-0">
+                    <select id="filterUnidad" class="form-control form-control-sm">
+                        <option value="">Todas las unidades</option>
+                        @foreach($insumos->pluck('unidadMedida.nombre')->filter()->unique()->sort() as $unidadNombre)
+                            <option value="{{ strtolower($unidadNombre) }}">{{ $unidadNombre }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-2 mt-3 mt-md-0">
+                    <select id="filterStock" class="form-control form-control-sm">
+                        <option value="">Todos los stocks</option>
+                        <option value="low">Stock bajo</option>
+                        <option value="medium">Stock medio</option>
+                        <option value="high">Stock alto</option>
+                    </select>
+                </div>
+                <div class="col-md-12 text-md-right mt-3 d-flex justify-content-md-end align-items-center gap-2">
                     @can('inventario.create')
                         <a href="{{ route('insumos.create') }}" class="btn btn-success text-white mr-3"
                             style="border-radius: 20px; background-color: #28a745; border-color: #28a745;">
@@ -305,7 +329,11 @@
                 else if (str_contains($tipo, 'pest'))
                     $icon = 'bug';
             @endphp
-            <div class="insumo-list-card search-item" data-nombre="{{ strtolower($i->nombre) }}">
+            <div class="insumo-list-card search-item"
+                data-nombre="{{ strtolower($i->nombre) }}"
+                data-tipo="{{ strtolower($i->tipo->nombre ?? '') }}"
+                data-unidad="{{ strtolower($i->unidadMedida->nombre ?? '') }}"
+                data-stockclass="{{ $stockClass }}">
                 <div class="insumo-list-header">
                     <div class="d-flex align-items-center">
                         <div class="rounded-circle bg-light p-2 mr-2" style="color: #2c5530;">
@@ -340,6 +368,9 @@
                 <div class="insumo-list-footer">
                     <small class="text-muted"></small>
                     <div class="d-flex align-items-center gap-1">
+                        <a href="{{ route('insumos.show', $i) }}" class="btn btn-sm btn-info text-white" title="Ver detalle">
+                            <i class="fas fa-eye"></i>
+                        </a>
                         @can('inventario.update')
                             <a href="{{ route('insumos.edit', $i) }}" class="btn btn-sm btn-warning text-white" title="Editar"><i
                                     class="fas fa-edit"></i></a>
@@ -386,7 +417,19 @@
                         </thead>
                         <tbody>
                             @foreach($insumos as $i)
-                                <tr class="search-item-row" data-nombre="{{ strtolower($i->nombre) }}">
+                                @php
+                                    $rowStockClass = 'high';
+                                    if ($i->stock <= $i->stockminimo) {
+                                        $rowStockClass = 'low';
+                                    } elseif ($i->stock < $i->stockminimo * 1.5) {
+                                        $rowStockClass = 'medium';
+                                    }
+                                @endphp
+                                <tr class="search-item-row"
+                                    data-nombre="{{ strtolower($i->nombre) }}"
+                                    data-tipo="{{ strtolower($i->tipo->nombre ?? '') }}"
+                                    data-unidad="{{ strtolower($i->unidadMedida->nombre ?? '') }}"
+                                    data-stockclass="{{ $rowStockClass }}">
                                     <td class="font-weight-bold" style="color: #2c5530;">{{ $i->nombre }}</td>
                                     <td>{{ $i->tipo->nombre ?? '-' }}</td>
                                     <td>{{ $i->unidadMedida->nombre ?? '-' }}</td>
@@ -397,6 +440,9 @@
                                     </td>
                                     <td>{{ $i->stockminimo }}</td>
                                     <td class="text-right">
+                                        <a href="{{ route('insumos.show', $i) }}" class="btn btn-sm btn-info text-white" title="Ver detalle">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
                                         @can('inventario.update')
                                             <a href="{{ route('insumos.edit', $i) }}" class="btn btn-sm btn-warning text-white"><i
                                                     class="fas fa-edit"></i></a>
@@ -441,18 +487,31 @@
             });
 
             // Buscador
-            $('#searchInput').keyup(function () {
-                var val = $(this).val().toLowerCase();
+            function aplicarFiltros() {
+                var val = ($('#searchInput').val() || '').toLowerCase();
+                var tipo = ($('#filterTipo').val() || '').toLowerCase();
+                var unidad = ($('#filterUnidad').val() || '').toLowerCase();
+                var stock = ($('#filterStock').val() || '').toLowerCase();
+
                 $('.search-item').each(function () {
-                    var match = $(this).data('nombre').indexOf(val) > -1;
-                    $(this).toggle(match);
+                    var matchNombre = (($(this).data('nombre') || '').indexOf(val) > -1);
+                    var matchTipo = !tipo || ($(this).data('tipo') || '') === tipo;
+                    var matchUnidad = !unidad || ($(this).data('unidad') || '') === unidad;
+                    var matchStock = !stock || ($(this).data('stockclass') || '') === stock;
+                    $(this).toggle(matchNombre && matchTipo && matchUnidad && matchStock);
                 });
-                // Filtrar tabla también
+
                 $('.search-item-row').each(function () {
-                    var match = $(this).data('nombre').indexOf(val) > -1;
-                    $(this).toggle(match);
+                    var matchNombre = (($(this).data('nombre') || '').indexOf(val) > -1);
+                    var matchTipo = !tipo || ($(this).data('tipo') || '') === tipo;
+                    var matchUnidad = !unidad || ($(this).data('unidad') || '') === unidad;
+                    var matchStock = !stock || ($(this).data('stockclass') || '') === stock;
+                    $(this).toggle(matchNombre && matchTipo && matchUnidad && matchStock);
                 });
-            });
+            }
+
+            $('#searchInput').on('keyup', aplicarFiltros);
+            $('#filterTipo, #filterUnidad, #filterStock').on('change', aplicarFiltros);
 
             // Confirmar eliminación
             $('.on-submit-confirm').submit(function (e) {
