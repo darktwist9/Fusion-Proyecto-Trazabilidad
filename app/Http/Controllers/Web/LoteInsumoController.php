@@ -7,6 +7,7 @@ use App\Models\LoteInsumo;
 use App\Models\Lote;
 use App\Models\Insumo;
 use App\Models\EstadoLoteInsumo;
+use App\Services\OperacionAgricolaAutomaticaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -14,11 +15,35 @@ class LoteInsumoController extends Controller
 {
     public function index()
     {
+        $q = LoteInsumo::query();
+
+        $stats = [
+            'total' => (clone $q)->count(),
+            'lotes' => (clone $q)->distinct()->count('loteid'),
+            'insumos' => (clone $q)->distinct()->count('insumoid'),
+            'cantidad_total' => (float) (clone $q)->sum('cantidadusada'),
+            'costo_total' => (float) (clone $q)->sum('costototal'),
+        ];
+
+        $estadosFiltro = (clone $q)
+            ->join('estadoloteinsumo', 'loteinsumo.estadoloteinsumoid', '=', 'estadoloteinsumo.estadoloteinsumoid')
+            ->whereNotNull('loteinsumo.estadoloteinsumoid')
+            ->distinct()
+            ->orderBy('estadoloteinsumo.nombre')
+            ->pluck('estadoloteinsumo.nombre');
+
+        $encargadosFiltro = (clone $q)
+            ->join('usuario', 'loteinsumo.usuarioid', '=', 'usuario.usuarioid')
+            ->whereNotNull('loteinsumo.usuarioid')
+            ->distinct()
+            ->orderBy('usuario.nombre')
+            ->pluck('usuario.nombre');
+
         $loteInsumos = LoteInsumo::with(['lote', 'insumo', 'usuario', 'estado'])
             ->orderBy('loteinsumoid', 'desc')
             ->paginate(15);
 
-        return view('lote_insumos.index', compact('loteInsumos'));
+        return view('lote_insumos.index', compact('loteInsumos', 'stats', 'estadosFiltro', 'encargadosFiltro'));
     }
 
     public function create()
@@ -31,9 +56,7 @@ class LoteInsumoController extends Controller
             ->where('stock', '>', 0)
             ->get();
 
-        $estados = EstadoLoteInsumo::all();
-
-        return view('lote_insumos.create', compact('lotes', 'insumos', 'estados'));
+        return view('lote_insumos.create', compact('lotes', 'insumos'));
     }
 
     public function store(Request $request)
@@ -42,7 +65,6 @@ class LoteInsumoController extends Controller
             'loteid' => 'required|exists:lote,loteid',
             'insumoid' => 'required|exists:insumo,insumoid',
             'cantidadusada' => 'required|numeric|gt:0',
-            'estadoloteinsumoid' => 'nullable|exists:estadoloteinsumo,estadoloteinsumoid',
             'observaciones' => 'nullable|string|max:200',
         ]);
 
@@ -70,16 +92,18 @@ class LoteInsumoController extends Controller
             $costoTotal = $data['cantidadusada'] * ($insumo->preciounitario ?? 0);
 
             // Crear el registro con usuario automático del lote y fecha actual
-            LoteInsumo::create([
+            $loteInsumo = LoteInsumo::create([
                 'loteid' => $data['loteid'],
                 'insumoid' => $data['insumoid'],
                 'usuarioid' => $lote->usuarioid, // Usuario responsable del lote (automático)
                 'cantidadusada' => $data['cantidadusada'],
                 'fechauo' => now(), // Fecha actual automática
                 'costototal' => $costoTotal,
-                'estadoloteinsumoid' => $data['estadoloteinsumoid'] ?? 1, // Por defecto "aplicado"
+                'estadoloteinsumoid' => $this->idEstadoAplicado(),
                 'observaciones' => $data['observaciones'],
             ]);
+
+            app(OperacionAgricolaAutomaticaService::class)->desdeLoteInsumo($loteInsumo);
 
             DB::commit();
 
@@ -208,5 +232,11 @@ class LoteInsumoController extends Controller
             DB::rollBack();
             return back()->withErrors(['error' => 'Error al eliminar: ' . $e->getMessage()]);
         }
+    }
+
+    private function idEstadoAplicado(): int
+    {
+        return (int) (EstadoLoteInsumo::whereRaw('LOWER(nombre) = ?', ['aplicado'])->value('estadoloteinsumoid')
+            ?? EstadoLoteInsumo::firstOrCreate(['nombre' => 'Aplicado'], ['nombre' => 'Aplicado'])->estadoloteinsumoid);
     }
 }

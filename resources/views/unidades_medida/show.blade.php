@@ -1,32 +1,25 @@
 @extends('layouts.app')
 
+@section('title', 'Unidades de medida | Fusion-Proyectos')
+@section('page_title', 'Unidades de medida')
+
+@section('breadcrumbs')
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('catalogos.index') }}">Catálogos</a></li>
+    <li class="breadcrumb-item active">Unidades de medida</li>
+@endsection
+
+@push('styles')
+@include('partials.modulo-catalogos-styles')
+@endpush
+
 @section('content')
-<div class="card">
-
-    <div class="card-header">
-        <h3 class="card-title">Detalles de la Unidad de Medida</h3>
-    </div>
-
-    <div class="card-body">
-
-        <p><strong>ID:</strong> {{ $unidad->unidadmedidaid }}</p>
-        <p><strong>Nombre:</strong> {{ $unidad->nombre }}</p>
-
-    </div>
-
-    <div class="card-footer">
-        <a href="{{ route('unidades-medida.index') }}" class="btn btn-secondary">Volver</a>
-
-        <a href="{{ route('unidades-medida.edit', $unidad) }}" class="btn btn-warning">Editar</a>
-
-        <form action="{{ route('unidades-medida.destroy', $unidad) }}" method="POST"
-              class="d-inline"
-              onsubmit="return confirm('¿Eliminar unidad de medida?')">
-            @csrf
-            @method('DELETE')
-            <button class="btn btn-danger">Eliminar</button>
-        </form>
-    </div>
-
-</div>
+@include('catalogos.partials.simple-show', [
+    'item' => $item,
+    'routePrefix' => 'unidades-medida',
+    'pk' => 'unidadmedidaid',
+    'singular' => 'unidad de medida',
+    'icono' => 'fa-ruler-combined',
+    'tieneDescripcion' => false,
+])
 @endsection

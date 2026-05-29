@@ -2,15 +2,20 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Http\Controllers\Concerns\FiltersCatalogoSimple;
 use App\Http\Controllers\Controller;
 use App\Models\Cultivo;
 use Illuminate\Http\Request;
 
 class CultivoController extends Controller
 {
-    public function index()
+    use FiltersCatalogoSimple;
+
+    public function index(Request $request)
     {
-        $cultivos = Cultivo::orderBy('cultivoid', 'desc')->paginate(15);
+        $query = Cultivo::query();
+        $this->aplicarFiltroBuscar($query, $request, ['nombre']);
+        $cultivos = $query->orderByDesc('cultivoid')->paginate(15)->withQueryString();
 
         return view('cultivos.index', compact('cultivos'));
     }
@@ -28,50 +33,43 @@ class CultivoController extends Controller
 
         $cultivo = Cultivo::create($data);
 
-        // Si es peticion AJAX, devolver JSON
         if ($request->ajax() || $request->wantsJson()) {
             return response()->json([
                 'success' => true,
                 'cultivoid' => $cultivo->cultivoid,
                 'nombre' => $cultivo->nombre,
-                'message' => 'Cultivo creado exitosamente'
+                'message' => 'Cultivo creado exitosamente',
             ]);
         }
 
-        return redirect()
-            ->route('cultivos.index')
-            ->with('success', 'Cultivo creado correctamente.');
+        return redirect()->route('cultivos.index')->with('success', 'Cultivo creado correctamente.');
     }
 
     public function show(Cultivo $cultivo)
     {
-        return view('cultivos.show', compact('cultivo'));
+        return view('cultivos.show', ['item' => $cultivo]);
     }
 
     public function edit(Cultivo $cultivo)
     {
-        return view('cultivos.edit', compact('cultivo'));
+        return view('cultivos.edit', ['item' => $cultivo]);
     }
 
     public function update(Request $request, Cultivo $cultivo)
     {
         $data = $request->validate([
-            'nombre' => ['required', 'string', 'max:100', 'unique:cultivo,nombre,' . $cultivo->cultivoid . ',cultivoid'],
+            'nombre' => ['required', 'string', 'max:100', 'unique:cultivo,nombre,'.$cultivo->cultivoid.',cultivoid'],
         ]);
 
         $cultivo->update($data);
 
-        return redirect()
-            ->route('cultivos.index')
-            ->with('success', 'Cultivo actualizado correctamente.');
+        return redirect()->route('cultivos.index')->with('success', 'Cultivo actualizado correctamente.');
     }
 
     public function destroy(Cultivo $cultivo)
     {
         $cultivo->delete();
 
-        return redirect()
-            ->route('cultivos.index')
-            ->with('success', 'Cultivo eliminado correctamente.');
+        return redirect()->route('cultivos.index')->with('success', 'Cultivo eliminado correctamente.');
     }
 }

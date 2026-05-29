@@ -84,7 +84,7 @@ class ExternalApiProxyController extends Controller
      *
      * @param  callable(): array  $localPayload
      */
-    protected function proxyGetWithLocalFallback(string $endpoint, callable $localPayload)
+    protected function proxyGetWithLocalFallback(string $endpoint, callable $localPayload, ?int $timeoutSeconds = null)
     {
         $base = trim($this->getBaseUrl());
         if ($base === '') {
@@ -97,7 +97,12 @@ class ExternalApiProxyController extends Controller
             $url = $base.$endpoint;
             Log::info('External API Proxy GET', ['url' => $url]);
 
-            $response = $this->buildRequest()->get($url);
+            $request = $this->buildRequest();
+            if ($timeoutSeconds !== null) {
+                $request = $request->connectTimeout(min(2, $timeoutSeconds))->timeout($timeoutSeconds);
+            }
+
+            $response = $request->get($url);
             $jsonResponse = $response->json();
             $successful = $response->successful();
 
@@ -190,7 +195,10 @@ class ExternalApiProxyController extends Controller
 
     public function getTiposEmpaque()
     {
-        return $this->proxyGet('/api/catalogo-tipos-empaque');
+        return $this->proxyGetWithLocalFallback(
+            '/api/catalogo-tipos-empaque',
+            fn () => LocalOrgTrackFallback::tiposEmpaqueCatalogList()
+        );
     }
 
     public function getTamanoConteo()
@@ -198,9 +206,24 @@ class ExternalApiProxyController extends Controller
         return $this->proxyGet('/api/catalogo-tamano-conteo');
     }
 
+    /**
+     * Comprobación rápida de disponibilidad del proxy (siempre responde 200 en la app Fusion).
+     */
+    public function ping()
+    {
+        return response()->json([
+            'ok' => true,
+            'fuente' => 'fusion',
+            'servidor' => now()->toIso8601String(),
+        ]);
+    }
+
     public function getTiposTransporte()
     {
-        return $this->proxyGet('/api/tipo-transporte');
+        return $this->proxyGetWithLocalFallback(
+            '/api/tipo-transporte',
+            fn () => LocalOrgTrackFallback::tiposTransporteList()
+        );
     }
 
     // =============================================
@@ -220,15 +243,35 @@ class ExternalApiProxyController extends Controller
 
     public function getEnvios(Request $request)
     {
+        $limit = max(10, min(500, (int) $request->query('limit', 80)));
+        $estado = $request->query('estado');
+        $estado = is_string($estado) && trim($estado) !== '' ? strtolower(trim($estado)) : null;
+        $local = LocalOrgTrackFallback::enviosPayload($limit, $estado);
+
+        if (! empty($local['data']) || $estado !== null) {
+            return response()->json($local);
+        }
+
         return $this->proxyGetWithLocalFallback(
             '/api/public/envios/all',
-            fn () => LocalOrgTrackFallback::enviosPayload()
+            fn () => $local,
+            2
         );
     }
 
     public function getEnvioDetalle($id)
     {
-        return $this->proxyGet('/api/public/envios/' . $id . '/seguimiento');
+        $local = LocalOrgTrackFallback::envioDetallePayload($id);
+
+        if (! empty($local['particiones'])) {
+            return response()->json($local);
+        }
+
+        return $this->proxyGetWithLocalFallback(
+            '/api/public/envios/'.$id.'/seguimiento',
+            fn () => $local,
+            2
+        );
     }
 
     public function getTransportistas()

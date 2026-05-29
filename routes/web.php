@@ -41,6 +41,10 @@ use App\Http\Controllers\Web\ReporteController;
 use App\Http\Controllers\Web\CatalogoController;
 
 // 🔹 External API Proxy Controller
+use App\Http\Controllers\Web\EnvioDashboardController;
+use App\Http\Controllers\Web\EnvioDetalleController;
+use App\Http\Controllers\Web\EnvioMandarController;
+use App\Http\Controllers\Web\EnvioSeguimientoController;
 use App\Http\Controllers\Web\ExternalApiProxyController;
 use App\Http\Controllers\Web\CertificacionController;
 use App\Http\Controllers\Web\ActorAbastecimientoController;
@@ -106,6 +110,7 @@ Route::middleware('auth')->group(function () {
     Route::put('actividades/{actividad}', [ActividadController::class, 'update'])->name('actividades.update')->middleware('action.permission:lotes,update');
     Route::delete('actividades/{actividad}', [ActividadController::class, 'destroy'])->name('actividades.destroy')->middleware('action.permission:lotes,update');
     Route::post('actividades/{actividad}/marcar-realizada', [ActividadController::class, 'marcarRealizada'])->name('actividades.marcar-realizada')->middleware('action.permission:lotes,update');
+    Route::get('climas/datos-tiempo', [ClimaController::class, 'datosTiempo'])->name('climas.datos-tiempo');
     Route::get('climas', [ClimaController::class, 'index'])->name('climas.index');
     Route::get('clima', [ClimaController::class, 'index'])->name('clima.index');
     Route::resource('cultivos', CultivoController::class);
@@ -128,6 +133,7 @@ Route::middleware('auth')->group(function () {
     Route::get('lotes/mapa', [LoteController::class, 'mapa'])->name('lotes.mapa')->middleware('action.permission:lotes,read');
     Route::get('lotes', [LoteController::class, 'index'])->name('lotes.index')->middleware('action.permission:lotes,read');
     Route::get('lotes/create', [LoteController::class, 'create'])->name('lotes.create')->middleware('action.permission:lotes,create');
+    Route::post('lotes/sincronizar-operacion', [LoteController::class, 'sincronizarOperacion'])->name('lotes.sincronizar-operacion')->middleware('action.permission:lotes,update');
     Route::post('lotes', [LoteController::class, 'store'])->name('lotes.store')->middleware('action.permission:lotes,create');
     Route::get('lotes/{lote}', [LoteController::class, 'show'])->name('lotes.show')->middleware('action.permission:lotes,read');
     Route::get('lotes/{lote}/edit', [LoteController::class, 'edit'])->name('lotes.edit')->middleware('action.permission:lotes,update');
@@ -144,8 +150,8 @@ Route::middleware('auth')->group(function () {
         ->parameters(['prioridades' => 'prioridad']);
     Route::resource('producciones', ProduccionController::class)
         ->parameters(['producciones' => 'produccion']);
-    Route::resource('procesos-planta', ProcesoPlantaController::class)->only(['index', 'store', 'update', 'destroy']);
-    Route::resource('maquinas-planta', MaquinaPlantaController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::resource('procesos-planta', ProcesoPlantaController::class)->only(['index', 'show', 'store', 'update', 'destroy']);
+    Route::resource('maquinas-planta', MaquinaPlantaController::class)->only(['index', 'show', 'store', 'update', 'destroy']);
     Route::resource('tipo-actividad', TipoActividadController::class);
     Route::resource('tipo-insumos', TipoInsumoController::class);
     Route::resource('unidades-medida', UnidadMedidaController::class)
@@ -159,28 +165,28 @@ Route::middleware('auth')->group(function () {
     Route::delete('ventas/{venta}', [VentaController::class, 'destroy'])->name('ventas.destroy')->middleware('action.permission:ventas,delete');
     Route::resource('tipoalmacenes', TipoAlmacenController::class)
         ->parameters(['tipoalmacenes' => 'tipoalmacen']);
-    Route::resource('almacenes', AlmacenController::class)
-        ->parameters(['almacenes' => 'almacen'])
-        ->only(['index', 'show'])
-        ->middleware('action.permission:inventario,read');
-    Route::resource('almacenes', AlmacenController::class)
-        ->parameters(['almacenes' => 'almacen'])
-        ->only(['create', 'store'])
-        ->middleware('action.permission:inventario,create');
-    Route::resource('almacenes', AlmacenController::class)
-        ->parameters(['almacenes' => 'almacen'])
-        ->only(['edit', 'update'])
-        ->middleware('action.permission:inventario,update');
-    Route::resource('almacenes', AlmacenController::class)
-        ->parameters(['almacenes' => 'almacen'])
-        ->only(['destroy'])
-        ->middleware('action.permission:inventario,delete');
-    Route::resource('producciones_almacenamiento', ProduccionAlmacenamientoController::class)->only(['index', 'show'])->middleware('action.permission:inventario,read');
+    // Evita conflicto /almacenes/create vs /almacenes/{almacen} (404 por model binding)
+    Route::get('almacenes', [AlmacenController::class, 'index'])->name('almacenes.index')->middleware('action.permission:inventario,read');
+    Route::get('almacenes/create', [AlmacenController::class, 'create'])->name('almacenes.create')->middleware('action.permission:inventario,create');
+    Route::get('almacenes/selector-ubicacion', [AlmacenController::class, 'selectorUbicacion'])->name('almacenes.selector-ubicacion')->middleware('action.permission:inventario,read');
+    Route::post('almacenes', [AlmacenController::class, 'store'])->name('almacenes.store')->middleware('action.permission:inventario,create');
+    Route::get('almacenes/{almacen}', [AlmacenController::class, 'show'])->name('almacenes.show')->middleware('action.permission:inventario,read');
+    Route::get('almacenes/{almacen}/edit', [AlmacenController::class, 'edit'])->name('almacenes.edit')->middleware('action.permission:inventario,update');
+    Route::put('almacenes/{almacen}', [AlmacenController::class, 'update'])->name('almacenes.update')->middleware('action.permission:inventario,update');
+    Route::delete('almacenes/{almacen}', [AlmacenController::class, 'destroy'])->name('almacenes.destroy')->middleware('action.permission:inventario,delete');
     Route::resource('producciones_almacenamiento', ProduccionAlmacenamientoController::class)->only(['create', 'store'])->middleware('action.permission:inventario,create');
     Route::resource('producciones_almacenamiento', ProduccionAlmacenamientoController::class)->only(['edit', 'update'])->middleware('action.permission:inventario,update');
     Route::resource('producciones_almacenamiento', ProduccionAlmacenamientoController::class)->only(['destroy'])->middleware('action.permission:inventario,delete');
+    Route::resource('producciones_almacenamiento', ProduccionAlmacenamientoController::class)->only(['index', 'show'])->middleware('action.permission:inventario,read');
     Route::get('almacen-movimientos', [AlmacenMovimientoController::class, 'index'])
         ->name('almacen-movimientos.index')
+        ->middleware('action.permission:almacen_movimientos,read');
+    Route::get('almacen-movimientos/referencias-disponibles', [AlmacenMovimientoController::class, 'referenciasDisponibles'])
+        ->name('almacen-movimientos.referencias')
+        ->middleware('action.permission:almacen_movimientos,read');
+    Route::get('almacen-movimientos/{almacenMovimiento}', [AlmacenMovimientoController::class, 'show'])
+        ->whereNumber('almacenMovimiento')
+        ->name('almacen-movimientos.show')
         ->middleware('action.permission:almacen_movimientos,read');
     Route::get('almacen-movimientos/{naturaleza}/create', [AlmacenMovimientoController::class, 'create'])
         ->name('almacen-movimientos.create')
@@ -192,7 +198,9 @@ Route::middleware('auth')->group(function () {
         ->name('almacen-movimientos.reportes')
         ->middleware('action.permission:almacen_reportes,read');
     Route::get('/certificaciones', [CertificacionController::class, 'index'])->name('certificaciones.index')->middleware('action.permission:certificaciones,read');
+    Route::post('/certificaciones/masivo', [CertificacionController::class, 'storeBulk'])->name('certificaciones.store-bulk')->middleware('action.permission:certificaciones,create');
     Route::post('/certificaciones', [CertificacionController::class, 'store'])->name('certificaciones.store')->middleware('action.permission:certificaciones,create');
+    Route::get('/certificaciones/{certificacion}', [CertificacionController::class, 'show'])->name('certificaciones.show')->middleware('action.permission:certificaciones,read');
     // ==============================
     // PEDIDOS (CLIENTES EXTERNOS)
     // ==============================
@@ -210,6 +218,18 @@ Route::middleware('auth')->group(function () {
     Route::get('/gestion-usuarios', [GestionUsuariosController::class, 'index'])
         ->middleware('action.permission:usuarios,read')
         ->name('gestion.index');
+
+    Route::get('/gestion-usuarios/crear', [GestionUsuariosController::class, 'create'])
+        ->middleware('action.permission:usuarios,create')
+        ->name('gestion.create');
+
+    Route::get('/gestion-usuarios/{usuario}/editar', [GestionUsuariosController::class, 'edit'])
+        ->middleware('action.permission:usuarios,update')
+        ->name('gestion.edit');
+
+    Route::get('/gestion-usuarios/{usuario}', [GestionUsuariosController::class, 'show'])
+        ->middleware('action.permission:usuarios,read')
+        ->name('gestion.show');
 
     // CRUD Usuarios
     Route::post('/gestion-usuarios/usuario', [GestionUsuariosController::class, 'storeUsuario'])
@@ -254,19 +274,66 @@ Route::middleware('auth')->group(function () {
     // ENVÍOS
 
     Route::prefix('envios')->name('envios.')->group(function () {
-        Route::get('/mandar', fn() => view('envios.mandar-envio'))->name('mandar')->middleware('action.permission:envios,create');
-        Route::get('/seguimiento', fn() => view('envios.seguimiento'))->name('seguimiento')->middleware('action.permission:envios,read');
-        Route::get('/{id}', fn($id) => view('envios.detalle', ['id' => $id]))->name('detalle')->where('id', '[0-9]+')->middleware('action.permission:envios,read');
-        Route::get('/admin', fn() => view('envios.admin'))->name('admin')->middleware('action.permission:envios,admin');
-        Route::get('/transportistas', fn() => view('envios.transportistas'))->name('transportistas')->middleware('action.permission:transportistas,read');
-        Route::get('/vehiculos', fn() => view('envios.vehiculos'))->name('vehiculos')->middleware('action.permission:vehiculos,read');
-        Route::get('/direcciones', fn() => view('envios.direcciones'))->name('direcciones')->middleware('action.permission:direcciones,read');
+        Route::get('/mandar', [EnvioMandarController::class, 'create'])->name('mandar')->middleware('action.permission:envios,create');
+        Route::get('/seguimiento', [EnvioSeguimientoController::class, 'index'])->name('seguimiento')->middleware('action.permission:envios,read');
+        Route::get('/admin', [EnvioDashboardController::class, 'index'])->name('admin')->middleware('action.permission:envios,admin');
+        Route::get('/transportistas', function () {
+            $payload = \App\Support\LocalOrgTrackFallback::transportistasPayload();
+            $transportistas = $payload['data'] ?? [];
+            $estadosFiltro = collect($transportistas)->map(function ($t) {
+                return $t['estado']['nombre'] ?? $t['estadotransportista']['nombre'] ?? ($t['estado'] ?? null);
+            })->filter()->unique()->sort()->values()->all();
+
+            return view('envios.transportistas', [
+                'transportistas' => $transportistas,
+                'metaInicial' => $payload['_meta'] ?? [],
+                'estadosFiltro' => $estadosFiltro,
+            ]);
+        })->name('transportistas')->middleware('action.permission:transportistas,read');
+        Route::get('/vehiculos', function () {
+            $payload = \App\Support\LocalOrgTrackFallback::vehiculosPayload();
+            $vehiculos = $payload['data'] ?? [];
+            $estadosFiltro = collect($vehiculos)->map(fn ($v) => $v['estado_vehiculo']['nombre'] ?? $v['estadoVehiculo']['nombre'] ?? ($v['estado'] ?? null))
+                ->filter()->unique()->sort()->values()->all();
+            $tiposFiltro = collect($vehiculos)->map(fn ($v) => $v['tipo_vehiculo']['nombre'] ?? $v['tipoVehiculo']['nombre'] ?? ($v['tipo'] ?? null))
+                ->filter()->unique()->sort()->values()->all();
+
+            return view('envios.vehiculos', [
+                'vehiculos' => $vehiculos,
+                'metaInicial' => $payload['_meta'] ?? [],
+                'estadosFiltro' => $estadosFiltro,
+                'tiposFiltro' => $tiposFiltro,
+            ]);
+        })->name('vehiculos')->middleware('action.permission:vehiculos,read');
+        Route::get('/direcciones', function () {
+            $envios = \App\Support\LocalOrgTrackFallback::enviosPayload(500)['data'] ?? [];
+            $direcciones = [];
+            $seen = [];
+            foreach ($envios as $e) {
+                foreach ([['Origen', $e['direccion_origen'] ?? $e['origen'] ?? ''], ['Destino', $e['direccion_destino'] ?? $e['destino'] ?? '']] as [$tipo, $valor]) {
+                    $valor = trim((string) $valor);
+                    if ($valor === '') {
+                        continue;
+                    }
+                    $key = $tipo.'|'.$valor;
+                    if (isset($seen[$key])) {
+                        continue;
+                    }
+                    $seen[$key] = true;
+                    $direcciones[] = ['tipo' => $tipo, 'valor' => $valor];
+                }
+            }
+
+            return view('envios.direcciones', compact('direcciones'));
+        })->name('direcciones')->middleware('action.permission:direcciones,read');
         Route::get('/reportes-distribucion', [\App\Http\Controllers\Web\OrgTrackReportController::class, 'index'])->name('reportes-distribucion')->middleware('action.permission:reportes,read');
+        Route::get('/{id}', [EnvioDetalleController::class, 'show'])->name('detalle')->where('id', '[0-9]+')->middleware('action.permission:envios,read');
 
         // ==============================
         // PROXY API EXTERNA (evita CORS)
         // ==============================
         Route::prefix('api')->name('api.')->group(function () {
+            Route::get('/ping', [ExternalApiProxyController::class, 'ping'])->name('ping')->middleware('action.permission:envios,read');
             // Catálogos
             Route::get('/catalogo-categorias', [ExternalApiProxyController::class, 'getCategorias'])->name('categorias')->middleware('action.permission:envios,read');
             Route::get('/catalogo-productos', [ExternalApiProxyController::class, 'getProductos'])->name('productos')->middleware('action.permission:envios,read');
@@ -317,6 +384,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/asignaciones/lote', [AsignacionMultipleController::class, 'storeBatch'])
             ->name('asignaciones.store-batch')
             ->middleware('action.permission:asignaciones,multiple');
+        Route::patch('/asignaciones/{asignacion}/recepcion', [AsignacionMultipleController::class, 'markDelivered'])
+            ->name('asignaciones.mark-delivered')
+            ->middleware('action.permission:asignaciones,create');
 
         Route::get('/rutas-multi', [RutaMultiEntregaController::class, 'index'])
             ->name('rutas.index')

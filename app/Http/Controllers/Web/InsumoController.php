@@ -22,9 +22,18 @@ class InsumoController extends Controller
                 $q->whereRaw('0 = 1');
             }
         }
+        $stats = [
+            'total' => (clone $q)->count(),
+            'stock_bajo' => (clone $q)->whereColumn('stock', '<=', 'stockminimo')->count(),
+            'categorias' => (clone $q)->distinct()->count('tipoinsumoid'),
+            'valor_total' => (float) (clone $q)->selectRaw(
+                'COALESCE(SUM(stock * COALESCE(preciounitario, 0)), 0) as valor'
+            )->value('valor'),
+        ];
+
         $insumos = $q->paginate(15);
 
-        return view('insumos.index', compact('insumos'));
+        return view('insumos.index', compact('insumos', 'stats'));
     }
 
     public function create()
@@ -43,12 +52,17 @@ class InsumoController extends Controller
             'tipoinsumoid' => 'required|exists:tipoinsumo,tipoinsumoid',
             'unidadmedidaid' => 'required|exists:unidadmedida,unidadmedidaid',
             'stock' => 'required|numeric|min:0',
-            'stockminimo' => 'required|numeric|min:0',
+            'stockminimo' => 'nullable|numeric|min:0',
             'proveedor' => 'nullable|string|max:100',
             'actorid' => 'nullable|exists:actor_abastecimiento,actorid',
             'preciounitario' => 'nullable|numeric|min:0',
             'descripcion' => 'nullable|string',
         ]);
+
+        if (! isset($data['stockminimo']) || $data['stockminimo'] === null || $data['stockminimo'] === '') {
+            // Auto: umbral mínimo sugerido (20% del stock inicial).
+            $data['stockminimo'] = round(((float) $data['stock']) * 0.20, 2);
+        }
 
         if ($request->user()?->hasRole('almacen') && $request->user()->almacenid) {
             $data['almacenid'] = $request->user()->almacenid;
@@ -86,12 +100,16 @@ class InsumoController extends Controller
             'tipoinsumoid' => 'required|exists:tipoinsumo,tipoinsumoid',
             'unidadmedidaid' => 'required|exists:unidadmedida,unidadmedidaid',
             'stock' => 'required|numeric|min:0',
-            'stockminimo' => 'required|numeric|min:0',
+            'stockminimo' => 'nullable|numeric|min:0',
             'proveedor' => 'nullable|string|max:100',
             'actorid' => 'nullable|exists:actor_abastecimiento,actorid',
             'preciounitario' => 'nullable|numeric|min:0',
             'descripcion' => 'nullable|string',
         ]);
+
+        if (! isset($data['stockminimo']) || $data['stockminimo'] === null || $data['stockminimo'] === '') {
+            $data['stockminimo'] = round(((float) $data['stock']) * 0.20, 2);
+        }
 
         $insumo->update($data);
 

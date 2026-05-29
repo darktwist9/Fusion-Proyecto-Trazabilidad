@@ -9,20 +9,74 @@ use App\Models\Cultivo;
 use App\Models\ActorAbastecimiento;
 use App\Models\EstadoLoteTipo;
 use App\Models\Produccion;
+use App\Support\LoteDefaults;
+use App\Services\OperacionAgricolaAutomaticaService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 // use App\Services\SupabaseStorage; // COMENTADO TEMPORALMENTE
 
 class LoteController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $lotes = Lote::with(['usuario', 'cultivo', 'estadoTipo', 'actorAbastecimiento'])
-            ->orderBy('loteid', 'desc')
-            ->paginate(15);
+        $query = Lote::query()
+            ->with(['usuario', 'cultivo', 'estadoTipo', 'actorAbastecimiento']);
 
-        return view('lotes.index', compact('lotes'));
+        if ($request->filled('q')) {
+            $term = '%'.trim((string) $request->q).'%';
+            $query->where(function ($q) use ($term) {
+                $q->where('nombre', 'like', $term)
+                    ->orWhere('ubicacion', 'like', $term)
+                    ->orWhere('codigo_trazabilidad', 'like', $term);
+            });
+        }
+
+        if ($request->filled('cultivoid')) {
+            $query->where('cultivoid', (int) $request->cultivoid);
+        }
+
+        if ($request->filled('estadolotetipoid')) {
+            $query->where('estadolotetipoid', (int) $request->estadolotetipoid);
+        }
+
+        if ($request->filled('usuarioid')) {
+            $query->where('usuarioid', (int) $request->usuarioid);
+        }
+
+        if ($request->filled('con_mapa')) {
+            if ($request->con_mapa === '1') {
+                $query->whereNotNull('latitud')->whereNotNull('longitud');
+            } elseif ($request->con_mapa === '0') {
+                $query->where(function ($q) {
+                    $q->whereNull('latitud')->orWhereNull('longitud');
+                });
+            }
+        }
+
+        $stats = [
+            'total' => Lote::count(),
+            'en_produccion' => Lote::whereHas('estadoTipo', fn ($q) => $q->whereRaw('LOWER(TRIM(nombre)) = ?', ['en producción']))->count(),
+            'sembrados' => Lote::whereHas('estadoTipo', fn ($q) => $q->whereRaw('LOWER(TRIM(nombre)) = ?', ['sembrado']))->count(),
+            'hectareas' => round((float) (Lote::sum('superficie') ?? 0), 2),
+            'con_mapa' => Lote::whereNotNull('latitud')->whereNotNull('longitud')->count(),
+            'sin_gps' => Lote::where(function ($q) {
+                $q->whereNull('latitud')->orWhereNull('longitud');
+            })->count(),
+        ];
+
+        $lotes = $query->orderByDesc('loteid')->paginate(15)->withQueryString();
+
+        $filtros = $request->only(['q', 'cultivoid', 'estadolotetipoid', 'usuarioid', 'con_mapa']);
+        $cultivos = Cultivo::orderBy('nombre')->get();
+        $estados = EstadoLoteTipo::orderBy('nombre')->get();
+        $usuarios = Usuario::query()
+            ->where('activo', true)
+            ->whereIn('role', ['agricultor', 'operador', 'admin'])
+            ->orderBy('nombre')
+            ->get();
+
+        return view('lotes.index', compact('lotes', 'stats', 'filtros', 'cultivos', 'estados', 'usuarios'));
     }
 
     /**
@@ -33,9 +87,13 @@ class LoteController extends Controller
         // Estadísticas
         $stats = [
             'total' => Lote::count(),
-            'en_produccion' => Lote::whereHas('estadoTipo', fn($q) => $q->where('nombre', 'en producción'))->count(),
-            'cosechados' => Lote::whereHas('estadoTipo', fn($q) => $q->where('nombre', 'cosechado'))->count(),
-            'hectareas' => Lote::sum('superficie') ?? 0,
+            'en_produccion' => Lote::whereHas('estadoTipo', fn ($q) => $q->whereRaw('LOWER(TRIM(nombre)) = ?', ['en producción']))->count(),
+            'cosechados' => Lote::whereHas('estadoTipo', fn ($q) => $q->whereRaw('LOWER(TRIM(nombre)) = ?', ['cosechado']))->count(),
+            'hectareas' => (float) (Lote::sum('superficie') ?? 0),
+            'en_mapa' => Lote::whereNotNull('latitud')->whereNotNull('longitud')->count(),
+            'sin_coordenadas' => Lote::where(function ($q) {
+                $q->whereNull('latitud')->orWhereNull('longitud');
+            })->count(),
         ];
 
         // Lotes con coordenadas para el mapa
@@ -111,30 +169,52 @@ class LoteController extends Controller
 
     public function create()
     {
-        $usuarios = Usuario::all();
-        $cultivos = Cultivo::all();
-        $estados = EstadoLoteTipo::all();
-        $actores = ActorAbastecimiento::where('activo', true)->orderBy('nombre')->get();
+        $user = auth()->user();
+        $cultivos = Cultivo::orderBy('nombre')->get();
+        $mostrarSelectorPropietario = $user && (
+            $user->hasRole('admin') || $user->hasRole('operador') || $user->hasRole('Admin')
+        );
+        $usuarios = $mostrarSelectorPropietario
+            ? Usuario::query()
+                ->where('activo', true)
+                ->whereIn('role', ['agricultor', 'operador', 'admin'])
+                ->orderBy('nombre')
+                ->get()
+            : collect();
 
-        return view('lotes.create', compact('usuarios', 'cultivos', 'estados', 'actores'));
+        $propietarioPorDefecto = (int) ($user?->usuarioid ?? 0);
+
+        return view('lotes.create', compact(
+            'cultivos',
+            'mostrarSelectorPropietario',
+            'usuarios',
+            'propietarioPorDefecto'
+        ));
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
-            'usuarioid' => 'required|exists:usuario,usuarioid',
+            'usuarioid' => 'nullable|exists:usuario,usuarioid',
             'nombre' => 'required|string|max:100',
             'ubicacion' => 'nullable|string|max:200',
-            'superficie' => 'required|numeric|min:0',
+            'superficie' => 'required|numeric|min:0.01',
             'cultivoid' => 'nullable|exists:cultivo,cultivoid',
-            'actorid' => 'nullable|exists:actor_abastecimiento,actorid',
-            'codigo_trazabilidad' => 'nullable|string|max:80',
-            'fechasiembra' => 'nullable|date',
-            'estadolotetipoid' => 'nullable|exists:estadolote_tipo,estadolotetipoid',
             'latitud' => 'nullable|numeric|between:-90,90',
             'longitud' => 'nullable|numeric|between:-180,180',
-            'imagen' => 'nullable|image|max:2048', // Max 2MB
         ]);
+
+        if (empty($data['usuarioid'])) {
+            $data['usuarioid'] = (int) auth()->id();
+        }
+
+        if (empty($data['ubicacion']) && ! empty($data['latitud']) && ! empty($data['longitud'])) {
+            $data['ubicacion'] = sprintf(
+                'Parcela GPS %.5f, %.5f',
+                (float) $data['latitud'],
+                (float) $data['longitud']
+            );
+        }
 
         // SUPABASE UPLOAD
         if ($request->hasFile('imagen')) {
@@ -157,9 +237,35 @@ class LoteController extends Controller
 
         unset($data['imagen']);
 
-        Lote::create($data);
+        $data = LoteDefaults::enrich($data, true);
+        $lote = Lote::create($data);
+        LoteDefaults::registrarHistorialInicial($lote);
 
         return redirect()->route('lotes.index')->with('success', 'Lote creado exitosamente.');
+    }
+
+    /**
+     * Fuerza sincronización operativa (clima, actividades desde insumos/cosechas, riegos).
+     */
+    public function sincronizarOperacion(Request $request, OperacionAgricolaAutomaticaService $service)
+    {
+        abort_unless(
+            $request->user()?->hasRole('admin') || $request->user()?->hasRole('operador'),
+            403
+        );
+
+        $r = $service->sincronizarTodo();
+
+        return redirect()
+            ->route('lotes.index')
+            ->with('success', sprintf(
+                'Operación sincronizada: %d clima, %d act. insumo, %d cosechas, %d riegos, %d alertas clima.',
+                $r['clima_lotes'],
+                $r['actividades_insumo'],
+                $r['actividades_cosecha'],
+                $r['actividades_riego'],
+                $r['actividades_clima']
+            ));
     }
 
     public function show(Lote $lote)
@@ -299,8 +405,6 @@ class LoteController extends Controller
             'estadolotetipoid' => 'nullable|exists:estadolote_tipo,estadolotetipoid',
             'latitud' => 'nullable|numeric|between:-90,90',
             'longitud' => 'nullable|numeric|between:-180,180',
-            'latitud' => 'nullable|numeric|between:-90,90',
-            'longitud' => 'nullable|numeric|between:-180,180',
             'imagen' => 'nullable|image|max:2048',
         ]);
 
@@ -317,7 +421,7 @@ class LoteController extends Controller
 
         unset($data['imagen']);
 
-        $lote->update($data);
+        $lote->update(LoteDefaults::enrich($data, false));
 
         return redirect()->route('lotes.index')->with('success', 'Lote actualizado.');
     }

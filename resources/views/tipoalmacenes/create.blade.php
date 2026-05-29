@@ -1,33 +1,25 @@
 @extends('layouts.app')
 
+@section('title', 'Nuevo tipo de almacén | Fusion-Proyectos')
+@section('page_title', 'Nuevo tipo de almacén')
+
+@section('breadcrumbs')
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('catalogos.index') }}">Catálogos</a></li>
+    <li class="breadcrumb-item active">Tipos de almacén</li>
+@endsection
+
+@push('styles')
+@include('partials.modulo-catalogos-styles')
+@endpush
+
 @section('content')
-<div class="card">
-    <div class="card-header">
-        <h3 class="card-title">Registrar Tipo de Almacén</h3>
-    </div>
-
-    <form action="{{ route('tipoalmacenes.store') }}" method="POST">
-        @csrf
-
-        <div class="card-body">
-
-            <div class="form-group">
-                <label>Nombre</label>
-                <input type="text" name="nombre" class="form-control" maxlength="50" required>
-            </div>
-
-            <div class="form-group">
-                <label>Descripción</label>
-                <input type="text" name="descripcion" class="form-control" maxlength="200">
-            </div>
-
-        </div>
-
-        <div class="card-footer text-right">
-            <a href="{{ route('tipoalmacenes.index') }}" class="btn btn-secondary">Cancelar</a>
-            <button class="btn btn-primary">Guardar</button>
-        </div>
-
-    </form>
-</div>
+@include('catalogos.partials.simple-form-page', [
+    'esEdicion' => false,
+    'item' => null,
+    'routePrefix' => 'tipoalmacenes',
+    'singular' => 'Tipo de almacén',
+    'tieneDescripcion' => true,
+    'formAction' => route('tipoalmacenes.store'),
+])
 @endsection

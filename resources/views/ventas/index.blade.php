@@ -4,384 +4,285 @@
 @section('page_title', 'Gestión de Ventas')
 
 @section('breadcrumbs')
-    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}" style="color: #2c5530;">Inicio</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
     <li class="breadcrumb-item active">Ventas</li>
 @endsection
 
 @push('styles')
-    <style>
-        /* Cards estilo dashboard */
-        .small-box {
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(0, 0, 0, 0.05);
-            transition: transform 0.3s ease;
-        }
-
-        .small-box:hover {
-            transform: translateY(-2px);
-        }
-
-        .small-box .icon {
-            font-size: 70px !important;
-        }
-
-        .small-box-green {
-            background: linear-gradient(135deg, #28a745, #34ce57) !important;
-        }
-
-        .small-box-blue {
-            background: linear-gradient(135deg, #17a2b8, #20c997) !important;
-        }
-
-        .small-box-yellow {
-            background: linear-gradient(135deg, #ffc107, #ffca2c) !important;
-        }
-
-        .small-box-red {
-            background: linear-gradient(135deg, #dc3545, #e74a3b) !important;
-        }
-
-        /* Tarjetas de listado */
-        .venta-card {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-            margin-bottom: 15px;
-            overflow: hidden;
-            transition: all 0.3s ease;
-            border-left: 4px solid #28a745;
-        }
-
-        .venta-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.12);
-        }
-
-        .venta-header {
-            padding: 15px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid #f1f3f4;
-        }
-
-        .venta-header h5 {
-            margin: 0;
-            font-weight: 600;
-            color: #1a252f;
-            font-size: 1rem;
-        }
-
-        .venta-total {
-            font-size: 1.3rem;
-            font-weight: 700;
-            color: #28a745;
-        }
-
-        .venta-body {
-            padding: 15px 20px;
-        }
-
-        .venta-info {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-        }
-
-        .venta-info-item {
-            flex: 1;
-            min-width: 120px;
-        }
-
-        .venta-info-item label {
-            display: block;
-            font-size: 0.75rem;
-            color: #6c757d;
-            text-transform: uppercase;
-            margin-bottom: 3px;
-        }
-
-        .venta-info-item span {
-            font-weight: 600;
-            color: #1a252f;
-        }
-
-        .venta-footer {
-            padding: 12px 20px;
-            background: #f8f9fc;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .btn-action {
-            border-radius: 6px;
-            padding: 6px 12px;
-            font-size: 0.85rem;
-        }
-
-        .view-toggle .btn.active {
-            background: #2c5530;
-            color: white;
-        }
-    </style>
+@include('partials.modulo-ventas-styles')
 @endpush
 
 @section('content')
+<div class="modulo-ven">
+
     @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show">
-            <i class="fas fa-check-circle mr-2"></i>{{ session('success') }}
-            <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
-        </div>
+    <div class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle mr-1"></i> {{ session('success') }}
+        <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
+    </div>
     @endif
 
-    <!-- Cards estilo dashboard -->
-    <div class="row">
+    <div class="row mb-2">
         <div class="col-lg-3 col-6">
             <div class="small-box small-box-green">
                 <div class="inner">
-                    <h3>{{ $ventas->total() }}</h3>
-                    <p>Total Ventas</p>
+                    <h3>{{ $stats['total'] }}</h3>
+                    <p>Total ventas</p>
                 </div>
                 <div class="icon"><i class="fas fa-shopping-cart"></i></div>
-                <span class="small-box-footer">&nbsp;</span>
+                <span class="small-box-footer">Registros en el sistema</span>
             </div>
         </div>
         <div class="col-lg-3 col-6">
             <div class="small-box small-box-blue">
                 <div class="inner">
-                    <h3>Bs.{{ number_format($ventas->sum(fn($v) => ($v->cantidad ?? 0) * ($v->preciounitario ?? 0)), 0) }}
-                    </h3>
-                    <p>Ingresos Totales</p>
+                    <h3>Bs. {{ number_format($stats['ingresos'], 0) }}</h3>
+                    <p>Ingresos totales</p>
                 </div>
                 <div class="icon"><i class="fas fa-money-bill-wave"></i></div>
-                <span class="small-box-footer">&nbsp;</span>
+                <span class="small-box-footer">Suma del período filtrado</span>
             </div>
         </div>
         <div class="col-lg-3 col-6">
             <div class="small-box small-box-yellow">
                 <div class="inner">
-                    <h3>{{ number_format($ventas->sum('cantidad'), 0) }}<span style="font-size: 18px;">kg</span></h3>
-                    <p>Kg Vendidos</p>
+                    <h3>{{ number_format($stats['kg_vendidos'], 0) }}<span style="font-size:1rem;"> kg</span></h3>
+                    <p>Kg vendidos</p>
                 </div>
                 <div class="icon"><i class="fas fa-weight-hanging"></i></div>
-                <span class="small-box-footer">&nbsp;</span>
+                <span class="small-box-footer">Volumen comercializado</span>
             </div>
         </div>
         <div class="col-lg-3 col-6">
             <div class="small-box small-box-red">
                 <div class="inner">
-                    @php
-                        $promedio = $ventas->count() > 0 ? $ventas->sum(fn($v) => ($v->cantidad ?? 0) * ($v->preciounitario ?? 0)) / $ventas->count() : 0;
-                    @endphp
-                    <h3>Bs.{{ number_format($promedio, 0) }}</h3>
-                    <p>Promedio/Venta</p>
+                    <h3>Bs. {{ number_format($stats['promedio'], 0) }}</h3>
+                    <p>Promedio / venta</p>
                 </div>
                 <div class="icon"><i class="fas fa-chart-line"></i></div>
-                <span class="small-box-footer">&nbsp;</span>
+                <span class="small-box-footer">Ticket promedio</span>
             </div>
         </div>
     </div>
 
-    <!-- Acciones -->
-    <div class="card mb-4">
-        <div class="card-body py-3">
-            <div class="row align-items-center">
-                <div class="col-md-6">
-                    @can('ventas.create')
-                        <a href="{{ route('ventas.create') }}" class="btn btn-success">
-                            <i class="fas fa-plus mr-1"></i> Nueva Venta
-                        </a>
-                    @endcan
+    <div class="card card-outline card-success card-modulo-main elevation-1">
+        <div class="card-header">
+            <h3 class="card-title mb-0">
+                <i class="fas fa-shopping-cart text-success mr-1"></i>
+                Listado de ventas
+                <span class="badge badge-light border text-muted badge-registros ml-2">{{ $ventas->total() }} registros</span>
+            </h3>
+            <div class="card-tools d-flex align-items-center flex-wrap" style="gap: 6px;">
+                <button type="button" class="btn btn-tool" data-toggle="collapse" data-target="#filtrosVentasPanel" title="Filtros">
+                    <i class="fas fa-filter"></i>
+                </button>
+                <div class="btn-group btn-group-sm view-toggle mr-1">
+                    <button type="button" class="btn btn-default active" id="btnCardView" title="Tarjetas">
+                        <i class="fas fa-th-large"></i>
+                    </button>
+                    <button type="button" class="btn btn-default" id="btnTableView" title="Tabla">
+                        <i class="fas fa-list"></i>
+                    </button>
                 </div>
-                <div class="col-md-6 text-md-right mt-3 mt-md-0">
-                    <div class="btn-group view-toggle">
-                        <button type="button" class="btn btn-outline-secondary active" id="btnCardView">
-                            <i class="fas fa-th-large"></i>
-                        </button>
-                        <button type="button" class="btn btn-outline-secondary" id="btnTableView">
-                            <i class="fas fa-list"></i>
-                        </button>
-                    </div>
-                </div>
+                @can('ventas.create')
+                <a href="{{ route('ventas.create') }}" class="btn btn-success btn-sm">
+                    <i class="fas fa-plus mr-1"></i> Nueva venta
+                </a>
+                @endcan
             </div>
         </div>
-    </div>
 
-    <!-- Vista de Tarjetas -->
-    <div id="cardView">
-        @forelse($ventas as $v)
-            @php
-                $total = ($v->cantidad ?? 0) * ($v->preciounitario ?? 0);
-            @endphp
-            <div class="venta-card">
-                <div class="venta-header">
-                    <div>
-                        <h5>
-                            <i class="fas fa-user mr-2 text-muted"></i>{{ $v->cliente ?? 'Cliente no especificado' }}
-                        </h5>
-                        <small class="text-muted">
-                            <i class="fas fa-calendar mr-1"></i>
-                            {{ $v->fechaventa ? \Carbon\Carbon::parse($v->fechaventa)->format('d/m/Y') : '-' }}
-                        </small>
+        <div id="filtrosVentasPanel" class="filtros-panel collapse {{ request()->hasAny(['buscar','cultivo_id','fecha_desde','fecha_hasta']) ? 'show' : '' }}">
+            <form method="GET" action="{{ route('ventas.index') }}">
+                <div class="row align-items-end">
+                    <div class="col-lg-4 col-md-6 mb-2">
+                        <label class="small text-muted mb-1">Buscar</label>
+                        <input type="text" name="buscar" class="form-control form-control-sm" value="{{ request('buscar') }}"
+                            placeholder="Cliente, lote o cultivo…">
                     </div>
-                    <span class="venta-total">Bs. {{ number_format($total, 2) }}</span>
+                    <div class="col-lg-2 col-md-6 mb-2">
+                        <label class="small text-muted mb-1">Cultivo</label>
+                        <select name="cultivo_id" class="form-control form-control-sm">
+                            <option value="">Todos</option>
+                            @foreach($cultivosFiltro as $cultivo)
+                                <option value="{{ $cultivo->cultivoid }}" @selected(request('cultivo_id') == $cultivo->cultivoid)>{{ $cultivo->nombre }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-lg-2 col-md-6 mb-2">
+                        <label class="small text-muted mb-1">Desde</label>
+                        <input type="date" name="fecha_desde" class="form-control form-control-sm" value="{{ request('fecha_desde') }}">
+                    </div>
+                    <div class="col-lg-2 col-md-6 mb-2">
+                        <label class="small text-muted mb-1">Hasta</label>
+                        <input type="date" name="fecha_hasta" class="form-control form-control-sm" value="{{ request('fecha_hasta') }}">
+                    </div>
+                    <div class="col-lg-2 col-md-6 mb-2 d-flex" style="gap: 8px;">
+                        <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-search mr-1"></i> Filtrar</button>
+                        <a href="{{ route('ventas.index') }}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+                    </div>
                 </div>
-                <div class="venta-body">
-                    <div class="venta-info">
-                        <div class="venta-info-item">
-                            <label><i class="fas fa-boxes mr-1"></i> Producción</label>
-                            <span>
-                                @if($v->produccion)
-                                    {{ $v->produccion->lote->nombre ?? 'Lote' }}
-                                    @if($v->produccion->lote && $v->produccion->lote->cultivo)
-                                        <small class="badge badge-success">{{ $v->produccion->lote->cultivo->nombre }}</small>
-                                    @endif
-                                @else
-                                    -
+            </form>
+        </div>
+
+        @if(request()->hasAny(['buscar','cultivo_id','fecha_desde','fecha_hasta']))
+        <div class="px-3 pt-2 pb-0 filtros-activos">
+            @if(request('buscar'))<span class="badge badge-light border mr-1"><i class="fas fa-search mr-1"></i>{{ request('buscar') }}</span>@endif
+            @if(request('cultivo_id'))
+                @php $cSel = $cultivosFiltro->firstWhere('cultivoid', (int) request('cultivo_id')); @endphp
+                @if($cSel)<span class="badge badge-success mr-1">{{ $cSel->nombre }}</span>@endif
+            @endif
+            @if(request('fecha_desde'))<span class="badge badge-info mr-1">Desde {{ \Carbon\Carbon::parse(request('fecha_desde'))->format('d/m/Y') }}</span>@endif
+            @if(request('fecha_hasta'))<span class="badge badge-info mr-1">Hasta {{ \Carbon\Carbon::parse(request('fecha_hasta'))->format('d/m/Y') }}</span>@endif
+        </div>
+        @endif
+
+        <div class="card-body">
+            <div id="cardView">
+                @forelse($ventas as $v)
+                    @php $total = ($v->cantidad ?? 0) * ($v->preciounitario ?? 0); @endphp
+                    <div class="item-card-ven">
+                        <div class="item-header">
+                            <div>
+                                <h5><i class="fas fa-user text-muted mr-1"></i>{{ $v->cliente ?? 'Sin cliente' }}</h5>
+                                <small class="text-muted">
+                                    <i class="far fa-calendar-alt mr-1"></i>
+                                    {{ $v->fechaventa ? \Carbon\Carbon::parse($v->fechaventa)->format('d/m/Y') : '—' }}
+                                    · #{{ $v->ventaid }}
+                                </small>
+                            </div>
+                            <span class="item-total">Bs. {{ number_format($total, 2) }}</span>
+                        </div>
+                        <div class="item-body">
+                            <div class="info-grid">
+                                <div>
+                                    <span class="info-label">Producción</span>
+                                    <strong>
+                                        @if($v->produccion)
+                                            {{ $v->produccion->lote->nombre ?? 'Lote' }}
+                                            @if($v->produccion->lote?->cultivo)
+                                                <span class="badge badge-success ml-1">{{ $v->produccion->lote->cultivo->nombre }}</span>
+                                            @endif
+                                        @else — @endif
+                                    </strong>
+                                </div>
+                                <div>
+                                    <span class="info-label">Cantidad</span>
+                                    <strong>{{ number_format($v->cantidad ?? 0, 2) }} {{ $v->unidadMedida->abreviatura ?? 'kg' }}</strong>
+                                </div>
+                                <div>
+                                    <span class="info-label">Precio unit.</span>
+                                    <strong>Bs. {{ number_format($v->preciounitario ?? 0, 2) }}</strong>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="item-footer">
+                            <small class="text-muted">
+                                @if($v->produccion?->fechacosecha)
+                                    <i class="fas fa-tractor mr-1"></i>Cosecha: {{ \Carbon\Carbon::parse($v->produccion->fechacosecha)->format('d/m/Y') }}
                                 @endif
-                            </span>
+                            </small>
+                            <div class="btn-actions">
+                                <a href="{{ route('ventas.show', $v) }}" class="btn btn-sm btn-info" title="Ver detalle"><i class="fas fa-eye"></i></a>
+                                @can('ventas.update')
+                                <a href="{{ route('ventas.edit', $v) }}" class="btn btn-sm btn-warning" title="Editar"><i class="fas fa-edit"></i></a>
+                                @endcan
+                                @can('ventas.delete')
+                                <form action="{{ route('ventas.destroy', $v) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar esta venta? Se devolverá el stock al almacén.')">
+                                    @csrf @method('DELETE')
+                                    <button class="btn btn-sm btn-danger" title="Eliminar"><i class="fas fa-trash"></i></button>
+                                </form>
+                                @endcan
+                            </div>
                         </div>
-                        <div class="venta-info-item">
-                            <label><i class="fas fa-weight-hanging mr-1"></i> Cantidad</label>
-                            <span>{{ number_format($v->cantidad ?? 0, 2) }} {{ $v->unidadMedida->abreviatura ?? 'kg' }}</span>
-                        </div>
-                        <div class="venta-info-item">
-                            <label><i class="fas fa-tag mr-1"></i> Precio Unitario</label>
-                            <span>Bs. {{ number_format($v->preciounitario ?? 0, 2) }}</span>
-                        </div>
-
                     </div>
-                </div>
-                <div class="venta-footer">
-                    <small class="text-muted">
-                        @if($v->produccion && $v->produccion->fechacosecha)
-                            <i class="fas fa-tractor mr-1"></i> Cosechado:
-                            {{ \Carbon\Carbon::parse($v->produccion->fechacosecha)->format('d/m/Y') }}
-                        @endif
-                    </small>
-                    <div>
-                        <a href="{{ route('ventas.show', $v) }}" class="btn btn-sm btn-info btn-action" title="Ver">
-                            <i class="fas fa-eye"></i>
-                        </a>
-                        @can('ventas.update')
-                            <a href="{{ route('ventas.edit', $v) }}" class="btn btn-sm btn-warning btn-action" title="Editar">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                        @endcan
-                        @can('ventas.delete')
-                            <form action="{{ route('ventas.destroy', $v) }}" method="POST" class="d-inline"
-                                onsubmit="return confirm('¿Eliminar esta venta?')">
-                                @csrf
-                                @method('DELETE')
-                                <button class="btn btn-sm btn-danger btn-action" title="Eliminar">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </form>
+                @empty
+                    <div class="text-center py-5 text-muted">
+                        <i class="fas fa-shopping-cart fa-3x mb-3 text-light"></i>
+                        <p class="mb-2">No hay ventas con estos criterios.</p>
+                        @can('ventas.create')
+                        <a href="{{ route('ventas.create') }}" class="btn btn-success btn-sm"><i class="fas fa-plus mr-1"></i> Registrar venta</a>
                         @endcan
                     </div>
+                @endforelse
+            </div>
+
+            <div id="tableView" style="display:none;">
+                <div class="table-responsive">
+                    <table class="table table-modulo table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Cliente</th>
+                                <th>Producción</th>
+                                <th>Cultivo</th>
+                                <th class="text-right">Cantidad</th>
+                                <th class="text-right">P. unit.</th>
+                                <th class="text-right">Total</th>
+                                <th>Fecha</th>
+                                <th class="text-center" style="width:130px">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($ventas as $v)
+                                @php $total = ($v->cantidad ?? 0) * ($v->preciounitario ?? 0); @endphp
+                                <tr>
+                                    <td class="text-muted">#{{ $v->ventaid }}</td>
+                                    <td><strong>{{ $v->cliente ?? '—' }}</strong></td>
+                                    <td>{{ $v->produccion->lote->nombre ?? '—' }}</td>
+                                    <td>
+                                        @if($v->produccion?->lote?->cultivo)
+                                            <span class="badge badge-success">{{ $v->produccion->lote->cultivo->nombre }}</span>
+                                        @else — @endif
+                                    </td>
+                                    <td class="text-right">{{ number_format($v->cantidad ?? 0, 2) }} {{ $v->unidadMedida->abreviatura ?? 'kg' }}</td>
+                                    <td class="text-right">Bs. {{ number_format($v->preciounitario ?? 0, 2) }}</td>
+                                    <td class="text-right"><strong class="text-success">Bs. {{ number_format($total, 2) }}</strong></td>
+                                    <td>{{ $v->fechaventa ? \Carbon\Carbon::parse($v->fechaventa)->format('d/m/Y') : '—' }}</td>
+                                    <td class="text-center btn-actions">
+                                        <a href="{{ route('ventas.show', $v) }}" class="btn btn-sm btn-info"><i class="fas fa-eye"></i></a>
+                                        @can('ventas.update')
+                                        <a href="{{ route('ventas.edit', $v) }}" class="btn btn-sm btn-warning"><i class="fas fa-edit"></i></a>
+                                        @endcan
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="9" class="text-center py-4 text-muted">No hay ventas registradas</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
                 </div>
             </div>
-        @empty
-            <div class="card">
-                <div class="card-body text-center py-5">
-                    <i class="fas fa-shopping-cart fa-4x text-muted mb-3"></i>
-                    <h4>No hay ventas registradas</h4>
-                    <p class="text-muted">Comienza registrando tu primera venta.</p>
-                    @can('ventas.create')
-                        <a href="{{ route('ventas.create') }}" class="btn btn-success">
-                            <i class="fas fa-plus mr-1"></i> Nueva Venta
-                        </a>
-                    @endcan
-                </div>
-            </div>
-        @endforelse
+        </div>
+
+        @if($ventas->hasPages())
+        <div class="card-footer d-flex justify-content-center">
+            {{ $ventas->links() }}
+        </div>
+        @endif
     </div>
 
-    <!-- Vista de Tabla -->
-    <div id="tableView" style="display: none;">
-        <div class="card">
-            <div class="card-body p-0">
-                <table class="table table-hover mb-0">
-                    <thead class="bg-light">
-                        <tr>
-                            <th>Cliente</th>
-                            <th>Producción</th>
-                            <th>Cantidad</th>
-                            <th>Precio Unit.</th>
-                            <th>Total</th>
-                            <th>Fecha</th>
-                            <th class="text-center" style="width: 140px;">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($ventas as $v)
-                            @php $total = ($v->cantidad ?? 0) * ($v->preciounitario ?? 0); @endphp
-                            <tr>
-                                <td><strong>{{ $v->cliente ?? '-' }}</strong></td>
-                                <td>
-                                    @if($v->produccion && $v->produccion->lote)
-                                        {{ $v->produccion->lote->nombre }}
-                                    @else
-                                        -
-                                    @endif
-                                </td>
-                                <td>{{ number_format($v->cantidad ?? 0, 2) }} {{ $v->unidadMedida->abreviatura ?? 'kg' }}</td>
-                                <td>Bs. {{ number_format($v->preciounitario ?? 0, 2) }}</td>
-                                <td><strong class="text-success">Bs. {{ number_format($total, 2) }}</strong></td>
-                                <td>{{ $v->fechaventa ? \Carbon\Carbon::parse($v->fechaventa)->format('d/m/Y') : '-' }}</td>
-                                <td class="text-center">
-                                    <a href="{{ route('ventas.show', $v) }}" class="btn btn-sm btn-info"><i
-                                            class="fas fa-eye"></i></a>
-                                    @can('ventas.update')
-                                        <a href="{{ route('ventas.edit', $v) }}" class="btn btn-sm btn-warning"><i
-                                                class="fas fa-edit"></i></a>
-                                    @endcan
-                                    @can('ventas.delete')
-                                        <form action="{{ route('ventas.destroy', $v) }}" method="POST" class="d-inline"
-                                            onsubmit="return confirm('¿Eliminar?')">
-                                            @csrf @method('DELETE')
-                                            <button class="btn btn-sm btn-danger"><i class="fas fa-trash"></i></button>
-                                        </form>
-                                    @endcan
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="7" class="text-center py-4">No hay ventas registradas</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </div>
+    <div class="guia-venta mt-2">
+        <strong><i class="fas fa-lightbulb mr-1"></i> Guía rápida</strong>
+        Las ventas descuentan stock del almacén automáticamente. Usa los filtros para buscar por cliente, cultivo o fechas.
+        El reporte analítico está en <a href="{{ route('reportes.ventas') }}">Reportes → Ventas</a>.
     </div>
-
-    <!-- Paginación -->
-    @if($ventas->hasPages())
-        <div class="card mt-4">
-            <div class="card-body d-flex justify-content-center">
-                {{ $ventas->links() }}
-            </div>
-        </div>
-    @endif
+</div>
 @endsection
 
 @push('scripts')
-    <script>
-        $(function () {
-            $('#btnCardView').on('click', function () {
-                $(this).addClass('active').siblings().removeClass('active');
-                $('#cardView').show();
-                $('#tableView').hide();
-            });
-
-            $('#btnTableView').on('click', function () {
-                $(this).addClass('active').siblings().removeClass('active');
-                $('#tableView').show();
-                $('#cardView').hide();
-            });
-        });
-    </script>
+<script>
+$(function () {
+    $('#btnCardView').on('click', function () {
+        $(this).addClass('active').siblings().removeClass('active');
+        $('#cardView').show();
+        $('#tableView').hide();
+    });
+    $('#btnTableView').on('click', function () {
+        $(this).addClass('active').siblings().removeClass('active');
+        $('#tableView').show();
+        $('#cardView').hide();
+    });
+});
+</script>
 @endpush

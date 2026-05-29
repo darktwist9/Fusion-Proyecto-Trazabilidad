@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\Clima;
 use App\Models\Lote;
 use App\Models\Produccion;
+use App\Support\DashboardPresentacion;
 use App\Models\Venta;
 use App\Models\Actividad;
 use App\Models\DocumentoEntrega;
@@ -16,9 +18,12 @@ use App\Models\RutaMultiEntrega;
 use App\Models\Usuario;
 use App\Models\Cultivo;
 use App\Models\AlmacenMovimiento;
+use App\Models\AlmacenProducto;
+use App\Models\InventarioAlmacenEnvio;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 
 class DashboardController extends Controller
 {
@@ -146,8 +151,8 @@ class DashboardController extends Controller
         // ========================================
         // INSUMOS CON STOCK BAJO (para alertas)
         // ========================================
-        $insumosStockBajo = Insumo::with('tipoInsumo')
-            ->whereRaw('stock <= stockminimo')
+        $insumosStockBajo = Insumo::with('tipo')
+            ->whereRaw('stock <= COALESCE(stockminimo, 10)')
             ->orderBy('stock')
             ->limit(5)
             ->get();
@@ -174,13 +179,16 @@ class DashboardController extends Controller
             ->limit(4)
             ->get();
 
+        $resumenEstadistico = DashboardPresentacion::resumenEstadistico($stats);
+
         return view('home', compact(
             'stats',
             'chartData',
             'actividadesRecientes',
             'insumosStockBajo',
             'lotesPorEstado',
-            'topCultivos'
+            'topCultivos',
+            'resumenEstadistico'
         ));
     }
 
@@ -213,39 +221,72 @@ class DashboardController extends Controller
     // ========================================
     public function getClima(Request $request)
     {
-        $apiKey = env('OPENWEATHER_API_KEY');
-        if (! is_string($apiKey) || trim($apiKey) === '') {
-            return response()->json(['success' => false, 'error' => 'Servicio de clima no configurado'], 503);
-        }
-        $ciudad = $request->get('ciudad', 'Santa Cruz de la Sierra');
-        $pais = 'BO';
+        $ciudad = (string) $request->get('ciudad', 'Santa Cruz de la Sierra');
+        $apiKey = config('services.weather.key', env('OPENWEATHER_API_KEY', ''));
 
-        try {
-            $response = Http::timeout(10)->get("https://api.openweathermap.org/data/2.5/weather", [
-                'q' => "{$ciudad},{$pais}",
-                'appid' => $apiKey,
-                'units' => 'metric',
-                'lang' => 'es'
-            ]);
-
-            if ($response->successful()) {
-                $data = $response->json();
-                return response()->json([
-                    'success' => true,
-                    'temperatura' => round($data['main']['temp']),
-                    'sensacion' => round($data['main']['feels_like']),
-                    'humedad' => $data['main']['humidity'],
-                    'descripcion' => ucfirst($data['weather'][0]['description']),
-                    'icono' => $data['weather'][0]['icon'],
-                    'viento' => round($data['wind']['speed'] * 3.6), // m/s a km/h
-                    'ciudad' => $data['name'],
+        if (is_string($apiKey) && trim($apiKey) !== '') {
+            try {
+                $response = Http::timeout(8)->get('https://api.openweathermap.org/data/2.5/weather', [
+                    'q' => "{$ciudad},BO",
+                    'appid' => $apiKey,
+                    'units' => 'metric',
+                    'lang' => 'es',
                 ]);
-            }
 
-            return response()->json(['success' => false, 'error' => 'No se pudo obtener el clima']);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'error' => $e->getMessage()]);
+                if ($response->successful()) {
+                    $data = $response->json();
+
+                    return response()->json([
+                        'success' => true,
+                        'temperatura' => round($data['main']['temp']),
+                        'sensacion' => round($data['main']['feels_like']),
+                        'humedad' => $data['main']['humidity'],
+                        'descripcion' => ucfirst($data['weather'][0]['description']),
+                        'icono' => $data['weather'][0]['icon'],
+                        'viento' => round($data['wind']['speed'] * 3.6),
+                        'ciudad' => $data['name'],
+                        'fuente' => 'openweather',
+                    ]);
+                }
+            } catch (\Exception $e) {
+                // Continúa con fallback local
+            }
         }
+
+        return response()->json($this->climaFallbackLocal());
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function climaFallbackLocal(): array
+    {
+        if (Schema::hasTable('clima')) {
+            $row = Clima::query()->orderByDesc('fecha')->first();
+            if ($row) {
+                return [
+                    'success' => true,
+                    'temperatura' => round((float) ($row->temperatura ?? 26)),
+                    'humedad' => (int) round((float) ($row->humedad ?? 60)),
+                    'descripcion' => $row->descripcion ?: 'Condición registrada en campo',
+                    'icono' => $row->icono ?: '02d',
+                    'viento' => (int) round((float) ($row->viento ?? 10)),
+                    'ciudad' => 'Santa Cruz de la Sierra',
+                    'fuente' => 'registro_local',
+                ];
+            }
+        }
+
+        return [
+            'success' => true,
+            'temperatura' => 28,
+            'humedad' => 62,
+            'descripcion' => 'Parcialmente nublado',
+            'icono' => '02d',
+            'viento' => 14,
+            'ciudad' => 'Santa Cruz de la Sierra',
+            'fuente' => 'referencia',
+        ];
     }
 
     // ========================================
@@ -364,6 +405,8 @@ class DashboardController extends Controller
                     'envios_recibidos' => 0,
                     'por_recibir' => 0,
                     'inventario_total' => 0.0,
+                    'stock_productos_distribucion' => 0.0,
+                    'lineas_inventario_envio' => 0,
                     'recibidos_hoy' => 0,
                     'incidentes_abiertos' => 0,
                     'notas_entrega' => 0,
@@ -382,11 +425,20 @@ class DashboardController extends Controller
 
         $movimientos = AlmacenMovimiento::query()->where('almacenid', $almacenId);
 
+        $stockProductos = Schema::hasTable('almacen_producto')
+            ? (float) AlmacenProducto::query()->where('almacenid', $almacenId)->sum('stock')
+            : 0.0;
+        $lineasInvEnvio = Schema::hasTable('inventario_almacen_envio')
+            ? (int) InventarioAlmacenEnvio::query()->where('almacenid', $almacenId)->count()
+            : 0;
+
         return [
             'stats' => [
                 'envios_recibidos' => (clone $asignaciones)->where('estado', 'entregado')->count(),
                 'por_recibir' => (clone $asignaciones)->whereIn('estado', ['asignado', 'en_ruta'])->count(),
                 'inventario_total' => (float) Insumo::query()->where('almacenid', $almacenId)->sum('stock'),
+                'stock_productos_distribucion' => $stockProductos,
+                'lineas_inventario_envio' => $lineasInvEnvio,
                 'recibidos_hoy' => (clone $asignaciones)->whereDate('updated_at', now()->toDateString())->where('estado', 'entregado')->count(),
                 'incidentes_abiertos' => (clone $incidentes)->where('estado', 'abierto')->count(),
                 'notas_entrega' => $documentos->count(),

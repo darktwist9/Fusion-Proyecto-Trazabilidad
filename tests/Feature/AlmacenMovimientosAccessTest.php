@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AlmacenMovimiento;
 use App\Models\Usuario;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -42,6 +43,11 @@ class AlmacenMovimientosAccessTest extends TestCase
 
         $this->get(route('almacen-movimientos.index'))->assertOk();
         $this->get(route('almacen-movimientos.create', ['naturaleza' => 'ingreso']))->assertOk();
+
+        $mov = AlmacenMovimiento::query()->first();
+        if ($mov) {
+            $this->get(route('almacen-movimientos.show', $mov))->assertOk();
+        }
     }
 
     public function test_operador_solo_tiene_lectura_movimientos(): void

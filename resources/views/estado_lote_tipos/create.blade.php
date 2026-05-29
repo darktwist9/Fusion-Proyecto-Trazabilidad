@@ -1,40 +1,25 @@
 @extends('layouts.app')
 
+@section('title', 'Nuevo estado de lote | Fusion-Proyectos')
+@section('page_title', 'Nuevo estado de lote')
+
+@section('breadcrumbs')
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('catalogos.index') }}">Catálogos</a></li>
+    <li class="breadcrumb-item active">Estados de lote</li>
+@endsection
+
+@push('styles')
+@include('partials.modulo-catalogos-styles')
+@endpush
+
 @section('content')
-<div class="card">
-
-    <div class="card-header">
-        <h3 class="card-title">Crear Tipo de Estado</h3>
-    </div>
-
-    <form action="{{ route('estado-lote-tipos.store') }}" method="POST">
-        @csrf
-
-        <div class="card-body">
-
-            <div class="form-group">
-                <label>Nombre</label>
-                <input type="text"
-                       name="nombre"
-                       class="form-control"
-                       maxlength="50"
-                       required>
-            </div>
-
-            <div class="form-group">
-                <label>Descripción</label>
-                <textarea name="descripcion"
-                          class="form-control"
-                          maxlength="200"></textarea>
-            </div>
-
-        </div>
-
-        <div class="card-footer text-right">
-            <a href="{{ route('estado-lote-tipos.index') }}" class="btn btn-secondary">Cancelar</a>
-            <button class="btn btn-primary">Guardar</button>
-        </div>
-
-    </form>
-</div>
+@include('catalogos.partials.simple-form-page', [
+    'esEdicion' => false,
+    'item' => null,
+    'routePrefix' => 'estado-lote-tipos',
+    'singular' => 'Estado de lote',
+    'tieneDescripcion' => true,
+    'formAction' => route('estado-lote-tipos.store'),
+])
 @endsection

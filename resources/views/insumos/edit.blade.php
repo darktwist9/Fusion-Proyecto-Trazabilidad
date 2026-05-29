@@ -12,11 +12,40 @@
             @method('PUT')
 
             <div class="card-body">
+                @if($errors->any())
+                    <div class="alert alert-danger">
+                        <strong>No se pudo guardar:</strong>
+                        <ul class="mb-0 mt-2">
+                            @foreach($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+
+                <div class="card card-outline card-secondary collapsed-card mb-3">
+                    <div class="card-header py-2">
+                        <h3 class="card-title small mb-0">
+                            <i class="fas fa-question-circle text-info mr-1"></i> Guía rápida de insumos
+                        </h3>
+                        <div class="card-tools">
+                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body py-2 small" style="display:none;">
+                        <p class="mb-1"><strong>1)</strong> Edite nombre, tipo, unidad y stock actual.</p>
+                        <p class="mb-1"><strong>2)</strong> El stock mínimo puede quedarse vacío y se recalcula al 20% del stock.</p>
+                        <p class="mb-0"><strong>3)</strong> Complete datos opcionales solo si aportan trazabilidad comercial.</p>
+                    </div>
+                </div>
 
                 <div class="form-group">
                     <label>Nombre</label>
                     <input type="text" name="nombre" class="form-control" value="{{ $insumo->nombre }}" maxlength="100"
                         required>
+                    <small class="text-muted">Nombre comercial u operativo del insumo.</small>
                 </div>
 
                 <div class="form-group">
@@ -43,43 +72,57 @@
 
                 <div class="form-group">
                     <label>Stock actual</label>
-                    <input type="number" step="0.01" name="stock" class="form-control" min="0" value="{{ $insumo->stock }}"
+                    <input type="number" step="0.01" name="stock" id="stock" class="form-control" min="0" value="{{ $insumo->stock }}"
                         required>
+                    <small class="text-muted">Cantidad disponible hoy.</small>
                 </div>
 
                 <div class="form-group">
-                    <label>Stock mínimo</label>
-                    <input type="number" step="0.01" name="stockminimo" class="form-control" min="0"
-                        value="{{ $insumo->stockminimo }}" required>
+                    <label>Stock mínimo (automático)</label>
+                    <input type="number" step="0.01" name="stockminimo" id="stockminimo" class="form-control" min="0"
+                        value="{{ $insumo->stockminimo }}">
+                    <small class="text-muted">Si queda vacío, se sugiere automáticamente el 20% del stock.</small>
                 </div>
 
-                <div class="form-group">
-                    <label>Proveedor</label>
-                    <input type="text" name="proveedor" class="form-control" value="{{ $insumo->proveedor }}"
-                        maxlength="100">
-                </div>
+                <div class="card card-outline card-light collapsed-card mb-2">
+                    <div class="card-header py-2">
+                        <h3 class="card-title small mb-0">Opcionales avanzados</h3>
+                        <div class="card-tools">
+                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body py-2 small" style="display:none;">
+                        <div class="form-group">
+                            <label>Proveedor</label>
+                            <input type="text" name="proveedor" id="proveedor" class="form-control" value="{{ $insumo->proveedor }}"
+                                maxlength="100">
+                        </div>
 
-                <div class="form-group">
-                    <label>Actor de abastecimiento (productor/proveedor)</label>
-                    <select name="actorid" class="form-control">
-                        <option value="">-- Sin vincular --</option>
-                        @foreach($actores as $actor)
-                            <option value="{{ $actor->actorid }}" {{ (int) $insumo->actorid === (int) $actor->actorid ? 'selected' : '' }}>
-                                {{ $actor->nombre }} ({{ ucfirst($actor->tipo_actor) }})
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
+                        <div class="form-group">
+                            <label>Actor de abastecimiento (productor/proveedor)</label>
+                            <select name="actorid" id="actorid" class="form-control">
+                                <option value="">-- Sin vincular --</option>
+                                @foreach($actores as $actor)
+                                    <option value="{{ $actor->actorid }}" data-actor-nombre="{{ $actor->nombre }}" {{ (int) $insumo->actorid === (int) $actor->actorid ? 'selected' : '' }}>
+                                        {{ $actor->nombre }} ({{ ucfirst($actor->tipo_actor) }})
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
 
-                <div class="form-group">
-                    <label>Precio unitario</label>
-                    <input type="number" step="0.01" name="preciounitario" class="form-control" min="0"
-                        value="{{ $insumo->preciounitario }}">
-                </div>
+                        <div class="form-group">
+                            <label>Precio unitario</label>
+                            <input type="number" step="0.01" name="preciounitario" class="form-control" min="0"
+                                value="{{ $insumo->preciounitario }}">
+                        </div>
 
-                <div class="form-group">
-                    <label>Descripción</label>
-                    <textarea name="descripcion" class="form-control">{{ $insumo->descripcion }}</textarea>
+                        <div class="form-group">
+                            <label>Descripción</label>
+                            <textarea name="descripcion" class="form-control">{{ $insumo->descripcion }}</textarea>
+                        </div>
+                    </div>
                 </div>
 
             </div>
@@ -97,6 +140,32 @@
 @push('scripts')
     <script>
         $(document).ready(function () {
+            const stockInput = document.getElementById('stock');
+            const stockMinimoInput = document.getElementById('stockminimo');
+            const proveedorInput = document.getElementById('proveedor');
+            const actorSelect = document.getElementById('actorid');
+
+            function sugerirStockMinimoSiVacio() {
+                if (!stockInput || !stockMinimoInput) return;
+                if ((stockMinimoInput.value || '').trim() !== '') return;
+                const stock = parseFloat(stockInput.value || '0');
+                if (!Number.isNaN(stock) && stock > 0) {
+                    stockMinimoInput.value = (stock * 0.20).toFixed(2);
+                }
+            }
+            if (stockInput && stockMinimoInput) {
+                stockInput.addEventListener('blur', sugerirStockMinimoSiVacio);
+            }
+
+            if (actorSelect && proveedorInput) {
+                actorSelect.addEventListener('change', function () {
+                    if ((proveedorInput.value || '').trim() !== '') return;
+                    const opt = actorSelect.options[actorSelect.selectedIndex];
+                    const nombre = opt ? (opt.getAttribute('data-actor-nombre') || '') : '';
+                    if (nombre) proveedorInput.value = nombre;
+                });
+            }
+
             // SMART UNIT CONVERSION (Stock variation)
             function checkSmartConversion() {
                 const cantidadInput = $('input[name="stock"]');

@@ -2,15 +2,21 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Http\Controllers\Concerns\FiltersCatalogoSimple;
 use App\Http\Controllers\Controller;
 use App\Models\Prioridad;
 use Illuminate\Http\Request;
 
 class PrioridadController extends Controller
 {
-    public function index()
+    use FiltersCatalogoSimple;
+
+    public function index(Request $request)
     {
-        $prioridades = Prioridad::orderBy('prioridadid', 'desc')->paginate(15);
+        $query = Prioridad::query();
+        $this->aplicarFiltroBuscar($query, $request, ['nombre']);
+        $prioridades = $query->orderByDesc('prioridadid')->paginate(15)->withQueryString();
+
         return view('prioridades.index', compact('prioridades'));
     }
 
@@ -32,12 +38,12 @@ class PrioridadController extends Controller
 
     public function show(Prioridad $prioridad)
     {
-        return view('prioridades.show', compact('prioridad'));
+        return view('prioridades.show', ['item' => $prioridad]);
     }
 
     public function edit(Prioridad $prioridad)
     {
-        return view('prioridades.edit', compact('prioridad'));
+        return view('prioridades.edit', ['item' => $prioridad]);
     }
 
     public function update(Request $request, Prioridad $prioridad)
