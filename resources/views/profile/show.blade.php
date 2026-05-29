@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Mi Perfil | AgroNexus')
+@section('title', 'Mi Perfil | AgroFusion')
 @section('page_title', 'Configuración de Cuenta')
 
 @section('breadcrumbs')

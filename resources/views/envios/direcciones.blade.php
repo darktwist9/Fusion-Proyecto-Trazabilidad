@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Direcciones | AgroNexus')
+@section('title', 'Direcciones | AgroFusion')
 @section('page_title', 'Direcciones de envíos')
 
 @push('styles')

@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Calendario de Actividades | AgroNexus')
+@section('title', 'Calendario de Actividades | AgroFusion')
 @section('page_title', 'Calendario de Actividades')
 
 @section('breadcrumbs')

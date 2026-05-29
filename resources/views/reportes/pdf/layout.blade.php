@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8">
-    <title>Reporte AgroNexus</title>
+    <title>Reporte AgroFusion</title>
     <style>
         @page {
             margin: 100px 25px 60px 25px;
@@ -20,7 +20,7 @@
         /* Branding Colors */
         :root {
             --primary: #2c5530;
-            /* Verde AgroNexus */
+            /* Verde AgroFusion */
             --secondary: #4a7c59;
             /* Verde Claro */
             --accent: #e67e22;
@@ -212,7 +212,7 @@
     </header>
 
     <footer>
-        <span class="page-number"></span> | AgroNexus &copy; {{ date('Y') }} - Documento Confidencial
+        <span class="page-number"></span> | AgroFusion &copy; {{ date('Y') }} - Documento Confidencial
     </footer>
 
     <main>

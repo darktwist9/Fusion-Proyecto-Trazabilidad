@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Vista consolidada de recursos | AgroNexus')
+@section('title', 'Vista consolidada de recursos | AgroFusion')
 @section('page_title', 'Vista consolidada de recursos')
 
 @push('styles')

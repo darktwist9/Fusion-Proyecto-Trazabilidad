@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="utf-8">
-    <title>@yield('title', 'AgroNexus | Acceso')</title>
+    <title>@yield('title', 'AgroFusion | Acceso')</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -484,7 +484,7 @@
         <div class="auth-logo">
             <i class="fas fa-seedling"></i>
         </div>
-        <span class="auth-app-name">AgroNexus</span>
+        <span class="auth-app-name">AgroFusion</span>
         <span class="auth-tagline">Sistema integral de gestión agrícola</span>
     </div>
 
@@ -494,7 +494,7 @@
 </div>
 
 <p class="auth-copy">
-    &copy; {{ date('Y') }} AgroNexus &middot; Tecnología para el campo
+    &copy; {{ date('Y') }} AgroFusion &middot; Tecnología para el campo
 </p>
 
 <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>

@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Certificaciones | AgroNexus')
+@section('title', 'Certificaciones | AgroFusion')
 @section('page_title', 'Certificaciones')
 
 @push('styles')

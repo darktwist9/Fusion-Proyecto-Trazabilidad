@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Mapa de lotes | AgroNexus')
+@section('title', 'Mapa de lotes | AgroFusion')
 @section('page_title', 'Mapa de Lotes')
 
 @section('breadcrumbs')

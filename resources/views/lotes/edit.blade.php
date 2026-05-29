@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Editar lote | AgroNexus')
+@section('title', 'Editar lote | AgroFusion')
 @section('page_title', 'Editar lote')
 
 @push('styles')

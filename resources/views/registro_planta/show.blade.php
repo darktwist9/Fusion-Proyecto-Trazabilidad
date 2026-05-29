@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Detalle Registro Planta — {{ $lote->nombre }} | AgroNexus')
+@section('title', 'Detalle Registro Planta — {{ $lote->nombre }} | AgroFusion')
 @section('page_title', 'Detalle de lote en planta')
 
 @push('styles')

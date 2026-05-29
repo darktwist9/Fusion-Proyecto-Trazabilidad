@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Unidades de Medida | AgroNexus')
+@section('title', 'Unidades de Medida | AgroFusion')
 @section('page_title', 'Unidades de Medida')
 
 @section('breadcrumbs')

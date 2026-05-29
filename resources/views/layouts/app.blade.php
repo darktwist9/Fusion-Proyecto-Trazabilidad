@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>@yield('title', 'AgroNexus | Panel')</title>
+    <title>@yield('title', 'AgroFusion | Panel')</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
@@ -859,7 +859,7 @@
                 <i class="fas fa-seedling"></i>
             </div>
             <div class="ag-brand-text">
-                <span class="ag-brand-name">AgroNexus</span>
+                <span class="ag-brand-name">AgroFusion</span>
                 <span class="ag-brand-sub">Panel de trazabilidad</span>
             </div>
         </a>
@@ -1199,7 +1199,7 @@
 
         {{-- FOOTER --}}
         <footer class="ag-footer">
-            <span>&copy; {{ date('Y') }} <strong>AgroNexus</strong> · Sistema de Gestión Agrícola</span>
+            <span>&copy; {{ date('Y') }} <strong>AgroFusion</strong> · Sistema de Gestión Agrícola</span>
             <span>v1.0.0</span>
         </footer>
 

@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Clima | AgroNexus')
+@section('title', 'Clima | AgroFusion')
 @section('page_title', 'Información Climática')
 
 @section('breadcrumbs')

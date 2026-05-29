@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Tipos de Actividad | AgroNexus')
+@section('title', 'Tipos de Actividad | AgroFusion')
 @section('page_title', 'Tipos de Actividad')
 
 @section('breadcrumbs')

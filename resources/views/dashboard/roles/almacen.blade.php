@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Panel Almacén | AgroNexus')
+@section('title', 'Panel Almacén | AgroFusion')
 @section('page_title', 'Panel Almacén')
 
 @push('styles')
