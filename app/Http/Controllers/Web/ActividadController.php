@@ -10,8 +10,10 @@ use App\Models\Prioridad;
 use App\Models\Usuario;
 use App\Models\EstadoLoteTipo;
 use App\Models\HistorialEstadoLote;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class ActividadController extends Controller
 {
@@ -66,8 +68,8 @@ class ActividadController extends Controller
      */
     public function calendario()
     {
-        // Estadísticas
         $stats = [
+            'total' => Actividad::whereNotNull('fechainicio')->count(),
             'mes' => Actividad::whereMonth('fechainicio', now()->month)
                 ->whereYear('fechainicio', now()->year)
                 ->count(),
@@ -76,34 +78,13 @@ class ActividadController extends Controller
             'completadas' => Actividad::whereNotNull('fechafin')->count(),
         ];
 
-        // Eventos para el calendario
         $actividades = Actividad::with(['lote', 'usuario', 'tipoActividad'])
             ->whereNotNull('fechainicio')
+            ->orderBy('fechainicio')
             ->get();
 
-        $eventos = $actividades->map(function($act) {
-            $tipo = $act->tipoActividad->nombre ?? 'Actividad';
-            $lote = $act->lote->nombre ?? 'Sin lote';
-            
-            return [
-                'id' => $act->actividadid,
-                'title' => $tipo . ' - ' . $lote,
-                'start' => $act->fechainicio,
-                'end' => $act->fechafin,
-                'extendedProps' => [
-                    'id' => $act->actividadid,
-                    'tipo' => $tipo,
-                    'lote' => $lote,
-                    'loteid' => $act->loteid,
-                    'responsable' => ($act->usuario->nombre ?? '') . ' ' . ($act->usuario->apellido ?? ''),
-                    'usuarioid' => $act->usuarioid,
-                    'fechafin' => $act->fechafin,
-                    'observaciones' => $act->observaciones,
-                ]
-            ];
-        });
+        $eventos = $actividades->map(fn ($act) => $this->formatEventoCalendario($act))->values();
 
-        // Datos para filtros y formulario
         $lotes = Lote::with('cultivo')->orderBy('nombre')->get();
         $usuarios = Usuario::orderBy('nombre')->get();
         $tiposActividad = TipoActividad::orderBy('nombre')->get();
@@ -273,9 +254,38 @@ class ActividadController extends Controller
         }
     }
 
+    private function formatEventoCalendario(Actividad $act): array
+    {
+        $tipo = $act->tipoActividad->nombre ?? 'Actividad';
+        $lote = $act->lote->nombre ?? 'Sin lote';
+        $pendiente = $act->fechafin === null;
+        $inicio = Carbon::parse($act->fechainicio);
+
+        return [
+            'id' => (string) $act->actividadid,
+            'title' => $tipo.' — '.$lote,
+            'start' => $inicio->format('Y-m-d'),
+            'allDay' => true,
+            'extendedProps' => [
+                'id' => $act->actividadid,
+                'tipo' => $tipo,
+                'tipoSlug' => Str::slug($tipo),
+                'lote' => $lote,
+                'loteid' => $act->loteid,
+                'responsable' => trim(($act->usuario->nombre ?? '').' '.($act->usuario->apellido ?? '')),
+                'usuarioid' => $act->usuarioid,
+                'fechainicioFmt' => $inicio->format('d/m/Y H:i'),
+                'fechafin' => $pendiente ? null : Carbon::parse($act->fechafin)->format('d/m/Y H:i'),
+                'pendiente' => $pendiente,
+                'observaciones' => $act->observaciones ?: $act->descripcion,
+            ],
+            'classNames' => $pendiente ? ['event-pendiente'] : ['event-completada'],
+        ];
+    }
+
     /**
      * Obtener el nuevo estado del lote según el tipo de actividad
-     * 
+     *
      * Tipos de actividad: siembra, riego, fumigación, cosecha, labranza
      * Estados disponibles: disponible, en preparación, sembrado, en producción, cosechado, en descanso
      */
