@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Reporte Climático | AgroNexus')
+@section('title', 'Reporte Climático | Fusion-Proyectos')
 @section('page_title', 'Reporte Climático')
 
 @section('breadcrumbs')
@@ -10,76 +10,22 @@
 @endsection
 
 @push('styles')
-    <style>
-        .report-clima .small-box {
-            border-radius: 10px;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        .report-clima .small-box:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
-        }
-        .report-clima .small-box .icon { font-size: 72px; }
-        .report-clima .small-box-blue { background: linear-gradient(135deg, #17a2b8, #20c997) !important; color: #fff; }
-        .report-clima .small-box-yellow { background: linear-gradient(135deg, #fd7e14, #ffc107) !important; color: #1a252f; }
-        .report-clima .small-box-green { background: linear-gradient(135deg, #28a745, #34ce57) !important; color: #fff; }
-        .report-clima .card { border-radius: 10px; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06); }
-        .report-clima .card-header { background: #fff; border-bottom: 1px solid #f1f3f4; }
-        .report-clima .filtros-card .card-body { background: linear-gradient(180deg, #f4fbfb 0%, #fff 100%); }
-        .report-clima .chart-wrap { position: relative; height: 300px; }
-        .weather-panel {
-            background: linear-gradient(135deg, #17a2b8, #6dd5ed);
-            border-radius: 14px;
-            color: #fff;
-            padding: 22px;
-        }
-        .weather-panel .temp-main { font-size: 3.1rem; font-weight: 300; line-height: 1; }
-        .weather-detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 16px; }
-        .weather-detail-grid .item { background: rgba(255,255,255,.2); border-radius: 8px; padding: 8px; text-align: center; }
-        .forecast-mini { background: #f8f9fc; border-radius: 8px; padding: 10px; text-align: center; }
-    </style>
+@include('partials.modulo-reportes-styles')
 @endpush
 
 @section('content')
-<div class="report-clima">
-    <div class="row mb-3">
-        <div class="col-12">
-            <div class="alert alert-info alert-dismissible shadow-sm mb-0">
-                <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
-                <h5 class="mb-1"><i class="icon fas fa-cloud-sun"></i> Panel climático</h5>
-                Consulta clima actual, pronóstico y tendencias del historial registrado.
-                <div class="mt-2">
-                    <a href="{{ route('reportes.index') }}" class="btn btn-sm btn-outline-info"><i class="fas fa-th-large mr-1"></i> Reportes</a>
-                    <a href="{{ route('climas.index') }}" class="btn btn-sm btn-info ml-1"><i class="fas fa-cloud mr-1"></i> Módulo clima</a>
-                </div>
-            </div>
-        </div>
-    </div>
+<div class="modulo-rep">
 
-    <div class="card card-info card-outline elevation-2 filtros-card mb-4">
-        <div class="card-header">
-            <h3 class="card-title text-info"><i class="fas fa-sliders-h mr-1"></i> Filtros</h3>
-        </div>
-        <div class="card-body">
-            <form method="GET" action="{{ route('reportes.climatico') }}" class="row align-items-end">
-                <div class="col-md-4 mb-2">
-                    <label class="text-muted small text-uppercase mb-1">Período</label>
-                    <select name="dias" class="form-control">
-                        <option value="7" @selected($dias == 7)>Últimos 7 días</option>
-                        <option value="15" @selected($dias == 15)>Últimos 15 días</option>
-                        <option value="30" @selected($dias == 30)>Últimos 30 días</option>
-                    </select>
-                </div>
-                <div class="col-md-4 mb-2">
-                    <button type="submit" class="btn btn-info btn-block"><i class="fas fa-filter mr-1"></i> Aplicar</button>
-                </div>
-                <div class="col-md-4 mb-2">
-                    <a href="{{ route('reportes.climatico') }}" class="btn btn-default btn-block"><i class="fas fa-redo mr-1"></i> Limpiar</a>
-                </div>
-            </form>
-        </div>
-    </div>
+@include('reportes.partials.toolbar', [
+    'icono' => 'fa-cloud-sun',
+    'titulo' => 'Reporte climático',
+    'descripcion' => 'Consulta clima actual, pronóstico y tendencias del historial registrado.',
+    'tema' => 'info',
+    'moduloRuta' => route('climas.index'),
+    'moduloLabel' => 'Módulo clima',
+    'moduloIcono' => 'fa-cloud',
+])
+@include('reportes.partials.filtros-climatico')
 
     <div class="row">
         <div class="col-lg-4">

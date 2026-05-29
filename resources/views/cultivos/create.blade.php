@@ -1,30 +1,25 @@
 @extends('layouts.app')
 
+@section('title', 'Nuevo cultivo | Fusion-Proyectos')
+@section('page_title', 'Nuevo cultivo')
+
+@section('breadcrumbs')
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('catalogos.index') }}">Catálogos</a></li>
+    <li class="breadcrumb-item active">Nuevo cultivo</li>
+@endsection
+
+@push('styles')
+@include('partials.modulo-catalogos-styles')
+@endpush
+
 @section('content')
-<div class="card">
-
-    <div class="card-header">
-        <h3 class="card-title">Crear Cultivo</h3>
-    </div>
-
-    <form action="{{ route('cultivos.store') }}" method="POST">
-        @csrf
-
-        <div class="card-body">
-
-            <div class="form-group">
-                <label>Nombre del cultivo</label>
-                <input type="text" name="nombre" class="form-control"
-                       maxlength="100" required>
-            </div>
-
-        </div>
-
-        <div class="card-footer text-right">
-            <a href="{{ route('cultivos.index') }}" class="btn btn-secondary">Cancelar</a>
-            <button class="btn btn-primary">Guardar</button>
-        </div>
-
-    </form>
-</div>
+@include('catalogos.partials.simple-form-page', [
+    'esEdicion' => false,
+    'item' => null,
+    'routePrefix' => 'cultivos',
+    'singular' => 'Cultivo',
+    'tieneDescripcion' => false,
+    'formAction' => route('cultivos.store'),
+])
 @endsection

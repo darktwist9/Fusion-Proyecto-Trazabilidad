@@ -1,30 +1,25 @@
 @extends('layouts.app')
 
+@section('title', 'Cultivos | Fusion-Proyectos')
+@section('page_title', 'Cultivos')
+
+@section('breadcrumbs')
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('catalogos.index') }}">Catálogos</a></li>
+    <li class="breadcrumb-item active">Cultivos</li>
+@endsection
+
+@push('styles')
+@include('partials.modulo-catalogos-styles')
+@endpush
+
 @section('content')
-<div class="card">
-
-    <div class="card-header">
-        <h3 class="card-title">Detalles del Cultivo</h3>
-    </div>
-
-    <div class="card-body">
-
-        <p><strong>ID:</strong> {{ $cultivo->cultivoid }}</p>
-        <p><strong>Nombre:</strong> {{ $cultivo->nombre }}</p>
-
-    </div>
-
-    <div class="card-footer">
-        <a href="{{ route('cultivos.index') }}" class="btn btn-secondary">Volver</a>
-        <a href="{{ route('cultivos.edit', $cultivo) }}" class="btn btn-warning">Editar</a>
-
-        <form action="{{ route('cultivos.destroy', $cultivo) }}" method="POST" 
-              class="d-inline" onsubmit="return confirm('¿Eliminar cultivo?')">
-            @csrf
-            @method('DELETE')
-            <button class="btn btn-danger">Eliminar</button>
-        </form>
-    </div>
-
-</div>
+@include('catalogos.partials.simple-show', [
+    'item' => $item,
+    'routePrefix' => 'cultivos',
+    'pk' => 'cultivoid',
+    'singular' => 'cultivo',
+    'icono' => 'fa-seedling',
+    'tieneDescripcion' => false,
+])
 @endsection

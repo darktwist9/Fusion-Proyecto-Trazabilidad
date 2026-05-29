@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Venta;
 use App\Models\Produccion;
 use App\Models\Insumo;
+use App\Models\TipoInsumo;
 use App\Models\LoteInsumo;
 use App\Models\Lote;
 use App\Models\Cultivo;
@@ -185,7 +186,28 @@ class ReporteController extends Controller
      */
     public function inventario(Request $request)
     {
-        $insumos = Insumo::with(['tipo', 'unidadMedida'])->orderBy('nombre')->get();
+        $query = Insumo::with(['tipo', 'unidadMedida'])->orderBy('nombre');
+
+        if ($request->filled('buscar')) {
+            $buscar = '%'.trim((string) $request->buscar).'%';
+            $query->where('nombre', 'like', $buscar);
+        }
+
+        if ($request->filled('tipo_id')) {
+            $query->where('tipoinsumoid', (int) $request->tipo_id);
+        }
+
+        if ($request->filled('estado')) {
+            if ($request->estado === 'critico') {
+                $query->whereRaw('stock <= COALESCE(stockminimo, 10) * 0.5');
+            } elseif ($request->estado === 'bajo') {
+                $query->whereRaw('stock <= COALESCE(stockminimo, 10) AND stock > COALESCE(stockminimo, 10) * 0.5');
+            } elseif ($request->estado === 'ok') {
+                $query->whereRaw('stock > COALESCE(stockminimo, 10)');
+            }
+        }
+
+        $insumos = $query->get();
 
         $stats = [
             'total_insumos' => $insumos->count(),
@@ -223,13 +245,16 @@ class ReporteController extends Controller
                 ];
             });
 
+        $tiposInsumo = TipoInsumo::orderBy('nombre')->get();
+
         return view('reportes.inventario', compact(
             'insumos',
             'stats',
             'insumosPorTipo',
             'alertasStock',
             'consumoReciente',
-            'stockAlmacenes'
+            'stockAlmacenes',
+            'tiposInsumo'
         ));
     }
 

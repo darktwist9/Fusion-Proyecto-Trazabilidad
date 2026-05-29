@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Reporte de Inventario | AgroNexus')
+@section('title', 'Reporte de Inventario | Fusion-Proyectos')
 @section('page_title', 'Reporte de Inventario de Insumos')
 
 @section('breadcrumbs')
@@ -18,87 +18,23 @@
 @endphp
 
 @push('styles')
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap4.min.css">
-    <style>
-        .report-inventario .small-box {
-            border-radius: 10px;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        .report-inventario .small-box:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
-        }
-        .report-inventario .small-box .icon { font-size: 72px; }
-        .report-inventario .small-box-blue {
-            background: linear-gradient(135deg, #17a2b8, #20c997) !important;
-            color: #fff;
-        }
-        .report-inventario .small-box-red {
-            background: linear-gradient(135deg, #dc3545, #e74a3b) !important;
-            color: #fff;
-        }
-        .report-inventario .small-box-green {
-            background: linear-gradient(135deg, #28a745, #34ce57) !important;
-            color: #fff;
-        }
-        .report-inventario .small-box-yellow {
-            background: linear-gradient(135deg, #fd7e14, #ffc107) !important;
-            color: #1a252f;
-        }
-        .report-inventario .card {
-            border-radius: 10px;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-        }
-        .report-inventario .card-header {
-            background: #fff;
-            border-bottom: 1px solid #f1f3f4;
-        }
-        .report-inventario .chart-wrap {
-            position: relative;
-            height: 300px;
-        }
-        .report-inventario .products-list .product-img {
-            width: 52px;
-            height: 52px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .report-inventario .products-list .product-title {
-            font-size: 0.95rem;
-        }
-        .report-inventario .legend-dot {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            margin-right: 6px;
-        }
-    </style>
+@include('partials.modulo-reportes-styles')
+<link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap4.min.css">
 @endpush
 
 @section('content')
-<div class="report-inventario">
+<div class="modulo-rep">
 
-    {{-- Alert superior --}}
-    <div class="row mb-3">
-        <div class="col-12">
-            <div class="alert alert-info alert-dismissible shadow-sm mb-0">
-                <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
-                <h5 class="mb-1"><i class="icon fas fa-boxes"></i> Panel de inventario</h5>
-                Controla stock de insumos, alertas de reposición, almacenes y consumo reciente en lotes.
-                <div class="mt-2">
-                    <a href="{{ route('reportes.index') }}" class="btn btn-sm btn-outline-info">
-                        <i class="fas fa-th-large mr-1"></i> Reportes
-                    </a>
-                    <a href="{{ route('insumos.index') }}" class="btn btn-sm btn-info ml-1">
-                        <i class="fas fa-cubes mr-1"></i> Gestionar insumos
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
+@include('reportes.partials.toolbar', [
+    'icono' => 'fa-boxes',
+    'titulo' => 'Reporte de inventario',
+    'descripcion' => 'Control de stock, alertas de reposición, almacenes y consumo reciente.',
+    'tema' => 'primary',
+    'moduloRuta' => route('insumos.index'),
+    'moduloLabel' => 'Gestionar insumos',
+    'moduloIcono' => 'fa-cubes',
+])
+@include('reportes.partials.filtros-inventario')
 
     {{-- KPIs --}}
     <div class="row">

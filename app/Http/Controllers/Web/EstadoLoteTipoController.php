@@ -2,15 +2,20 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Http\Controllers\Concerns\FiltersCatalogoSimple;
 use App\Http\Controllers\Controller;
 use App\Models\EstadoLoteTipo;
 use Illuminate\Http\Request;
 
 class EstadoLoteTipoController extends Controller
 {
-    public function index()
+    use FiltersCatalogoSimple;
+
+    public function index(Request $request)
     {
-        $tipos = EstadoLoteTipo::orderBy('estadolotetipoid', 'desc')->paginate(15);
+        $query = EstadoLoteTipo::query();
+        $this->aplicarFiltroBuscar($query, $request, ['nombre', 'descripcion']);
+        $tipos = $query->orderByDesc('estadolotetipoid')->paginate(15)->withQueryString();
 
         return view('estado_lote_tipos.index', compact('tipos'));
     }
@@ -34,12 +39,12 @@ class EstadoLoteTipoController extends Controller
 
     public function show(EstadoLoteTipo $estadoLoteTipo)
     {
-        return view('estado_lote_tipos.show', compact('estadoLoteTipo'));
+        return view('estado_lote_tipos.show', ['item' => $estadoLoteTipo]);
     }
 
     public function edit(EstadoLoteTipo $estadoLoteTipo)
     {
-        return view('estado_lote_tipos.edit', compact('estadoLoteTipo'));
+        return view('estado_lote_tipos.edit', ['item' => $estadoLoteTipo]);
     }
 
     public function update(Request $request, EstadoLoteTipo $estadoLoteTipo)

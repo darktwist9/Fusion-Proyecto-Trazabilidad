@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Reporte de Actividades | AgroNexus')
+@section('title', 'Reporte de Actividades | Fusion-Proyectos')
 @section('page_title', 'Reporte de Actividades')
 
 @section('breadcrumbs')
@@ -25,111 +25,23 @@
 @endphp
 
 @push('styles')
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap4.min.css">
-    <style>
-        .report-actividades .small-box {
-            border-radius: 10px;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        .report-actividades .small-box:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
-        }
-        .report-actividades .small-box .icon { font-size: 72px; }
-        .report-actividades .small-box-purple { background: linear-gradient(135deg, #6f42c1, #9775fa) !important; color: #fff; }
-        .report-actividades .small-box-green { background: linear-gradient(135deg, #28a745, #20c997) !important; color: #fff; }
-        .report-actividades .small-box-orange { background: linear-gradient(135deg, #fd7e14, #ffc107) !important; color: #1a252f; }
-        .report-actividades .small-box-blue { background: linear-gradient(135deg, #17a2b8, #6dd5ed) !important; color: #fff; }
-        .report-actividades .card { border-radius: 10px; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06); }
-        .report-actividades .card-header { background: #fff; border-bottom: 1px solid #f1f3f4; }
-        .report-actividades .filtros-card .card-body { background: linear-gradient(180deg, #f7f4fd 0%, #fff 100%); }
-        .report-actividades .chart-wrap { position: relative; height: 300px; }
-        .report-actividades .chart-wrap-sm { position: relative; height: 190px; }
-        .report-actividades .products-list .product-img {
-            width: 52px;
-            height: 52px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .report-actividades .products-list .product-title { font-size: 0.95rem; }
-        .report-actividades .legend-dot {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            margin-right: 6px;
-        }
-    </style>
+@include('partials.modulo-reportes-styles')
+<link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap4.min.css">
 @endpush
 
 @section('content')
-<div class="report-actividades">
-    <div class="row mb-3">
-        <div class="col-12">
-            <div class="alert alert-secondary alert-dismissible shadow-sm mb-0">
-                <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
-                <h5 class="mb-1"><i class="icon fas fa-tasks"></i> Panel de actividades</h5>
-                Revisa ejecución de actividades, pendientes por lote y distribución por tipo.
-                <div class="mt-2">
-                    <a href="{{ route('reportes.index') }}" class="btn btn-sm btn-outline-secondary"><i class="fas fa-th-large mr-1"></i> Reportes</a>
-                    <a href="{{ route('actividades.index') }}" class="btn btn-sm btn-secondary ml-1"><i class="fas fa-clipboard-check mr-1"></i> Módulo actividades</a>
-                </div>
-            </div>
-        </div>
-    </div>
+<div class="modulo-rep">
 
-    <div class="card card-secondary card-outline elevation-2 filtros-card mb-4">
-        <div class="card-header">
-            <h3 class="card-title text-secondary"><i class="fas fa-sliders-h mr-1"></i> Filtros</h3>
-        </div>
-        <div class="card-body">
-            <form method="GET" action="{{ route('reportes.actividades') }}">
-                <div class="row">
-                    <div class="col-md-6 col-xl-2 mb-3">
-                        <label class="text-muted small text-uppercase mb-1">Desde</label>
-                        <input type="date" name="fecha_desde" class="form-control" value="{{ $fechaDesde }}">
-                    </div>
-                    <div class="col-md-6 col-xl-2 mb-3">
-                        <label class="text-muted small text-uppercase mb-1">Hasta</label>
-                        <input type="date" name="fecha_hasta" class="form-control" value="{{ $fechaHasta }}">
-                    </div>
-                    <div class="col-md-6 col-xl-3 mb-3">
-                        <label class="text-muted small text-uppercase mb-1">Tipo</label>
-                        <select name="tipo_id" class="form-control">
-                            <option value="">Todos</option>
-                            @foreach($tipos as $tipo)
-                                <option value="{{ $tipo->tipoactividadid }}" @selected($tipoId == $tipo->tipoactividadid)>{{ $tipo->nombre }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-md-6 col-xl-3 mb-3">
-                        <label class="text-muted small text-uppercase mb-1">Lote</label>
-                        <select name="lote_id" class="form-control">
-                            <option value="">Todos</option>
-                            @foreach($lotes as $lote)
-                                <option value="{{ $lote->loteid }}" @selected($loteId == $lote->loteid)>{{ $lote->nombre }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-xl-2 mb-3 d-flex align-items-end">
-                        <div class="w-100">
-                            <button type="submit" class="btn btn-secondary btn-block"><i class="fas fa-search mr-1"></i> Buscar</button>
-                            <a href="{{ route('reportes.actividades') }}" class="btn btn-default btn-block btn-sm mt-2"><i class="fas fa-redo mr-1"></i> Limpiar</a>
-                        </div>
-                    </div>
-                </div>
-            </form>
-        </div>
-        <div class="card-footer bg-white">
-            <i class="fas fa-filter text-secondary mr-1"></i>
-            <span class="badge badge-secondary elevation-1">{{ \Carbon\Carbon::parse($fechaDesde)->format('d/m/Y') }} — {{ \Carbon\Carbon::parse($fechaHasta)->format('d/m/Y') }}</span>
-            @if($tipoSel)<span class="badge badge-primary elevation-1">{{ $tipoSel->nombre }}</span>@endif
-            @if($loteSel)<span class="badge badge-info elevation-1">{{ $loteSel->nombre }}</span>@endif
-            @if($tipoLider)<span class="badge badge-dark elevation-1"><i class="fas fa-crown mr-1"></i>{{ $tipoLider->nombre }} {{ number_format(($tipoLider->total / $totalTiposChart) * 100, 0) }}%</span>@endif
-        </div>
-    </div>
+@include('reportes.partials.toolbar', [
+    'icono' => 'fa-tasks',
+    'titulo' => 'Reporte de actividades',
+    'descripcion' => 'Revisa ejecución de tareas, pendientes por lote y distribución por tipo.',
+    'tema' => 'purple',
+    'moduloRuta' => route('actividades.index'),
+    'moduloLabel' => 'Módulo actividades',
+    'moduloIcono' => 'fa-clipboard-check',
+])
+@include('reportes.partials.filtros-actividades')
 
     <div class="row">
         <div class="col-lg-3 col-6">

@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Reporte de Producción | AgroNexus')
+@section('title', 'Reporte de Producción | Fusion-Proyectos')
 @section('page_title', 'Reporte de Producción')
 
 @section('breadcrumbs')
@@ -33,192 +33,23 @@
 @endphp
 
 @push('styles')
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap4.min.css">
-    <style>
-        .report-produccion .small-box {
-            border-radius: 10px;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        .report-produccion .small-box:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
-        }
-        .report-produccion .small-box .icon { font-size: 72px; }
-        .report-produccion .small-box-orange {
-            background: linear-gradient(135deg, #fd7e14, #ffc107) !important;
-            color: #1a252f;
-        }
-        .report-produccion .small-box-green {
-            background: linear-gradient(135deg, #28a745, #34ce57) !important;
-            color: #fff;
-        }
-        .report-produccion .small-box-blue {
-            background: linear-gradient(135deg, #17a2b8, #20c997) !important;
-            color: #fff;
-        }
-        .report-produccion .small-box-brand {
-            background: linear-gradient(135deg, #2c5530, #4a7c59) !important;
-            color: #fff;
-        }
-        .report-produccion .card {
-            border-radius: 10px;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-        }
-        .report-produccion .card-header {
-            background: #fff;
-            border-bottom: 1px solid #f1f3f4;
-        }
-        .report-produccion .filtros-card .card-body {
-            background: linear-gradient(180deg, #fffbf5 0%, #fff 100%);
-        }
-        .report-produccion .chart-wrap {
-            position: relative;
-            height: 300px;
-        }
-        .report-produccion .chart-wrap-sm {
-            position: relative;
-            height: 190px;
-        }
-        .report-produccion .products-list .product-img {
-            width: 52px;
-            height: 52px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .report-produccion .products-list .product-title {
-            font-size: 0.95rem;
-        }
-        .report-produccion .legend-dot {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            margin-right: 6px;
-        }
-    </style>
+@include('partials.modulo-reportes-styles')
+<link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap4.min.css">
 @endpush
 
 @section('content')
-<div class="report-produccion">
+<div class="modulo-rep">
 
-    {{-- Alert superior --}}
-    <div class="row mb-3">
-        <div class="col-12">
-            <div class="alert alert-warning alert-dismissible shadow-sm mb-0">
-                <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
-                <h5 class="mb-1"><i class="icon fas fa-seedling"></i> Panel de producción</h5>
-                Analiza cosechas, rendimiento por lote y participación por cultivo en el período seleccionado.
-                <div class="mt-2">
-                    <a href="{{ route('reportes.index') }}" class="btn btn-sm btn-outline-warning">
-                        <i class="fas fa-th-large mr-1"></i> Reportes
-                    </a>
-                    <a href="{{ route('producciones.index') }}" class="btn btn-sm btn-warning ml-1">
-                        <i class="fas fa-tractor mr-1"></i> Ir a producción
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    {{-- Filtros --}}
-    <div class="card card-warning card-outline elevation-2 filtros-card mb-4">
-        <div class="card-header">
-            <h3 class="card-title text-warning">
-                <i class="fas fa-sliders-h mr-1"></i> Filtros
-            </h3>
-            <div class="card-tools">
-                <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                    <i class="fas fa-minus"></i>
-                </button>
-            </div>
-        </div>
-        <div class="card-body">
-            <form method="GET" action="{{ route('reportes.produccion') }}">
-                <div class="row">
-                    <div class="col-md-6 col-xl-2 mb-3">
-                        <label class="text-muted small text-uppercase mb-1">Desde</label>
-                        <div class="input-group">
-                            <div class="input-group-prepend">
-                                <span class="input-group-text"><i class="far fa-calendar-alt"></i></span>
-                            </div>
-                            <input type="date" name="fecha_desde" class="form-control" value="{{ $fechaDesde }}">
-                        </div>
-                    </div>
-                    <div class="col-md-6 col-xl-2 mb-3">
-                        <label class="text-muted small text-uppercase mb-1">Hasta</label>
-                        <div class="input-group">
-                            <div class="input-group-prepend">
-                                <span class="input-group-text"><i class="far fa-calendar-check"></i></span>
-                            </div>
-                            <input type="date" name="fecha_hasta" class="form-control" value="{{ $fechaHasta }}">
-                        </div>
-                    </div>
-                    <div class="col-md-6 col-xl-3 mb-3">
-                        <label class="text-muted small text-uppercase mb-1">Cultivo</label>
-                        <div class="input-group">
-                            <div class="input-group-prepend">
-                                <span class="input-group-text"><i class="fas fa-seedling"></i></span>
-                            </div>
-                            <select name="cultivo_id" class="form-control">
-                                <option value="">Todos</option>
-                                @foreach ($cultivos as $cultivo)
-                                    <option value="{{ $cultivo->cultivoid }}" @selected($cultivoId == $cultivo->cultivoid)>
-                                        {{ $cultivo->nombre }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-                    </div>
-                    <div class="col-md-6 col-xl-3 mb-3">
-                        <label class="text-muted small text-uppercase mb-1">Lote</label>
-                        <div class="input-group">
-                            <div class="input-group-prepend">
-                                <span class="input-group-text"><i class="fas fa-map-marked-alt"></i></span>
-                            </div>
-                            <select name="lote_id" class="form-control">
-                                <option value="">Todos</option>
-                                @foreach ($lotes as $lote)
-                                    <option value="{{ $lote->loteid }}" @selected($loteId == $lote->loteid)>
-                                        {{ $lote->nombre }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-                    </div>
-                    <div class="col-xl-2 mb-3 d-flex align-items-end">
-                        <div class="w-100">
-                            <button type="submit" class="btn btn-warning btn-block">
-                                <i class="fas fa-search mr-1"></i> Buscar
-                            </button>
-                            <a href="{{ route('reportes.produccion') }}" class="btn btn-default btn-block btn-sm mt-2">
-                                <i class="fas fa-redo mr-1"></i> Limpiar
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </form>
-        </div>
-        <div class="card-footer bg-white">
-            <i class="fas fa-filter text-warning mr-1"></i>
-            <span class="badge badge-warning elevation-1">
-                {{ \Carbon\Carbon::parse($fechaDesde)->format('d/m/Y') }} — {{ \Carbon\Carbon::parse($fechaHasta)->format('d/m/Y') }}
-            </span>
-            @if ($cultivoSel)
-                <span class="badge badge-success elevation-1">{{ $cultivoSel->nombre }}</span>
-            @endif
-            @if ($loteSel)
-                <span class="badge badge-primary elevation-1">{{ $loteSel->nombre }}</span>
-            @endif
-            @if ($cultivoLider)
-                <span class="badge badge-dark elevation-1">
-                    <i class="fas fa-crown mr-1"></i>{{ $cultivoLider->nombre }}
-                    {{ number_format(($cultivoLider->total / $totalCultivosChart) * 100, 0) }}%
-                </span>
-            @endif
-        </div>
-    </div>
+@include('reportes.partials.toolbar', [
+    'icono' => 'fa-seedling',
+    'titulo' => 'Reporte de producción',
+    'descripcion' => 'Analiza cosechas, rendimiento por lote y participación por cultivo.',
+    'tema' => 'warning',
+    'moduloRuta' => route('producciones.index'),
+    'moduloLabel' => 'Ir a producción',
+    'moduloIcono' => 'fa-tractor',
+])
+@include('reportes.partials.filtros-produccion')
 
     {{-- KPIs --}}
     <div class="row">

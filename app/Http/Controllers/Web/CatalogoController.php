@@ -10,6 +10,7 @@ use App\Models\TipoAlmacen;
 use App\Models\UnidadMedida;
 use App\Models\EstadoLoteTipo;
 use App\Models\EstadoLoteInsumo;
+use App\Models\HistorialEstadoLote;
 use App\Models\Prioridad;
 
 class CatalogoController extends Controller
@@ -25,6 +26,7 @@ class CatalogoController extends Controller
             'estadosLote' => EstadoLoteTipo::count(),
             'estadosInsumo' => EstadoLoteInsumo::count(),
             'prioridades' => Prioridad::count(),
+            'historialEstados' => HistorialEstadoLote::count(),
         ];
 
         return view('catalogos.index', compact('counts'));
