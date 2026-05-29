@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Historial de estados de lote | AgroFusion')
+@section('title', 'Historial de estados de lote | Fusion-Proyectos')
 @section('page_title', 'Historial de estados de lote')
 
 @section('breadcrumbs')

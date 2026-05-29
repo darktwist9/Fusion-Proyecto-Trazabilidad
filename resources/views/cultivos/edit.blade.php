@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Cultivos | AgroFusion')
+@section('title', 'Cultivos | Fusion-Proyectos')
 @section('page_title', 'Cultivos')
 
 @section('breadcrumbs')

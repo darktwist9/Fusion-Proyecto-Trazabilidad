@@ -28,7 +28,7 @@
                                     {{ $loteInsumo->insumo->nombre ?? 'Insumo Eliminado' }}
                                 </h4>
                                 <small
-                                    class="text-muted">{{ $loteInsumo->insumo->tipoInsumo->nombre ?? 'Tipo General' }}</small>
+                                    class="text-muted">{{ $loteInsumo->insumo->tipo->nombre ?? 'Tipo General' }}</small>
                             </div>
                         </div>
                     </div>

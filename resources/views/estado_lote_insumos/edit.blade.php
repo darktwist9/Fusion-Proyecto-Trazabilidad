@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Estados de aplicación de insumo | AgroFusion')
+@section('title', 'Estados de aplicación de insumo | Fusion-Proyectos')
 @section('page_title', 'Estados de aplicación de insumo')
 
 @section('breadcrumbs')

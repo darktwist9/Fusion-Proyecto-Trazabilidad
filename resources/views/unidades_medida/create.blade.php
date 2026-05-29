@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Nueva unidad de medida | AgroFusion')
+@section('title', 'Nueva unidad de medida | Fusion-Proyectos')
 @section('page_title', 'Nueva unidad de medida')
 
 @section('breadcrumbs')

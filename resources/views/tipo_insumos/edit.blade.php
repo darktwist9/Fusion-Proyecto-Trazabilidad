@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Tipos de insumo | AgroFusion')
+@section('title', 'Tipos de insumo | Fusion-Proyectos')
 @section('page_title', 'Tipos de insumo')
 
 @section('breadcrumbs')

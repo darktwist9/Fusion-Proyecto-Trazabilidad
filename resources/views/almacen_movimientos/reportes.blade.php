@@ -6,6 +6,7 @@
 <style>
 .x-card{border:0;border-radius:14px;box-shadow:0 8px 24px rgba(18,38,63,.08)}
 .x-table thead th{background:#f2f7f3;border-bottom:0}
+.quick-period .btn{margin:0 .35rem .35rem 0}
 </style>
 @endpush
 
@@ -21,6 +22,27 @@
         </div>
         <form method="GET" action="{{ route('almacen-movimientos.reportes') }}">
             <div class="card-body">
+                <div class="mb-2 quick-period">
+                    <label class="d-block mb-1">Período rápido</label>
+                    @php
+                        $periodos = [
+                            'hoy' => 'Hoy',
+                            '7d' => 'Últimos 7 días',
+                            '30d' => 'Últimos 30 días',
+                            '90d' => 'Últimos 90 días',
+                            'mes_actual' => 'Mes actual',
+                            'mes_pasado' => 'Mes pasado',
+                        ];
+                    @endphp
+                    @foreach($periodos as $clave => $label)
+                        <button type="submit"
+                                name="periodo"
+                                value="{{ $clave }}"
+                                class="btn btn-sm {{ $periodoActivo === $clave ? 'btn-primary' : 'btn-outline-primary' }}">
+                            {{ $label }}
+                        </button>
+                    @endforeach
+                </div>
                 <div class="form-row">
                     <div class="form-group col-md-4">
                         <label>Almacén</label>
@@ -33,16 +55,22 @@
                     </div>
                     <div class="form-group col-md-3">
                         <label>Fecha desde</label>
-                        <input type="date" class="form-control" name="fecha_desde" value="{{ request('fecha_desde') }}">
+                        <input type="date" class="form-control" name="fecha_desde" value="{{ $fechaDesde }}">
                     </div>
                     <div class="form-group col-md-3">
                         <label>Fecha hasta</label>
-                        <input type="date" class="form-control" name="fecha_hasta" value="{{ request('fecha_hasta') }}">
+                        <input type="date" class="form-control" name="fecha_hasta" value="{{ $fechaHasta }}">
                     </div>
                     <div class="form-group col-md-2 d-flex align-items-end">
-                        <button class="btn btn-primary w-100">Aplicar</button>
+                        <button class="btn btn-primary w-100" name="periodo" value="personalizado">Aplicar</button>
                     </div>
                 </div>
+                <small class="text-muted d-block">
+                    Reporte automático activo para
+                    <strong>{{ \Carbon\Carbon::parse($fechaDesde)->format('d/m/Y') }}</strong>
+                    a
+                    <strong>{{ \Carbon\Carbon::parse($fechaHasta)->format('d/m/Y') }}</strong>.
+                </small>
             </div>
         </form>
     </div>

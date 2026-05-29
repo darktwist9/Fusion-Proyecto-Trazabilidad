@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Tipos de almacén | AgroFusion')
+@section('title', 'Tipos de almacén | Fusion-Proyectos')
 @section('page_title', 'Tipos de almacén')
 
 @section('breadcrumbs')
