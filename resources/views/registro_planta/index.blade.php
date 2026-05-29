@@ -28,13 +28,6 @@
 
 @section('content')
 
-@if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show">
-        <i class="fas fa-check-circle mr-2"></i>{{ session('success') }}
-        <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
-    </div>
-@endif
-
 {{-- Stat boxes --}}
 <div class="row mb-4">
     <div class="col-6 col-md-3 mb-3">

@@ -60,15 +60,14 @@ class RegistroPlantaController extends Controller
     /** Formulario de nuevo registro */
     public function create(): View
     {
-        $lotes    = Lote::with('cultivo')->orderByDesc('loteid')->get();
-        $procesos = ProcesoPlanta::with([
-            'pasos.maquina',
-        ])
-        ->where('activo', true)
-        ->get();
+        $procesos = ProcesoPlanta::with(['pasos.maquina'])
+            ->where('activo', true)
+            ->orderBy('nombre')
+            ->get();
         $variables = VariableEstandar::where('activo', true)->get();
+        $loteLabel = old('loteid') ? Lote::with('cultivo')->find(old('loteid'))?->nombre : null;
 
-        return view('registro_planta.create', compact('lotes', 'procesos', 'variables'));
+        return view('registro_planta.create', compact('procesos', 'variables', 'loteLabel'));
     }
 
     /** Guardar uno o varios pasos de registro */
@@ -132,8 +131,9 @@ class RegistroPlantaController extends Controller
             ->get()
             ->groupBy('procesoplantaid');
 
-        $procesosConPasos = ProcesoPlanta::with('pasos.maquina')
+        $procesosConPasos = ProcesoPlanta::with(['pasos.maquina'])
             ->where('activo', true)
+            ->orderBy('nombre')
             ->get()
             ->map(function ($proceso) use ($registros) {
                 $proceso->pasos_completados = $registros

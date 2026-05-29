@@ -16,11 +16,7 @@
 
 <section class="content">
     <div class="container-fluid">
-        @if (session('success'))
-            <div class="alert alert-success">{{ session('success') }}</div>
-        @endif
-
-        <div class="card x-card">
+<div class="card x-card">
             <div class="card-body table-responsive p-0">
                 <table class="table table-hover x-table">
                     <thead>

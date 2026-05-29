@@ -27,14 +27,7 @@
 @section('content')
 <div class="modulo-inv page-mov-almacen">
 
-    @if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show shadow-sm">
-        <button type="button" class="close" data-dismiss="alert">&times;</button>
-        <i class="fas fa-check-circle mr-1"></i> {{ session('success') }}
-    </div>
-    @endif
-
-    @if($filtroNaturaleza)
+@if($filtroNaturaleza)
     <div class="alert alert-info alert-dismissible fade show shadow-sm py-2">
         <button type="button" class="close" data-dismiss="alert">&times;</button>
         <i class="fas fa-filter mr-1"></i>

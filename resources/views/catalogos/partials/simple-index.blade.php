@@ -5,14 +5,7 @@
 
 <div class="modulo-cat">
 
-    @if(session('success'))
-    <div class="alert alert-success alert-dismissible fade show">
-        <i class="fas fa-check-circle mr-1"></i> {{ session('success') }}
-        <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
-    </div>
-    @endif
-
-    <div class="row mb-2">
+<div class="row mb-2">
         <div class="col-lg-4 col-6">
             <div class="small-box {{ $kpiClass }}">
                 <div class="inner">

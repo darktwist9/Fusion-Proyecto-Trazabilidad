@@ -65,17 +65,27 @@
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-6">
-                        <div class="form-group">
-                            <label><i class="fas fa-user mr-1"></i> Usuario Propietario <span
-                                    class="text-danger">*</span></label>
-                            <select name="usuarioid" class="form-control" required>
-                                @foreach($usuarios as $u)
-                                    <option value="{{ $u->usuarioid }}" {{ $u->usuarioid == $lote->usuarioid ? 'selected' : '' }}>
-                                        {{ $u->nombre }} {{ $u->apellido }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
+                        @include('partials.selector-catalogo', [
+                            'id' => 'lote_edit_responsable',
+                            'name' => 'usuarioid',
+                            'label' => 'Usuario propietario',
+                            'icon' => 'fa-user',
+                            'value' => $responsableLabel ? $lote->usuarioid : '',
+                            'labelSelected' => $responsableLabel ?? '',
+                            'endpoint' => route('catalogo-selector.usuarios'),
+                            'params' => ['roles' => 'agricultor,operador'],
+                            'filter' => [
+                                'param' => 'role',
+                                'options' => [
+                                    ['value' => '', 'label' => 'Agricultor y operador'],
+                                    ['value' => 'agricultor', 'label' => 'Solo agricultores'],
+                                    ['value' => 'operador', 'label' => 'Solo operadores'],
+                                ],
+                            ],
+                            'title' => 'Seleccionar responsable',
+                            'searchPlaceholder' => 'Nombre, correo o usuario…',
+                            'required' => true,
+                        ])
 
                         <div class="form-group">
                             <label><i class="fas fa-tag mr-1"></i> Nombre del Lote <span
@@ -97,17 +107,19 @@
                                 required value="{{ $lote->superficie }}">
                         </div>
 
-                        <div class="form-group">
-                            <label><i class="fas fa-seedling mr-1"></i> Cultivo</label>
-                            <select name="cultivoid" class="form-control">
-                                <option value="">-- Sin cultivo --</option>
-                                @foreach($cultivos as $c)
-                                    <option value="{{ $c->cultivoid }}" {{ $c->cultivoid == $lote->cultivoid ? 'selected' : '' }}>
-                                        {{ $c->nombre }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
+                        @include('partials.selector-catalogo', [
+                            'id' => 'lote_edit_cultivo',
+                            'name' => 'cultivoid',
+                            'label' => 'Cultivo',
+                            'icon' => 'fa-seedling',
+                            'value' => $lote->cultivoid ?? '',
+                            'labelSelected' => $cultivoLabel ?? '',
+                            'endpoint' => route('catalogo-selector.cultivos'),
+                            'allowEmpty' => true,
+                            'emptyLabel' => '— Sin cultivo —',
+                            'title' => 'Seleccionar cultivo',
+                            'searchPlaceholder' => 'Nombre del cultivo…',
+                        ])
 
                         <div class="form-group">
                             <label><i class="fas fa-id-badge mr-1"></i> Código de trazabilidad</label>
@@ -115,17 +127,19 @@
                                 value="{{ $lote->codigo_trazabilidad }}" placeholder="Ej: LT-2026-0001">
                         </div>
 
-                        <div class="form-group">
-                            <label><i class="fas fa-truck-loading mr-1"></i> Actor de abastecimiento</label>
-                            <select name="actorid" class="form-control">
-                                <option value="">-- Sin actor --</option>
-                                @foreach($actores as $actor)
-                                    <option value="{{ $actor->actorid }}" {{ (int) $lote->actorid === (int) $actor->actorid ? 'selected' : '' }}>
-                                        {{ $actor->nombre }} ({{ ucfirst($actor->tipo_actor) }})
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
+                        @include('partials.selector-catalogo', [
+                            'id' => 'lote_edit_actor',
+                            'name' => 'actorid',
+                            'label' => 'Actor de abastecimiento',
+                            'icon' => 'fa-truck-loading',
+                            'value' => $lote->actorid ?? '',
+                            'labelSelected' => $actorLabel ?? '',
+                            'endpoint' => route('catalogo-selector.actores'),
+                            'allowEmpty' => true,
+                            'emptyLabel' => '— Sin actor —',
+                            'title' => 'Seleccionar actor de abastecimiento',
+                            'searchPlaceholder' => 'Nombre o contacto…',
+                        ])
 
                         <div class="form-group">
                             <label><i class="fas fa-image mr-1"></i> Imagen del Lote</label>

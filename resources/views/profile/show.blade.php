@@ -82,22 +82,6 @@
                                         con * son obligatorios</small>
                                 </div>
 
-                                @if(session('success'))
-                                    <div class="alert alert-success alert-dismissible fade show shadow-sm border-left-success">
-                                        <button type="button" class="close" data-dismiss="alert">&times;</button>
-                                        <div class="d-flex align-items-center">
-                                            <div class="icon-circle bg-success text-white mr-3 d-flex align-items-center justify-content-center rounded-circle"
-                                                style="width: 30px; height: 30px;">
-                                                <i class="fas fa-check"></i>
-                                            </div>
-                                            <div>
-                                                <h6 class="mb-0 font-weight-bold">¡Éxito!</h6>
-                                                <span>{{ session('success') }}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                @endif
-
                                 <form class="form-horizontal" method="POST" action="{{ route('profile.update') }}"
                                     enctype="multipart/form-data">
                                     @csrf

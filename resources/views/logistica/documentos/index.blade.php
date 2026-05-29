@@ -15,11 +15,7 @@
 
 <section class="content">
     <div class="container-fluid">
-        @if (session('success'))
-            <div class="alert alert-success">{{ session('success') }}</div>
-        @endif
-
-        @if ($errors->any())
+@if ($errors->any())
             <div class="alert alert-danger">{{ $errors->first() }}</div>
         @endif
 

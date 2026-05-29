@@ -163,18 +163,18 @@
                             <strong>¿Para qué sirve?</strong> Identifica el campo parcelado que ya está en etapa productiva.
                             Solo aparecen lotes en estado <em>en producción</em> (listos para cosechar).
                         </div>
-                        <select name="loteid" id="loteid" class="form-control" required>
-                            <option value="">-- Seleccione un lote en producción --</option>
-                            @foreach($lotes as $l)
-                                <option value="{{ $l->loteid }}"
-                                        @selected((string) ($lotePreseleccionado ?? '') === (string) $l->loteid)
-                                        data-responsable="{{ trim(($l->usuario->nombre ?? '').' '.($l->usuario->apellido ?? '')) }}"
-                                        data-cultivo="{{ $l->cultivo->nombre ?? 'Sin cultivo' }}"
-                                        data-superficie="{{ $l->superficie }}">
-                                    {{ $l->nombre }} - {{ $l->cultivo->nombre ?? 'Sin cultivo' }} ({{ $l->superficie }} ha)
-                                </option>
-                            @endforeach
-                        </select>
+                        @include('partials.selector-catalogo', [
+                            'id' => 'produccion_lote',
+                            'name' => 'loteid',
+                            'value' => $lotePreseleccionado ?? '',
+                            'labelSelected' => $lotePreseleccionadoLabel ?? '',
+                            'endpoint' => route('catalogo-selector.lotes'),
+                            'params' => ['solo_produccion' => '1'],
+                            'title' => 'Seleccionar lote en producción',
+                            'searchPlaceholder' => 'Nombre, código o ubicación…',
+                            'inputGroup' => true,
+                            'required' => true,
+                        ])
                         @if($lotes->isEmpty())
                             <small class="form-text text-warning">
                                 <i class="fas fa-exclamation-triangle"></i> No hay lotes en estado «en producción».
@@ -201,12 +201,19 @@
                                     <strong>Opcional.</strong> Indica qué tratamiento industrial aplicó la cosecha (lavado, secado, empaque, etc.).
                                     Catálogo en <a href="{{ route('procesos-planta.index') }}">Procesos de planta</a>.
                                 </div>
-                                <select name="procesoplantaid" class="form-control">
-                                    <option value="">-- Sin proceso específico --</option>
-                                    @foreach($procesos as $proceso)
-                                        <option value="{{ $proceso->procesoplantaid }}">{{ $proceso->nombre }}</option>
-                                    @endforeach
-                                </select>
+                                @include('partials.selector-catalogo', [
+                                    'id' => 'produccion_proceso',
+                                    'name' => 'procesoplantaid',
+                                    'value' => old('procesoplantaid'),
+                                    'labelSelected' => '',
+                                    'endpoint' => route('catalogo-selector.procesos-planta'),
+                                    'params' => [],
+                                    'allowEmpty' => true,
+                                    'emptyLabel' => '— Sin proceso específico —',
+                                    'title' => 'Seleccionar proceso de planta',
+                                    'searchPlaceholder' => 'Nombre del proceso…',
+                                    'inputGroup' => true,
+                                ])
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -216,12 +223,19 @@
                                     <strong>Opcional.</strong> Registra el equipo utilizado (cosechadora, secadora, embolsadora).
                                     Catálogo en <a href="{{ route('maquinas-planta.index') }}">Máquinas de planta</a>.
                                 </div>
-                                <select name="maquinaplantaid" class="form-control">
-                                    <option value="">-- Sin máquina específica --</option>
-                                    @foreach($maquinas as $maquina)
-                                        <option value="{{ $maquina->maquinaplantaid }}">{{ $maquina->nombre }}</option>
-                                    @endforeach
-                                </select>
+                                @include('partials.selector-catalogo', [
+                                    'id' => 'produccion_maquina',
+                                    'name' => 'maquinaplantaid',
+                                    'value' => old('maquinaplantaid'),
+                                    'labelSelected' => '',
+                                    'endpoint' => route('catalogo-selector.maquinas-planta'),
+                                    'params' => ['activo' => '1'],
+                                    'allowEmpty' => true,
+                                    'emptyLabel' => '— Sin máquina específica —',
+                                    'title' => 'Seleccionar máquina',
+                                    'searchPlaceholder' => 'Nombre o código…',
+                                    'inputGroup' => true,
+                                ])
                             </div>
                         </div>
                     </div>
@@ -402,9 +416,7 @@
 
     $(document).ready(function() {
 
-        if ($('#loteid').val()) {
-            $('#loteid').trigger('change');
-        }
+        const wrapLoteProd = document.getElementById('selector_wrap_produccion_lote');
 
         if ($('.almacen-card').length === 1 && $('#enviarAlmacen').is(':checked')) {
             $('.almacen-card').first().trigger('click');
@@ -510,26 +522,33 @@
             }
         }
 
-        // Mostrar info del lote y activar recomendación
-        $('#loteid').on('change', function() {
-            const selected = $(this).find(':selected');
-            if (selected.val()) {
-                const cultivo = selected.data('cultivo');
-                $('#infoCultivo').text(cultivo);
-                $('#infoResponsable').text(selected.data('responsable'));
+        function onLoteProduccionSeleccionado(extra) {
+            if (extra && (extra.cultivo || extra.responsable)) {
+                $('#infoCultivo').text(extra.cultivo || '—');
+                $('#infoResponsable').text(extra.responsable || '—');
                 $('#loteInfo').slideDown();
-                
-                // Activar "Almacenar cosecha" automáticamente para mejor UX
                 if (!$('#enviarAlmacen').is(':checked')) {
                     $('#enviarAlmacen').prop('checked', true).trigger('change');
                 }
-                
-                // Ejecutar recomendación
-                recomendarAlmacen(cultivo);
+                recomendarAlmacen(extra.cultivo || '');
             } else {
                 $('#loteInfo').slideUp();
             }
+        }
+
+        wrapLoteProd?.addEventListener('selector-catalogo:change', function (e) {
+            onLoteProduccionSeleccionado(e.detail.extra || {});
         });
+
+        @if($lotePreseleccionado && $lotes->isNotEmpty())
+            @php $loteIni = $lotes->firstWhere('loteid', $lotePreseleccionado); @endphp
+            @if($loteIni)
+            onLoteProduccionSeleccionado({
+                cultivo: @json($loteIni->cultivo->nombre ?? 'Sin cultivo'),
+                responsable: @json(trim(($loteIni->usuario->nombre ?? '').' '.($loteIni->usuario->apellido ?? ''))),
+            });
+            @endif
+        @endif
 
         // Switch de almacén
         $('#enviarAlmacen').on('change', function() {

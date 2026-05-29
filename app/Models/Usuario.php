@@ -16,6 +16,16 @@ class Usuario extends Authenticatable
     protected $primaryKey = 'usuarioid';
     public $timestamps = false;
 
+    public function getRouteKeyName(): string
+    {
+        return 'usuarioid';
+    }
+
+    public function nombreCompleto(): string
+    {
+        return trim($this->nombre.' '.($this->apellido ?? '')) ?: ($this->nombreusuario ?? 'Sin nombre');
+    }
+
     protected $fillable = [
         'nombre',
         'apellido',

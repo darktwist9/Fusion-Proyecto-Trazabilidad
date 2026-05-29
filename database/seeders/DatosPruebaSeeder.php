@@ -46,7 +46,7 @@ class DatosPruebaSeeder extends Seeder
     {
         // Misma contraseña que AdminUserSeeder (123456); updateOrCreate para no dejar admin con otro hash si ya existía.
         $adminUsuario = Usuario::updateOrCreate(
-            ['email' => 'admin@agronexus.com'],
+            ['email' => 'admin@agrofusion.com'],
             [
                 'nombre' => 'Administrador',
                 'apellido' => 'Sistema',
@@ -62,7 +62,7 @@ class DatosPruebaSeeder extends Seeder
         $adminUsuario->syncRoles(['admin']);
 
         $agricultor = Usuario::firstOrCreate(
-            ['email' => 'agricultor@agronexus.com'],
+            ['email' => 'agricultor@agrofusion.com'],
             [
                 'nombre' => 'Usuario',
                 'apellido' => 'Agricultor',

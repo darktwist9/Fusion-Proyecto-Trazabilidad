@@ -92,9 +92,9 @@ class EnviosDistribucionModuloSeeder extends Seeder
      */
     private function resolveContext(): ?array
     {
-        $admin = Usuario::where('email', 'admin@agronexus.com')->first();
-        $operador = Usuario::where('email', 'operador@agronexus.com')->first();
-        $planta = Usuario::where('email', 'planta@agronexus.com')->first();
+        $admin = Usuario::where('email', 'admin@agrofusion.com')->first();
+        $operador = Usuario::where('email', 'operador@agrofusion.com')->first();
+        $planta = Usuario::where('email', 'planta@agrofusion.com')->first();
         $asignadorId = $planta?->usuarioid ?? $operador?->usuarioid ?? $admin?->usuarioid;
 
         if (! $asignadorId || ! $admin) {
@@ -107,17 +107,17 @@ class EnviosDistribucionModuloSeeder extends Seeder
 
         $carlos = $this->ensureTransportista([
             'nombre' => 'Carlos', 'apellido' => 'Mamani', 'nombreusuario' => 'transportista',
-            'email' => 'transportista@agronexus.com', 'telefono' => '700000101',
+            'email' => 'transportista@agrofusion.com', 'telefono' => '700000101',
         ], $roleTransportista);
 
         $miguel = $this->ensureTransportista([
             'nombre' => 'Miguel', 'apellido' => 'Rojas', 'nombreusuario' => 'mrojas',
-            'email' => 'miguel.rojas@agronexus.com', 'telefono' => '700000201',
+            'email' => 'miguel.rojas@agrofusion.com', 'telefono' => '700000201',
         ], $roleTransportista);
 
         $luis = $this->ensureTransportista([
             'nombre' => 'Luis', 'apellido' => 'Fernández', 'nombreusuario' => 'lfernandez',
-            'email' => 'luis.fernandez@agronexus.com', 'telefono' => '700000202',
+            'email' => 'luis.fernandez@agrofusion.com', 'telefono' => '700000202',
         ], $roleTransportista);
 
         if (! $carlos || ! $miguel || ! $luis) {
@@ -292,7 +292,13 @@ class EnviosDistribucionModuloSeeder extends Seeder
                 'transportista_usuarioid' => $ctx['carlos']->usuarioid,
                 'estado' => 'planificada',
                 'fecha_salida' => now()->addDay()->setTime(7, 0),
-                'resumen' => ['mod_env' => true, 'vehiculo_placa' => 'SCZ-MOD-01'],
+                'resumen' => [
+                    'mod_env' => true,
+                    'vehiculo_placa' => 'SCZ-MOD-01',
+                    'vehiculo_nombre' => 'Camión Volvo FH',
+                    'capacidad_kg' => 10000,
+                    'vehiculo_estado' => 'Activo',
+                ],
             ]
         );
 
@@ -303,7 +309,13 @@ class EnviosDistribucionModuloSeeder extends Seeder
                 'transportista_usuarioid' => $ctx['miguel']->usuarioid,
                 'estado' => 'en_ruta',
                 'fecha_salida' => now()->setTime(6, 30),
-                'resumen' => ['mod_env' => true, 'vehiculo_placa' => 'SCZ-MOD-02'],
+                'resumen' => [
+                    'mod_env' => true,
+                    'vehiculo_placa' => 'SCZ-MOD-02',
+                    'vehiculo_nombre' => 'Camioneta Toyota Hilux',
+                    'capacidad_kg' => 1200,
+                    'vehiculo_estado' => 'Activo',
+                ],
             ]
         );
 
@@ -314,7 +326,13 @@ class EnviosDistribucionModuloSeeder extends Seeder
                 'transportista_usuarioid' => $ctx['luis']->usuarioid,
                 'estado' => 'planificada',
                 'fecha_salida' => now()->addDays(2)->setTime(8, 0),
-                'resumen' => ['mod_env' => true, 'vehiculo_placa' => 'SCZ-MOD-03'],
+                'resumen' => [
+                    'mod_env' => true,
+                    'vehiculo_placa' => 'SCZ-MOD-03',
+                    'vehiculo_nombre' => 'Camión Mercedes Atego',
+                    'capacidad_kg' => 7000,
+                    'vehiculo_estado' => 'Activo',
+                ],
             ]
         );
 

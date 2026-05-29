@@ -26,7 +26,7 @@ class RoleSeeder extends Seeder
         Role::firstOrCreate(['name' => 'Agricultor', 'guard_name' => 'web']);
 
         // Asignacion estandar de roles a usuarios existentes sin duplicidad
-        $adminUser = Usuario::where('email', 'admin@agronexus.com')->first();
+        $adminUser = Usuario::where('email', 'admin@agrofusion.com')->first();
         if ($adminUser) {
             $adminUser->syncRoles([$adminRole->name]);
             $adminUser->role = $adminRole->name;
@@ -34,7 +34,7 @@ class RoleSeeder extends Seeder
             $adminUser->save();
         }
 
-        $operadorUser = Usuario::where('email', 'operador@agronexus.com')->first();
+        $operadorUser = Usuario::where('email', 'operador@agrofusion.com')->first();
         if ($operadorUser) {
             $operadorUser->syncRoles([$operadorRole->name]);
             $operadorUser->role = $operadorRole->name;

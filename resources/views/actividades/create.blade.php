@@ -25,18 +25,18 @@
             <div class="row">
                 <div class="col-md-8">
 
-                    <div class="form-group">
-                        <label><i class="fas fa-map-marked-alt mr-1"></i> Lote <span class="text-danger">*</span></label>
-                        <select name="loteid" id="loteid" class="form-control" required>
-                            <option value="">-- Seleccione un lote --</option>
-                            @foreach($lotes as $l)
-                                <option value="{{ $l->loteid }}"
-                                        data-responsable="{{ $l->usuario->nombre ?? '' }} {{ $l->usuario->apellido ?? '' }}">
-                                    {{ $l->nombre }} - {{ $l->ubicacion ?? 'Sin ubicacion' }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
+                    @include('partials.selector-catalogo', [
+                        'id' => 'actividad_lote',
+                        'name' => 'loteid',
+                        'label' => 'Lote',
+                        'icon' => 'fa-map-marked-alt',
+                        'value' => old('loteid'),
+                        'labelSelected' => $loteLabel ?? '',
+                        'endpoint' => route('catalogo-selector.lotes'),
+                        'title' => 'Seleccionar lote',
+                        'searchPlaceholder' => 'Nombre, código o ubicación…',
+                        'required' => true,
+                    ])
 
                     <div class="form-group">
                         <label><i class="fas fa-user mr-1"></i> Responsable</label>
@@ -129,11 +129,9 @@
 
 @push('scripts')
 <script>
-$(document).ready(function() {
-    $('#loteid').on('change', function() {
-        const responsable = $(this).find(':selected').data('responsable');
-        $('#responsable_display').val(responsable || 'Sin responsable asignado');
-    });
+document.getElementById('selector_wrap_actividad_lote')?.addEventListener('selector-catalogo:change', function (e) {
+    const extra = e.detail.extra || {};
+    document.getElementById('responsable_display').value = extra.responsable || 'Sin responsable asignado';
 });
 </script>
 @endpush

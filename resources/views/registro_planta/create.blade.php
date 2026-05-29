@@ -45,17 +45,19 @@
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-6 mb-3">
-                        <label class="form-label">Lote a ingresar a planta <span class="text-danger">*</span></label>
-                        <select name="loteid" id="selectLote" class="form-control" required>
-                            <option value="">— Seleccioná un lote —</option>
-                            @foreach($lotes as $lote)
-                            <option value="{{ $lote->loteid }}">
-                                #{{ $lote->loteid }} — {{ $lote->nombre }}
-                                @if($lote->cultivo) ({{ $lote->cultivo->nombre }}) @endif
-                            </option>
-                            @endforeach
-                        </select>
-                        <small class="text-muted">Seleccioná el lote que ingresó a la planta para procesamiento.</small>
+                        @include('partials.selector-catalogo', [
+                            'id' => 'registro_planta_lote',
+                            'name' => 'loteid',
+                            'label' => 'Lote a ingresar a planta',
+                            'icon' => 'fa-map-marked-alt',
+                            'value' => old('loteid'),
+                            'labelSelected' => $loteLabel ?? '',
+                            'endpoint' => route('catalogo-selector.lotes'),
+                            'title' => 'Seleccionar lote',
+                            'searchPlaceholder' => 'Nombre, código o cultivo…',
+                            'help' => 'Seleccioná el lote que ingresó a la planta para procesamiento.',
+                            'required' => true,
+                        ])
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Proceso a realizar <span class="text-danger">*</span></label>
@@ -196,7 +198,6 @@
 <script>
 var procesoActual = {{ $procesos->first()?->procesoplantaid ?? 'null' }};
 var procesosData  = @json($procesos->map(fn($p) => ['id' => $p->procesoplantaid, 'nombre' => $p->nombre]));
-var lotesData     = @json($lotes->map(fn($l) => ['id' => $l->loteid, 'nombre' => $l->nombre . ($l->cultivo ? ' ('.$l->cultivo->nombre.')' : '')]));
 
 function selectProceso(id, btn) {
     procesoActual = id;
@@ -206,11 +207,12 @@ function selectProceso(id, btn) {
 }
 
 function mostrarPasos() {
-    var loteId = document.getElementById('selectLote').value;
+    var wrap = document.getElementById('selector_wrap_registro_planta_lote');
+    var loteId = wrap ? wrap.querySelector('.selector-catalogo-value')?.value : '';
+    var loteNombre = wrap ? wrap.querySelector('.selector-catalogo-label')?.value : '';
     if (!loteId) { alert('Seleccioná un lote primero.'); return; }
-    var lote = lotesData.find(l => l.id == loteId);
     var proc = procesosData.find(p => p.id == procesoActual);
-    document.getElementById('labelLote').textContent = lote ? lote.nombre : '#'+loteId;
+    document.getElementById('labelLote').textContent = loteNombre || ('#' + loteId);
     document.getElementById('labelProceso').textContent = proc ? proc.nombre : '';
     document.getElementById('panelSeleccion').style.display = 'none';
     document.getElementById('panelPasos').style.display = '';

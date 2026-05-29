@@ -29,18 +29,18 @@
                 <div class="col-md-8">
                     
                     {{-- Selección de Lote --}}
-                    <div class="form-group">
-                        <label><i class="fas fa-map-marked-alt mr-1"></i> Lote <span class="text-danger">*</span></label>
-                        <select name="loteid" id="loteid" class="form-control" required>
-                            <option value="">-- Seleccione un lote --</option>
-                            @foreach($lotes as $l)
-                                <option value="{{ $l->loteid }}" 
-                                        data-responsable="{{ $l->usuario->nombre ?? '' }} {{ $l->usuario->apellido ?? '' }}">
-                                    {{ $l->nombre }} - {{ $l->ubicacion ?? 'Sin ubicación' }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
+                    @include('partials.selector-catalogo', [
+                        'id' => 'lote_insumo_lote',
+                        'name' => 'loteid',
+                        'label' => 'Lote',
+                        'icon' => 'fa-map-marked-alt',
+                        'value' => old('loteid'),
+                        'labelSelected' => $loteLabel ?? '',
+                        'endpoint' => route('catalogo-selector.lotes'),
+                        'title' => 'Seleccionar lote',
+                        'searchPlaceholder' => 'Nombre, código o ubicación…',
+                        'required' => true,
+                    ])
 
                     {{-- Usuario Responsable (automático, solo lectura) --}}
                     <div class="form-group">
@@ -53,20 +53,19 @@
                     </div>
 
                     {{-- Selección de Insumo --}}
-                    <div class="form-group">
-                        <label><i class="fas fa-flask mr-1"></i> Insumo <span class="text-danger">*</span></label>
-                        <select name="insumoid" id="insumoid" class="form-control" required>
-                            <option value="">-- Seleccione un insumo --</option>
-                            @foreach($insumos as $i)
-                                <option value="{{ $i->insumoid }}"
-                                        data-stock="{{ $i->stock }}"
-                                        data-unidad="{{ $i->unidadMedida->abreviatura ?? 'ud' }}"
-                                        data-precio="{{ $i->preciounitario ?? 0 }}">
-                                    {{ $i->nombre }} (Stock: {{ $i->stock }} {{ $i->unidadMedida->abreviatura ?? '' }})
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
+                    @include('partials.selector-catalogo', [
+                        'id' => 'lote_insumo_insumo',
+                        'name' => 'insumoid',
+                        'label' => 'Insumo',
+                        'icon' => 'fa-flask',
+                        'value' => old('insumoid'),
+                        'labelSelected' => $insumoLabel ?? '',
+                        'endpoint' => route('catalogo-selector.insumos'),
+                        'params' => ['solo_con_stock' => '1'],
+                        'title' => 'Seleccionar insumo',
+                        'searchPlaceholder' => 'Nombre del insumo…',
+                        'required' => true,
+                    ])
 
                     {{-- Cantidad --}}
                     <div class="form-group">
@@ -157,23 +156,19 @@
 $(document).ready(function() {
     let precioActual = 0;
 
-    // Al cambiar el lote, mostrar el responsable
-    $('#loteid').on('change', function() {
-        const responsable = $(this).find(':selected').data('responsable');
-        $('#responsable_display').val(responsable || 'Sin responsable asignado');
+    document.getElementById('selector_wrap_lote_insumo_lote')?.addEventListener('selector-catalogo:change', function (e) {
+        const extra = e.detail.extra || {};
+        $('#responsable_display').val(extra.responsable || 'Sin responsable asignado');
     });
 
-    // Al cambiar el insumo, mostrar stock y unidad
-    $('#insumoid').on('change', function() {
-        const selected = $(this).find(':selected');
-        const stock = selected.data('stock');
-        const unidad = selected.data('unidad');
-        precioActual = parseFloat(selected.data('precio')) || 0;
-
+    document.getElementById('selector_wrap_lote_insumo_insumo')?.addEventListener('selector-catalogo:change', function (e) {
+        const extra = e.detail.extra || {};
+        const stock = extra.stock ?? 0;
+        const unidad = extra.unidad || 'ud';
+        precioActual = parseFloat(extra.precio) || 0;
         $('#stock_display').text(stock + ' ' + unidad);
         $('#unidad_display').text(unidad);
         $('#cantidadusada').attr('max', stock);
-        
         calcularCosto();
     });
 

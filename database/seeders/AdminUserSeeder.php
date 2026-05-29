@@ -1,67 +1,60 @@
-<?php
-
-namespace Database\Seeders;
-
-use Illuminate\Database\Seeder;
-use App\Models\Usuario;
-use Illuminate\Support\Facades\Hash;
-
-class AdminUserSeeder extends Seeder
-{
-    /**
-     * Run the database seeds.
-     */
-    public function run(): void
-    {
-        $admin = Usuario::updateOrCreate(
-            ['email' => 'admin@agronexus.com'],
-            [
-                'nombre' => 'Administrador',
-                'apellido' => 'Sistema',
-                'nombreusuario' => 'admin',
-                'telefono' => '123456789',
-                'passwordhash' => Hash::make('123456'),
-                'role' => 'admin',
-                'activo' => true,
-                'fecharegistro' => now(),
-                'fechamodificacion' => now(),
-            ]
-        );
-
-        // Assign Spatie Role
-        $admin->syncRoles(['admin']);
-
-        $agricultor = Usuario::updateOrCreate(
-            ['email' => 'agricultor@agronexus.com'],
-            [
-                'nombre' => 'Usuario',
-                'apellido' => 'Agricultor',
-                'nombreusuario' => 'agricultor',
-                'telefono' => '700000001',
-                'passwordhash' => Hash::make('123456'),
-                'role' => 'agricultor',
-                'activo' => true,
-                'fecharegistro' => now(),
-                'fechamodificacion' => now(),
-            ]
-        );
-        $agricultor->syncRoles(['agricultor']);
-
-        $operador = Usuario::updateOrCreate(
-            ['email' => 'operador@agronexus.com'],
-            [
-                'nombre' => 'Usuario',
-                'apellido' => 'Operador',
-                'nombreusuario' => 'operador',
-                'telefono' => '700000002',
-                'passwordhash' => Hash::make('123456'),
-                'role' => 'operador',
-                'activo' => true,
-                'fecharegistro' => now(),
-                'fechamodificacion' => now(),
-            ]
-        );
-        $operador->syncRoles(['operador']);
-
-    }
-}
+<?php
+
+namespace Database\Seeders;
+
+use Illuminate\Database\Seeder;
+use App\Models\Usuario;
+use Illuminate\Support\Facades\Hash;
+
+class AdminUserSeeder extends Seeder
+{
+    private const DEMO_PASSWORD = '12345';
+
+    /**
+     * Run the database seeds.
+     */
+    public function run(): void
+    {
+        $admin = Usuario::updateOrCreate(
+            ['email' => 'admin@agrofusion.com'],
+            [
+                'nombre' => 'Administrador',
+                'apellido' => 'Sistema',
+                'nombreusuario' => 'admin',
+                'telefono' => '123456789',
+                'passwordhash' => Hash::make(self::DEMO_PASSWORD),
+                'role' => 'admin',
+                'activo' => true,
+                'fecharegistro' => now(),
+                'fechamodificacion' => now(),
+            ]
+        );
+        $admin->syncRoles(['admin']);
+
+        $demoUsers = [
+            ['email' => 'agricultor@agrofusion.com', 'nombre' => 'Usuario', 'apellido' => 'Agricultor', 'nombreusuario' => 'agricultor', 'telefono' => '700000001', 'role' => 'agricultor'],
+            ['email' => 'operador@agrofusion.com', 'nombre' => 'Usuario', 'apellido' => 'Operador', 'nombreusuario' => 'operador', 'telefono' => '700000002', 'role' => 'operador'],
+            ['email' => 'planta@agrofusion.com', 'nombre' => 'Planta', 'apellido' => 'Principal', 'nombreusuario' => 'planta', 'telefono' => '700000103', 'role' => 'planta'],
+            ['email' => 'transportista@agrofusion.com', 'nombre' => 'Carlos', 'apellido' => 'Mamani', 'nombreusuario' => 'transportista', 'telefono' => '700000104', 'role' => 'transportista'],
+            ['email' => 'almacen@agrofusion.com', 'nombre' => 'Jorge', 'apellido' => 'Almacenero', 'nombreusuario' => 'almacen', 'telefono' => '700000105', 'role' => 'almacen'],
+        ];
+
+        foreach ($demoUsers as $entry) {
+            $usuario = Usuario::updateOrCreate(
+                ['email' => $entry['email']],
+                [
+                    'nombre' => $entry['nombre'],
+                    'apellido' => $entry['apellido'],
+                    'nombreusuario' => $entry['nombreusuario'],
+                    'telefono' => $entry['telefono'],
+                    'passwordhash' => Hash::make(self::DEMO_PASSWORD),
+                    'role' => $entry['role'],
+                    'activo' => true,
+                    'fecharegistro' => now(),
+                    'fechamodificacion' => now(),
+                ]
+            );
+            $usuario->syncRoles([$entry['role']]);
+        }
+    }
+}

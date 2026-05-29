@@ -163,6 +163,11 @@ class ProduccionController extends Controller
         $maquinas = MaquinaPlanta::where('activo', true)->orderBy('nombre')->get();
 
         $lotePreseleccionado = $lotes->count() === 1 ? $lotes->first()->loteid : old('loteid');
+        $lotePreseleccionadoLabel = null;
+        if ($lotePreseleccionado) {
+            $loteSel = $lotes->firstWhere('loteid', $lotePreseleccionado) ?? Lote::find($lotePreseleccionado);
+            $lotePreseleccionadoLabel = $loteSel?->nombre;
+        }
 
         return view('producciones.create', compact(
             'lotes',
@@ -170,7 +175,8 @@ class ProduccionController extends Controller
             'almacenes',
             'procesos',
             'maquinas',
-            'lotePreseleccionado'
+            'lotePreseleccionado',
+            'lotePreseleccionadoLabel'
         ));
     }
 

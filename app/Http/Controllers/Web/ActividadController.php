@@ -82,11 +82,11 @@ class ActividadController extends Controller
 
     public function create()
     {
-        $lotes = Lote::with('usuario')->get();
         $tipos = TipoActividad::all();
         $prioridades = Prioridad::all();
+        $loteLabel = old('loteid') ? Lote::with('usuario')->find(old('loteid'))?->nombre : null;
 
-        return view('actividades.create', compact('lotes', 'tipos', 'prioridades'));
+        return view('actividades.create', compact('tipos', 'prioridades', 'loteLabel'));
     }
 
     public function store(Request $request)

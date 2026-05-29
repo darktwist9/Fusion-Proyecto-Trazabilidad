@@ -14,10 +14,14 @@ use App\Services\OperacionAgricolaAutomaticaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 // use App\Services\SupabaseStorage; // COMENTADO TEMPORALMENTE
 
 class LoteController extends Controller
 {
+    /** Roles que pueden ser responsables de un lote (nunca admin). */
+    private const ROLES_RESPONSABLE_LOTE = ['agricultor', 'operador'];
+
     public function index(Request $request)
     {
         $query = Lote::query()
@@ -170,32 +174,37 @@ class LoteController extends Controller
     public function create()
     {
         $user = auth()->user();
-        $cultivos = Cultivo::orderBy('nombre')->get();
         $mostrarSelectorPropietario = $user && (
             $user->hasRole('admin') || $user->hasRole('operador') || $user->hasRole('Admin')
         );
-        $usuarios = $mostrarSelectorPropietario
-            ? Usuario::query()
-                ->where('activo', true)
-                ->whereIn('role', ['agricultor', 'operador', 'admin'])
-                ->orderBy('nombre')
-                ->get()
-            : collect();
 
-        $propietarioPorDefecto = (int) ($user?->usuarioid ?? 0);
+        $propietarioPorDefecto = $this->responsableLotePorDefecto($user);
+        $usuarioidInicial = (int) old('usuarioid', $propietarioPorDefecto ?? 0);
+        $responsableLabel = null;
+        if ($mostrarSelectorPropietario && $usuarioidInicial && $this->puedeSerResponsableDeLote($usuarioidInicial)) {
+            $resp = Usuario::find($usuarioidInicial);
+            $responsableLabel = $resp ? trim($resp->nombre.' '.($resp->apellido ?? '')) : null;
+        } elseif ($mostrarSelectorPropietario) {
+            $usuarioidInicial = 0;
+        }
+
+        $cultivoidInicial = old('cultivoid');
+        $cultivoLabel = $cultivoidInicial ? Cultivo::find($cultivoidInicial)?->nombre : null;
 
         return view('lotes.create', compact(
-            'cultivos',
             'mostrarSelectorPropietario',
-            'usuarios',
-            'propietarioPorDefecto'
+            'propietarioPorDefecto',
+            'usuarioidInicial',
+            'responsableLabel',
+            'cultivoidInicial',
+            'cultivoLabel'
         ));
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
-            'usuarioid' => 'nullable|exists:usuario,usuarioid',
+            'usuarioid' => ['nullable', 'exists:usuario,usuarioid', $this->reglaResponsableLote()],
             'nombre' => 'required|string|max:100',
             'ubicacion' => 'nullable|string|max:200',
             'superficie' => 'required|numeric|min:0.01',
@@ -204,9 +213,7 @@ class LoteController extends Controller
             'longitud' => 'nullable|numeric|between:-180,180',
         ]);
 
-        if (empty($data['usuarioid'])) {
-            $data['usuarioid'] = (int) auth()->id();
-        }
+        $data['usuarioid'] = $this->resolverUsuarioidLote($request, $data['usuarioid'] ?? null);
 
         if (empty($data['ubicacion']) && ! empty($data['latitud']) && ! empty($data['longitud'])) {
             $data['ubicacion'] = sprintf(
@@ -383,18 +390,29 @@ class LoteController extends Controller
 
     public function edit(Lote $lote)
     {
-        $usuarios = Usuario::all();
-        $cultivos = Cultivo::all();
-        $estados = EstadoLoteTipo::all();
-        $actores = ActorAbastecimiento::where('activo', true)->orderBy('nombre')->get();
+        $lote->load(['usuario', 'cultivo', 'actorAbastecimiento']);
 
-        return view('lotes.edit', compact('lote', 'usuarios', 'cultivos', 'estados', 'actores'));
+        $estados = EstadoLoteTipo::all();
+
+        $responsableLabel = ($lote->usuario && $this->puedeSerResponsableDeLote((int) $lote->usuarioid))
+            ? trim($lote->usuario->nombre.' '.($lote->usuario->apellido ?? ''))
+            : null;
+        $cultivoLabel = $lote->cultivo?->nombre;
+        $actorLabel = $lote->actorAbastecimiento?->nombre;
+
+        return view('lotes.edit', compact(
+            'lote',
+            'estados',
+            'responsableLabel',
+            'cultivoLabel',
+            'actorLabel'
+        ));
     }
 
     public function update(Request $request, Lote $lote)
     {
         $data = $request->validate([
-            'usuarioid' => 'required|exists:usuario,usuarioid',
+            'usuarioid' => ['required', 'exists:usuario,usuarioid', $this->reglaResponsableLote()],
             'nombre' => 'required|string|max:100',
             'ubicacion' => 'nullable|string|max:200',
             'superficie' => 'required|numeric|min:0',
@@ -437,5 +455,71 @@ class LoteController extends Controller
         $lote->delete();
 
         return redirect()->route('lotes.index')->with('success', 'Lote eliminado.');
+    }
+
+    private function reglaResponsableLote(): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail): void {
+            if ($value === null || $value === '') {
+                return;
+            }
+            if (! $this->puedeSerResponsableDeLote((int) $value)) {
+                $fail('El administrador no puede ser responsable de un lote. Elija un agricultor u operador.');
+            }
+        };
+    }
+
+    private function puedeSerResponsableDeLote(int $usuarioid): bool
+    {
+        $usuario = Usuario::find($usuarioid);
+        if (! $usuario || ! $usuario->activo) {
+            return false;
+        }
+
+        if ($this->usuarioEsAdmin($usuario)) {
+            return false;
+        }
+
+        return in_array(strtolower((string) ($usuario->role ?? '')), self::ROLES_RESPONSABLE_LOTE, true);
+    }
+
+    private function usuarioEsAdmin(Usuario $usuario): bool
+    {
+        return $usuario->hasRole('admin')
+            || in_array(strtolower((string) ($usuario->role ?? '')), ['admin'], true);
+    }
+
+    private function responsableLotePorDefecto(?Usuario $user): ?int
+    {
+        if (! $user || $this->usuarioEsAdmin($user)) {
+            return null;
+        }
+
+        $role = strtolower((string) ($user->role ?? ''));
+        if (in_array($role, self::ROLES_RESPONSABLE_LOTE, true)) {
+            return (int) $user->usuarioid;
+        }
+
+        return null;
+    }
+
+    private function resolverUsuarioidLote(Request $request, mixed $usuarioid): int
+    {
+        $auth = $request->user();
+
+        if ($usuarioid && $this->puedeSerResponsableDeLote((int) $usuarioid)) {
+            return (int) $usuarioid;
+        }
+
+        if ($auth && ! $this->usuarioEsAdmin($auth)) {
+            $defecto = $this->responsableLotePorDefecto($auth);
+            if ($defecto) {
+                return $defecto;
+            }
+        }
+
+        throw ValidationException::withMessages([
+            'usuarioid' => 'Debe asignar un agricultor u operador como responsable del lote. El administrador solo supervisa.',
+        ]);
     }
 }

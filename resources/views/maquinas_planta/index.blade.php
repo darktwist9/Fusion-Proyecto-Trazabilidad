@@ -1,61 +1,166 @@
 @extends('layouts.app')
 
-@section('title', 'Máquinas de planta')
+@section('title', 'Máquinas de planta | Fusion-Proyectos')
 @section('page_title', 'Máquinas de planta')
 
+@section('breadcrumbs')
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
+    <li class="breadcrumb-item active">Máquinas de planta</li>
+@endsection
+
+@push('styles')
+@include('partials.modulo-produccion-styles')
+@include('maquinas_planta.partials.foto-maquina-styles')
+@endpush
+
 @section('content')
-@if($errors->any())
-    <div class="alert alert-danger">
-        <strong>No se pudo guardar la máquina.</strong>
-        <ul class="mb-0 mt-2">
-            @foreach($errors->all() as $error)
-                <li>{{ $error }}</li>
-            @endforeach
-        </ul>
-    </div>
-@endif
+<div class="modulo-prod">
 
-<div class="card mb-3">
-    <div class="card-header"><strong>Nueva máquina</strong></div>
-    <div class="card-body">
-        <form method="POST" action="{{ route('maquinas-planta.store') }}">
-            @csrf
-            <div class="row">
-                <div class="col-md-4"><input name="nombre" class="form-control" placeholder="Nombre de máquina" value="{{ old('nombre') }}" required></div>
-                <div class="col-md-2"><input name="codigo" class="form-control" placeholder="Código" value="{{ old('codigo') }}"></div>
-                <div class="col-md-4"><input name="descripcion" class="form-control" placeholder="Descripción (opcional)" value="{{ old('descripcion') }}"></div>
-                <div class="col-md-2"><button class="btn btn-primary btn-block">Crear</button></div>
+    <div class="row mb-2">
+        <div class="col-lg-4 col-6">
+            <div class="small-box small-box-green">
+                <div class="inner">
+                    <h3>{{ $stats['total'] ?? 0 }}</h3>
+                    <p>Máquinas registradas</p>
+                </div>
+                <div class="icon"><i class="fas fa-cogs"></i></div>
+                <span class="small-box-footer">Equipo de planta</span>
             </div>
-        </form>
+        </div>
+        <div class="col-lg-4 col-6">
+            <div class="small-box small-box-blue">
+                <div class="inner">
+                    <h3>{{ $stats['con_codigo'] ?? 0 }}</h3>
+                    <p>Con código</p>
+                </div>
+                <div class="icon"><i class="fas fa-barcode"></i></div>
+                <span class="small-box-footer">Identificación interna</span>
+            </div>
+        </div>
+        <div class="col-lg-4 col-12">
+            <div class="small-box small-box-teal">
+                <div class="inner">
+                    <h3>{{ $stats['activas'] ?? 0 }}</h3>
+                    <p>Activas</p>
+                </div>
+                <div class="icon"><i class="fas fa-check-circle"></i></div>
+                <span class="small-box-footer">Disponibles en registro</span>
+            </div>
+        </div>
     </div>
-</div>
 
-<div class="card">
-    <div class="card-header"><strong>Catálogo de máquinas</strong></div>
-    <div class="card-body p-0 table-responsive">
-        <table class="table table-hover mb-0">
-            <thead><tr><th>Nombre</th><th>Código</th><th>Descripción</th><th>Acciones</th></tr></thead>
-            <tbody>
-                @forelse($maquinas as $maquina)
+    <div class="card card-outline card-success card-modulo-main elevation-1">
+        <div class="card-header">
+            <h3 class="card-title mb-0">
+                <i class="fas fa-cogs text-success mr-1"></i>
+                Catálogo de máquinas
+                <span class="badge badge-light border text-muted badge-registros ml-2">{{ $maquinas->total() }} registros</span>
+            </h3>
+            <div class="card-tools d-flex align-items-center" style="gap: 6px;">
+                <a href="{{ route('maquinas-planta.create') }}" class="btn btn-success btn-sm">
+                    <i class="fas fa-plus mr-1"></i> Nueva máquina
+                </a>
+                <button type="button" class="btn btn-tool" data-toggle="collapse" data-target="#filtrosMaquinasPanel" title="Filtros">
+                    <i class="fas fa-filter"></i>
+                </button>
+            </div>
+        </div>
+
+        <div id="filtrosMaquinasPanel" class="filtros-panel collapse {{ request()->hasAny(['buscar','estado','con_codigo']) ? 'show' : '' }}">
+            <form method="GET" action="{{ route('maquinas-planta.index') }}">
+                <div class="row align-items-end">
+                    <div class="col-md-4 mb-2 mb-md-0">
+                        <label class="small text-muted mb-1">Buscar</label>
+                        <input type="text" name="buscar" class="form-control form-control-sm" value="{{ request('buscar') }}" placeholder="Nombre, código o descripción…">
+                    </div>
+                    <div class="col-md-3 mb-2 mb-md-0">
+                        <label class="small text-muted mb-1">Estado</label>
+                        <select name="estado" class="form-control form-control-sm">
+                            <option value="">Todas</option>
+                            <option value="activa" @selected(request('estado') === 'activa')>Activas</option>
+                            <option value="mantenimiento" @selected(in_array(request('estado'), ['mantenimiento', 'inactiva'], true))>En mantenimiento</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-2 mb-md-0">
+                        <div class="custom-control custom-checkbox mb-1">
+                            <input type="checkbox" class="custom-control-input" id="filtroConCodigo" name="con_codigo" value="1" @checked(request()->boolean('con_codigo'))>
+                            <label class="custom-control-label small" for="filtroConCodigo">Solo con código</label>
+                        </div>
+                    </div>
+                    <div class="col-md-3 d-flex" style="gap: 8px;">
+                        <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-search mr-1"></i> Filtrar</button>
+                        <a href="{{ route('maquinas-planta.index') }}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="card-body p-0 table-responsive">
+            <table class="table table-modulo table-hover mb-0">
+                <thead>
                     <tr>
-                        <td>{{ $maquina->nombre }}</td>
-                        <td>{{ $maquina->codigo ?? '-' }}</td>
-                        <td>{{ $maquina->descripcion ?? '-' }}</td>
+                        <th style="width: 56px;">Foto</th>
+                        <th>Nombre</th>
+                        <th>Código</th>
+                        <th>Descripción</th>
+                        <th style="width: 100px;">Estado</th>
+                        <th style="width: 200px;">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($maquinas as $maquina)
+                    <tr>
                         <td>
-                            <form method="POST" action="{{ route('maquinas-planta.destroy', $maquina) }}">
+                            @include('maquinas_planta.partials.foto-maquina', ['maquina' => $maquina, 'size' => 'thumb'])
+                        </td>
+                        <td><strong>{{ $maquina->nombre }}</strong></td>
+                        <td>
+                            @if($maquina->codigo)
+                                <span class="badge badge-light border">{{ $maquina->codigo }}</span>
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td>
+                        <td class="text-muted">{{ $maquina->descripcionMostrar() }}</td>
+                        <td>@include('maquinas_planta.partials.estado-maquina', ['maquina' => $maquina])</td>
+                        <td class="btn-actions text-nowrap">
+                            @include('maquinas_planta.partials.btn-toggle-estado', ['maquina' => $maquina])
+                            <a href="{{ route('maquinas-planta.show', $maquina) }}" class="btn btn-sm btn-outline-info" title="Ver detalle">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <a href="{{ route('maquinas-planta.edit', $maquina) }}" class="btn btn-sm btn-outline-primary" title="Editar">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <form method="POST" action="{{ route('maquinas-planta.destroy', $maquina) }}" class="d-inline"
+                                onsubmit="return confirm('¿Eliminar esta máquina?')">
                                 @csrf
                                 @method('DELETE')
-                                <button class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Eliminar máquina?')">Eliminar</button>
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">
+                                    <i class="fas fa-trash"></i>
+                                </button>
                             </form>
                         </td>
                     </tr>
-                @empty
-                    <tr><td colspan="4" class="text-center text-muted">Sin máquinas registradas. Agrega una para seleccionar equipo durante el registro de producción.</td></tr>
-                @endforelse
-            </tbody>
-        </table>
+                    @empty
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">
+                            <i class="fas fa-cogs fa-2x mb-2 d-block"></i>
+                            Sin máquinas registradas.
+                            <a href="{{ route('maquinas-planta.create') }}" class="btn btn-success btn-sm mt-2">
+                                <i class="fas fa-plus mr-1"></i> Registrar primera máquina
+                            </a>
+                        </td>
+                    </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+        @if($maquinas->hasPages())
+        <div class="card-footer">{{ $maquinas->links() }}</div>
+        @endif
     </div>
-    <div class="card-footer">{{ $maquinas->links() }}</div>
+
+    @include('maquinas_planta.partials.modal-foto-maquina')
 </div>
 @endsection
 
