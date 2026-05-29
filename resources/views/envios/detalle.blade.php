@@ -1,8 +1,8 @@
 @extends('layouts.app')
 
-@section('title', 'Seguimiento del Envío')
+@section('title', 'Detalle de envío | AgroNexus')
 
-@section('page_title', 'Seguimiento del Envío')
+@section('page_title', 'Detalle de envío')
 
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
@@ -10,57 +10,10 @@
     <li class="breadcrumb-item active">Detalle</li>
 @endsection
 
-@section('content')
-    <style>
-        /* Indicador de conexión */
-        #conexion-status {
-            position: fixed;
-            top: 70px;
-            right: 20px;
-            padding: 10px 20px;
-            border-radius: 25px;
-            font-weight: 600;
-            font-size: 0.9rem;
-            z-index: 9999;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-            transition: all 0.3s ease;
-        }
-
-        .status-online {
-            background: linear-gradient(135deg, #28a745, #20c997);
-            color: white;
-        }
-
-        .status-offline {
-            background: linear-gradient(135deg, #dc3545, #e74a3b);
-            color: white;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-
-            0%,
-            100% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0.7;
-            }
-        }
-
-        .offline-banner {
-            background: #fff3cd;
-            border: 1px solid #ffc107;
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 20px;
-        }
-
-        .timeline-item {
+@push('styles')
+@include('partials.modulo-envios-styles')
+<style>
+        .page-env-detalle .timeline-item {
             border-left: 3px solid #dee2e6;
             padding-left: 15px;
             margin-left: 5px;
@@ -70,18 +23,16 @@
             border-left-color: #28a745;
         }
 
-        .timeline-item.entrega {
+        .page-env-detalle .timeline-item.entrega {
             border-left-color: #dc3545;
         }
-    </style>
+</style>
+@endpush
 
-    <!-- Indicador de conexión -->
-    <div id="conexion-status" class="status-online">
-        <i class="fas fa-wifi" id="conexion-icon"></i>
-        <span id="conexion-text">Conectado</span>
-    </div>
+@section('content')
+<div class="modulo-env page-env-detalle">
 
-    <!-- Banner offline -->
+    <!-- Banner offline (solo cuando no hay conexión) -->
     <div id="offline-banner" class="offline-banner" style="display: none;">
         <div class="d-flex justify-content-between align-items-center">
             <div>
@@ -96,37 +47,60 @@
         </div>
     </div>
 
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-body">
-                    <div id="detalleEnvio"></div>
-                </div>
+    <div class="card card-modulo-main">
+        <div class="card-header">
+            <h3 class="card-title mb-0"><i class="fas fa-info-circle text-success mr-2"></i>Envío #{{ $id }}</h3>
+            <div class="card-tools">
+                <a href="{{ route('envios.seguimiento') }}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fas fa-arrow-left mr-1"></i> Volver al listado
+                </a>
             </div>
         </div>
+        <div class="card-body">
+            <div id="detalleEnvio"></div>
+        </div>
     </div>
+
+</div>
 @endsection
 
-@push('styles')
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-@endpush
-
 @push('scripts')
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script>
         (function () {
-            const LOCAL_API_URL = '/envios/api';
+            const LOCAL_API_URL = '{{ url('/envios/api') }}';
             const envioId = {{ $id ?? 0 }};
             const CACHE_KEY = `agronexus_envio_${envioId}`;
+            const TIENE_DETALLE_SERVIDOR = @json($tieneDetalle ?? false);
+            const envioServidor = @json($envioInicial ?? null);
             const FETCH_OPTS = { credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } };
+            const DETALLE_TIMEOUT_MS = 6000;
 
             const cont = document.getElementById('detalleEnvio');
             let conectado = true;
             let state = { envio: null };
+            let leafletReady = null;
 
             const loaderHtml = '<div class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin mr-2"></i>Cargando información del envío...</div>';
+
+            function cargarLeaflet() {
+                if (window.L) return Promise.resolve();
+                if (leafletReady) return leafletReady;
+                leafletReady = new Promise((resolve, reject) => {
+                    if (!document.querySelector('link[data-leaflet-css]')) {
+                        const link = document.createElement('link');
+                        link.rel = 'stylesheet';
+                        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+                        link.setAttribute('data-leaflet-css', '1');
+                        document.head.appendChild(link);
+                    }
+                    const script = document.createElement('script');
+                    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+                    script.onload = () => resolve();
+                    script.onerror = () => reject(new Error('Leaflet no cargó'));
+                    document.body.appendChild(script);
+                });
+                return leafletReady;
+            }
 
             function normalizarDetalleEnvio(payload) {
                 if (!payload || typeof payload !== 'object') return null;
@@ -167,22 +141,8 @@
             }
 
             function actualizarIndicador() {
-                const status = document.getElementById('conexion-status');
-                const icon = document.getElementById('conexion-icon');
-                const text = document.getElementById('conexion-text');
                 const banner = document.getElementById('offline-banner');
-
-                if (conectado) {
-                    status.className = 'status-online';
-                    icon.className = 'fas fa-wifi';
-                    text.textContent = 'Conectado';
-                    banner.style.display = 'none';
-                } else {
-                    status.className = 'status-offline';
-                    icon.className = 'fas fa-wifi-slash';
-                    text.textContent = 'Sin Conexión';
-                    banner.style.display = 'block';
-                }
+                banner.style.display = conectado ? 'none' : 'block';
             }
 
             function guardarEnCache(data) {
@@ -356,9 +316,13 @@
                     card.appendChild(body);
                     wrapper.appendChild(card);
 
-                    // Inicializar mapa
-                    setTimeout(() => {
+                    // Mapa: carga diferida (no bloquea el detalle)
+                    const mapEl = colRight.querySelector(`#${mapId}`);
+                    if (mapEl) {
+                        mapEl.innerHTML = '<div class="text-center text-muted py-5"><i class="fas fa-map mr-1"></i> Cargando mapa...</div>';
+                        const initMapa = () => {
                         try {
+                            mapEl.innerHTML = '';
                             const map = L.map(mapId).setView([
                                 envio.coordenadas_origen?.lat || -17.3935,
                                 envio.coordenadas_origen?.lng || -66.1570
@@ -409,8 +373,13 @@
                             }
                         } catch (e) {
                             console.error('Error inicializando mapa:', e);
+                            mapEl.innerHTML = '<div class="alert alert-light mb-0 text-center small">Mapa no disponible</div>';
                         }
-                    }, 100);
+                        };
+                        cargarLeaflet().then(initMapa).catch(() => {
+                            mapEl.innerHTML = '<div class="alert alert-light mb-0 text-center small">Mapa no disponible sin conexión externa</div>';
+                        });
+                    }
                 });
 
                 cont.innerHTML = '';
@@ -421,66 +390,78 @@
             // CARGA DE DATOS
             // ========================================
 
-            async function cargarEnvio() {
-                cont.innerHTML = loaderHtml;
-
-                await verificarConexion();
-
-                if (conectado) {
-                    try {
-                        const res = await fetch(`${LOCAL_API_URL}/envios/${envioId}`, {
-                            ...FETCH_OPTS,
-                            cache: 'no-store',
-                        });
-
-                        if (!res.ok) throw new Error('No se pudo cargar el envío');
-
-                        const raw = await res.json();
-                        const envio = normalizarDetalleEnvio(raw);
-                        if (!envio) throw new Error('Respuesta vacía');
-
-                        guardarEnCache(envio);
-                        renderEnvio(envio, false);
-
-                    } catch (error) {
-                        console.error('Error cargando envío:', error);
-                        const cached = obtenerDeCache();
-                        if (cached) {
-                            renderEnvio(cached, true);
-                        } else {
-                            cont.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle mr-2"></i>No se pudo cargar el envío. <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="reintentarConexion()">Reintentar</button></div>`;
-                        }
-                    }
-                } else {
-                    const cached = obtenerDeCache();
-                    if (cached) {
-                        renderEnvio(cached, true);
-                    } else {
-                        cont.innerHTML = `<div class="alert alert-warning"><i class="fas fa-wifi-slash mr-2"></i>Sin conexión. No hay datos guardados para este envío. <button type="button" class="btn btn-sm btn-warning mt-2" onclick="reintentarConexion()">Reintentar</button></div>`;
-                    }
+            async function fetchDetalleRed() {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), DETALLE_TIMEOUT_MS);
+                try {
+                    const res = await fetch(`${LOCAL_API_URL}/envios/${envioId}`, {
+                        ...FETCH_OPTS,
+                        signal: controller.signal,
+                        cache: 'no-store',
+                    });
+                    clearTimeout(timeoutId);
+                    if (!res.ok) throw new Error('No se pudo cargar el envío');
+                    const raw = await res.json();
+                    const envio = normalizarDetalleEnvio(raw);
+                    if (!envio) throw new Error('Respuesta vacía');
+                    guardarEnCache(envio);
+                    conectado = true;
+                    actualizarIndicador();
+                    return envio;
+                } catch (error) {
+                    clearTimeout(timeoutId);
+                    console.warn('Error cargando envío:', error);
+                    return null;
                 }
             }
 
-            window.reintentarConexion = async function () {
-                await verificarConexion();
-                if (conectado) {
-                    cargarEnvio();
+            async function cargarEnvio(opciones = {}) {
+                const { silencioso = false, forzarRed = false } = opciones;
+
+                if (!silencioso && !state.envio) {
+                    cont.innerHTML = loaderHtml;
                 }
+
+                if (!forzarRed && TIENE_DETALLE_SERVIDOR && envioServidor) {
+                    guardarEnCache(envioServidor);
+                    renderEnvio(envioServidor, false);
+                    fetchDetalleRed().then(envio => {
+                        if (envio && JSON.stringify(envio) !== JSON.stringify(envioServidor)) {
+                            renderEnvio(envio, false);
+                        }
+                    });
+                    return;
+                }
+
+                const envio = await fetchDetalleRed();
+                if (envio) {
+                    renderEnvio(envio, false);
+                    return;
+                }
+
+                const cached = obtenerDeCache();
+                if (cached) {
+                    conectado = false;
+                    actualizarIndicador();
+                    renderEnvio(cached, true);
+                    return;
+                }
+
+                cont.innerHTML = `<div class="alert alert-danger"><i class="fas fa-exclamation-triangle mr-2"></i>No se pudo cargar el envío. <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="reintentarConexion()">Reintentar</button></div>`;
+            }
+
+            window.reintentarConexion = function () {
+                cargarEnvio({ forzarRed: true });
             };
 
-            setInterval(async () => {
-                const wasOffline = !conectado;
-                await verificarConexion();
-                if (wasOffline && conectado) {
-                    cargarEnvio();
-                }
-            }, 15000);
-
-            window.addEventListener('online', () => {
-                verificarConexion().then((ok) => { if (ok) cargarEnvio(); });
-            });
-
-            verificarConexion().then(() => cargarEnvio());
+            if (TIENE_DETALLE_SERVIDOR && envioServidor) {
+                conectado = true;
+                actualizarIndicador();
+                guardarEnCache(envioServidor);
+                renderEnvio(envioServidor, false);
+            } else {
+                cargarEnvio();
+            }
         })();
     </script>
 @endpush

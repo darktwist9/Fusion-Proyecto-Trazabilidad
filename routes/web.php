@@ -41,6 +41,10 @@ use App\Http\Controllers\Web\ReporteController;
 use App\Http\Controllers\Web\CatalogoController;
 
 // 🔹 External API Proxy Controller
+use App\Http\Controllers\Web\EnvioDashboardController;
+use App\Http\Controllers\Web\EnvioDetalleController;
+use App\Http\Controllers\Web\EnvioMandarController;
+use App\Http\Controllers\Web\EnvioSeguimientoController;
 use App\Http\Controllers\Web\ExternalApiProxyController;
 use App\Http\Controllers\Web\CertificacionController;
 use App\Http\Controllers\Web\ActorAbastecimientoController;
@@ -257,14 +261,60 @@ Route::middleware('auth')->group(function () {
     // ENVÍOS
 
     Route::prefix('envios')->name('envios.')->group(function () {
-        Route::get('/mandar', fn() => view('envios.mandar-envio'))->name('mandar')->middleware('action.permission:envios,create');
-        Route::get('/seguimiento', fn() => view('envios.seguimiento'))->name('seguimiento')->middleware('action.permission:envios,read');
-        Route::get('/{id}', fn($id) => view('envios.detalle', ['id' => $id]))->name('detalle')->where('id', '[0-9]+')->middleware('action.permission:envios,read');
-        Route::get('/admin', fn() => view('envios.admin'))->name('admin')->middleware('action.permission:envios,admin');
-        Route::get('/transportistas', fn() => view('envios.transportistas'))->name('transportistas')->middleware('action.permission:transportistas,read');
-        Route::get('/vehiculos', fn() => view('envios.vehiculos'))->name('vehiculos')->middleware('action.permission:vehiculos,read');
-        Route::get('/direcciones', fn() => view('envios.direcciones'))->name('direcciones')->middleware('action.permission:direcciones,read');
+        Route::get('/mandar', [EnvioMandarController::class, 'create'])->name('mandar')->middleware('action.permission:envios,create');
+        Route::get('/seguimiento', [EnvioSeguimientoController::class, 'index'])->name('seguimiento')->middleware('action.permission:envios,read');
+        Route::get('/admin', [EnvioDashboardController::class, 'index'])->name('admin')->middleware('action.permission:envios,admin');
+        Route::get('/transportistas', function () {
+            $payload = \App\Support\LocalOrgTrackFallback::transportistasPayload();
+            $transportistas = $payload['data'] ?? [];
+            $estadosFiltro = collect($transportistas)->map(function ($t) {
+                return $t['estado']['nombre'] ?? $t['estadotransportista']['nombre'] ?? ($t['estado'] ?? null);
+            })->filter()->unique()->sort()->values()->all();
+
+            return view('envios.transportistas', [
+                'transportistas' => $transportistas,
+                'metaInicial' => $payload['_meta'] ?? [],
+                'estadosFiltro' => $estadosFiltro,
+            ]);
+        })->name('transportistas')->middleware('action.permission:transportistas,read');
+        Route::get('/vehiculos', function () {
+            $payload = \App\Support\LocalOrgTrackFallback::vehiculosPayload();
+            $vehiculos = $payload['data'] ?? [];
+            $estadosFiltro = collect($vehiculos)->map(fn ($v) => $v['estado_vehiculo']['nombre'] ?? $v['estadoVehiculo']['nombre'] ?? ($v['estado'] ?? null))
+                ->filter()->unique()->sort()->values()->all();
+            $tiposFiltro = collect($vehiculos)->map(fn ($v) => $v['tipo_vehiculo']['nombre'] ?? $v['tipoVehiculo']['nombre'] ?? ($v['tipo'] ?? null))
+                ->filter()->unique()->sort()->values()->all();
+
+            return view('envios.vehiculos', [
+                'vehiculos' => $vehiculos,
+                'metaInicial' => $payload['_meta'] ?? [],
+                'estadosFiltro' => $estadosFiltro,
+                'tiposFiltro' => $tiposFiltro,
+            ]);
+        })->name('vehiculos')->middleware('action.permission:vehiculos,read');
+        Route::get('/direcciones', function () {
+            $envios = \App\Support\LocalOrgTrackFallback::enviosPayload(500)['data'] ?? [];
+            $direcciones = [];
+            $seen = [];
+            foreach ($envios as $e) {
+                foreach ([['Origen', $e['direccion_origen'] ?? $e['origen'] ?? ''], ['Destino', $e['direccion_destino'] ?? $e['destino'] ?? '']] as [$tipo, $valor]) {
+                    $valor = trim((string) $valor);
+                    if ($valor === '') {
+                        continue;
+                    }
+                    $key = $tipo.'|'.$valor;
+                    if (isset($seen[$key])) {
+                        continue;
+                    }
+                    $seen[$key] = true;
+                    $direcciones[] = ['tipo' => $tipo, 'valor' => $valor];
+                }
+            }
+
+            return view('envios.direcciones', compact('direcciones'));
+        })->name('direcciones')->middleware('action.permission:direcciones,read');
         Route::get('/reportes-distribucion', [\App\Http\Controllers\Web\OrgTrackReportController::class, 'index'])->name('reportes-distribucion')->middleware('action.permission:reportes,read');
+        Route::get('/{id}', [EnvioDetalleController::class, 'show'])->name('detalle')->where('id', '[0-9]+')->middleware('action.permission:envios,read');
 
         // ==============================
         // PROXY API EXTERNA (evita CORS)

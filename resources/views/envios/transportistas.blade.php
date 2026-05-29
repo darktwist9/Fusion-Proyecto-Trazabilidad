@@ -1,61 +1,129 @@
 @extends('layouts.app')
 
-@section('title', 'Transportistas')
-@section('page_title', 'Gestion de transportistas')
+@section('title', 'Transportistas | AgroNexus')
+@section('page_title', 'Transportistas')
+
+@section('breadcrumbs')
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('envios.seguimiento') }}">Envíos</a></li>
+    <li class="breadcrumb-item active">Transportistas</li>
+@endsection
+
+@push('styles')
+@include('partials.modulo-envios-styles')
+@endpush
 
 @section('content')
-    <div id="aviso-demo-local" class="alert alert-info d-none mb-3" role="alert"></div>
-    <div class="card card-outline card-success">
-        <div class="card-header">
-            <h3 class="card-title">Transportistas</h3>
-            <small class="text-muted">Transportistas registrados en el sistema.</small>
+<div class="modulo-env page-env-transportistas">
+
+    <div class="row mb-2">
+        <div class="col-md-4">
+            <div class="small-box small-box-green">
+                <div class="inner">
+                    <h3>{{ count($transportistas ?? []) }}</h3>
+                    <p>Transportistas registrados</p>
+                </div>
+                <div class="icon"><i class="fas fa-users"></i></div>
+            </div>
         </div>
+    </div>
+
+    <div class="card card-modulo-main">
+        <div class="card-header">
+            <h3 class="card-title mb-0"><i class="fas fa-id-card text-success mr-2"></i>Personal de transporte</h3>
+            <div class="card-tools">
+                <span class="contador-filtro mr-2" id="contadorTransportistas"></span>
+                <button type="button" class="btn btn-tool" data-card-widget="collapse" title="Colapsar">
+                    <i class="fas fa-minus"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="filtros-panel">
+            <div class="row align-items-end">
+                <div class="col-lg-4 col-md-6 mb-2 mb-md-0">
+                    <label class="text-muted">Buscar</label>
+                    <div class="input-group input-group-sm">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        </div>
+                        <input type="text" id="searchTransportista" class="form-control" placeholder="Nombre, correo o estado...">
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-2 mb-md-0">
+                    <label class="text-muted">Estado logístico</label>
+                    <select id="filterEstadoTransportista" class="form-control form-control-sm">
+                        <option value="">Todos los estados</option>
+                        @foreach($estadosFiltro ?? [] as $estado)
+                            <option value="{{ strtolower($estado) }}">{{ $estado }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-lg-2 col-md-6">
+                    <button type="button" class="btn btn-outline-secondary btn-sm btn-block" id="btnLimpiarTransportistas">
+                        <i class="fas fa-times mr-1"></i> Limpiar filtros
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <div class="card-body table-responsive p-0">
-            <table class="table table-hover mb-0">
+            <table class="table table-modulo table-hover mb-0">
                 <thead>
                     <tr>
-                        <th>#</th>
+                        <th style="width:50px">#</th>
                         <th>Nombre</th>
                         <th>Correo</th>
                         <th>Estado</th>
                     </tr>
                 </thead>
                 <tbody id="tabla-transportistas">
-                    <tr><td colspan="4" class="text-muted">Cargando...</td></tr>
+                    @forelse($transportistas ?? [] as $i => $t)
+                    @php
+                        $persona = $t['persona'] ?? [];
+                        $nombre = trim(($persona['nombre'] ?? '').' '.($persona['apellido'] ?? '')) ?: ($t['nombre'] ?? 'N/D');
+                        $correo = $t['usuario']['correo'] ?? $t['correo'] ?? '—';
+                        $estado = $t['estado']['nombre'] ?? $t['estadotransportista']['nombre'] ?? ($t['estado'] ?? '—');
+                    @endphp
+                    <tr class="fila-filtro"
+                        data-texto="{{ strtolower($nombre.' '.$correo.' '.$estado) }}"
+                        data-estado="{{ strtolower($estado) }}">
+                        <td class="col-num">{{ $i + 1 }}</td>
+                        <td class="font-weight-bold">{{ $nombre }}</td>
+                        <td>{{ $correo }}</td>
+                        <td><span class="badge badge-info badge-estado">{{ $estado }}</span></td>
+                    </tr>
+                    @empty
+                    <tr>
+                        <td colspan="4" class="text-center text-muted py-4">
+                            <i class="fas fa-user-slash mr-1"></i> No hay transportistas registrados.
+                        </td>
+                    </tr>
+                    @endforelse
+                    <tr id="sinResultadosTransportistas" style="display: none;">
+                        <td colspan="4" class="text-center text-muted py-4">
+                            <i class="fas fa-filter mr-1"></i> Ningún transportista coincide con los filtros aplicados.
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>
     </div>
+
+</div>
 @endsection
 
 @push('scripts')
-    <script>
-        const tbody = document.getElementById('tabla-transportistas');
-        fetch("{{ route('envios.api.transportistas') }}")
-            .then(r => r.json())
-            .then(data => {
-                const meta = data._meta || {};
-                const aviso = document.getElementById('aviso-demo-local');
-                if (meta.fuente === 'fusion_local') {
-                    aviso.textContent = meta.mensaje || 'Datos del sistema.';
-                    aviso.classList.remove('d-none');
-                }
-                const rows = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
-                if (!rows.length) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="text-warning">No hay datos disponibles.</td></tr>';
-                    return;
-                }
-
-                tbody.innerHTML = rows.map((t, i) => {
-                    const persona = t.persona || {};
-                    const nombre = [persona.nombre, persona.apellido].filter(Boolean).join(' ') || t.nombre || 'N/D';
-                    const correo = t.usuario?.correo || t.correo || 'N/D';
-                    const estado = t.estado?.nombre || t.estadotransportista?.nombre || t.estado || 'N/D';
-                    return `<tr><td>${i + 1}</td><td>${nombre}</td><td>${correo}</td><td>${estado}</td></tr>`;
-                }).join('');
-            })
-            .catch(() => {
-                tbody.innerHTML = '<tr><td colspan="4" class="text-danger">No se pudo cargar la información de transportistas.</td></tr>';
-            });
-    </script>
+@php
+    $filtrosConfig = [
+        'rowSelector' => '.fila-filtro',
+        'searchId' => 'searchTransportista',
+        'filterIds' => ['filterEstadoTransportista'],
+        'dataKeys' => ['estado'],
+        'contadorId' => 'contadorTransportistas',
+        'sinResultadosId' => 'sinResultadosTransportistas',
+        'limpiarId' => 'btnLimpiarTransportistas',
+    ];
+@endphp
+@include('partials.envios-tabla-filtros')
 @endpush

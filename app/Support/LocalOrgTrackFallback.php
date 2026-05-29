@@ -66,57 +66,128 @@ final class LocalOrgTrackFallback
             ->all();
     }
 
-    public static function enviosPayload(): array
+    /**
+     * KPIs y conteos por estado sin cargar todos los registros (rápido para dashboard/seguimiento).
+     *
+     * @return array{stats: array<string, int>, porEstado: array<string, int>}
+     */
+    public static function panelEstadisticasEnvios(): array
+    {
+        $stats = [
+            'total' => 0,
+            'pendientes' => 0,
+            'asignados' => 0,
+            'curso' => 0,
+            'parcial' => 0,
+            'completados' => 0,
+        ];
+        $porEstado = [];
+
+        if (! Schema::hasTable('envio_asignacion_multiple')) {
+            return compact('stats', 'porEstado');
+        }
+
+        $stats['total'] = (int) EnvioAsignacionMultiple::query()->count();
+
+        $porEstado = EnvioAsignacionMultiple::query()
+            ->selectRaw('LOWER(TRIM(COALESCE(estado, \'sin estado\'))) as est')
+            ->selectRaw('COUNT(*) as total')
+            ->groupBy('est')
+            ->pluck('total', 'est')
+            ->map(fn ($c) => (int) $c)
+            ->all();
+
+        foreach ($porEstado as $estado => $cantidad) {
+            if (in_array($estado, ['pendiente', 'sin estado', 'sin asignar'], true)) {
+                $stats['pendientes'] += $cantidad;
+            }
+            if ($estado === 'asignado') {
+                $stats['asignados'] += $cantidad;
+            }
+            if (in_array($estado, ['en curso', 'en_ruta', 'en ruta'], true)) {
+                $stats['curso'] += $cantidad;
+            }
+            if (in_array($estado, ['parcialmente entregado', 'parcial'], true)) {
+                $stats['parcial'] += $cantidad;
+            }
+            if (in_array($estado, ['entregado', 'finalizado', 'completado'], true)) {
+                $stats['completados'] += $cantidad;
+            }
+        }
+
+        arsort($porEstado);
+
+        return compact('stats', 'porEstado');
+    }
+
+    /**
+     * Lista ligera filtrada por estado (carga bajo demanda en dashboard).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function enviosPorEstado(string $estado, int $limit = 50): array
+    {
+        if (! Schema::hasTable('envio_asignacion_multiple')) {
+            return [];
+        }
+
+        $estado = strtolower(trim($estado));
+        $limit = max(1, min(100, $limit));
+
+        $rows = EnvioAsignacionMultiple::query()
+            ->with(['pedido:pedidoid,numero_solicitud,nombre_planta,direccion_texto', 'almacen:almacenid,nombre,ubicacion'])
+            ->whereRaw('LOWER(TRIM(COALESCE(estado, \'sin estado\'))) = ?', [$estado])
+            ->orderByDesc('envioasignacionmultipleid')
+            ->limit($limit)
+            ->get();
+
+        return $rows->map(fn (EnvioAsignacionMultiple $a) => self::mapEnvioRow($a))->values()->all();
+    }
+
+    public static function estadosDistintos(): array
+    {
+        if (! Schema::hasTable('envio_asignacion_multiple')) {
+            return [];
+        }
+
+        return EnvioAsignacionMultiple::query()
+            ->selectRaw('DISTINCT LOWER(TRIM(COALESCE(estado, \'sin estado\'))) as est')
+            ->orderBy('est')
+            ->pluck('est')
+            ->all();
+    }
+
+    public static function enviosPayload(int $limit = 150, ?string $filtroEstado = null): array
     {
         if (! Schema::hasTable('envio_asignacion_multiple')) {
             return self::emptyEnvios('Sin tabla envio_asignacion_multiple.');
         }
 
-        $rows = EnvioAsignacionMultiple::query()
-            ->with(['pedido', 'almacen'])
-            ->orderByDesc('envioasignacionmultipleid')
-            ->get();
+        $limit = max(1, min(500, $limit));
+
+        $query = EnvioAsignacionMultiple::query()
+            ->with(['pedido:pedidoid,numero_solicitud,nombre_planta,direccion_texto', 'almacen:almacenid,nombre,ubicacion'])
+            ->orderByDesc('envioasignacionmultipleid');
+
+        if ($filtroEstado !== null && $filtroEstado !== '') {
+            $query->whereRaw('LOWER(TRIM(COALESCE(estado, \'sin estado\'))) = ?', [strtolower(trim($filtroEstado))]);
+        }
+
+        $rows = $query->limit($limit)->get();
 
         if ($rows->isEmpty()) {
             return self::emptyEnvios('No hay asignaciones locales. Ejecute los seeders demo de envíos.');
         }
 
-        $data = $rows->map(function (EnvioAsignacionMultiple $a) {
-            $p = $a->pedido;
-            $alm = $a->almacen;
-            $origen = $alm
-                ? trim(($alm->nombre ?? '').' · '.($alm->ubicacion ?? ''))
-                : 'Origen almacén';
-            $destino = $p?->direccion_texto ?: ($p?->nombre_planta ?? 'Sin destino');
-            $fecha = $a->fecha_asignacion ?? $a->created_at;
-            $detalles = is_array($a->detalles_productos) ? $a->detalles_productos : [];
-            $remitente = $detalles['remitente'] ?? $alm?->nombre ?? 'Operación logística Fusion';
-
-            return [
-                'id' => (int) $a->envioasignacionmultipleid,
-                'externo_envio_id' => $a->externo_envio_id,
-                'numero_solicitud' => $p?->numero_solicitud,
-                'estado' => $a->estado,
-                'estado_actual' => $a->estado,
-                'nombre_estado' => $a->estado,
-                'fecha_creacion' => $fecha?->toIso8601String(),
-                'nombre_remitente' => $remitente,
-                'destino' => $p?->nombre_planta ?? '',
-                'direccion_destino' => $destino,
-                'destino_direccion' => $destino,
-                'direccion_origen' => $origen,
-                'origen_direccion' => $origen,
-                'origen' => $origen,
-            ];
-        })->values()->all();
+        $data = $rows->map(fn (EnvioAsignacionMultiple $a) => self::mapEnvioRow($a))->values()->all();
 
         return [
             'data' => $data,
             '_meta' => [
                 'fuente' => 'fusion_local',
                 'mensaje' => 'Datos del sistema: información registrada en la base local.',
+                'limit' => $limit,
             ],
-            'local_dashboard' => self::dashboardCounts(),
         ];
     }
 
@@ -225,6 +296,86 @@ final class LocalOrgTrackFallback
         ];
     }
 
+    /**
+     * Contadores para KPIs del módulo envíos (dashboard y seguimiento).
+     *
+     * @param  list<array<string, mixed>>  $envios
+     * @return array{total: int, pendientes: int, asignados: int, curso: int, parcial: int, completados: int}
+     */
+    public static function resumenFiltrosEnvios(array $envios): array
+    {
+        $counts = [
+            'total' => count($envios),
+            'pendientes' => 0,
+            'asignados' => 0,
+            'curso' => 0,
+            'parcial' => 0,
+            'completados' => 0,
+        ];
+
+        foreach ($envios as $envio) {
+            $estado = strtolower(trim((string) ($envio['estado'] ?? $envio['estado_actual'] ?? 'sin estado')));
+            if (in_array($estado, ['pendiente', 'sin estado', 'sin asignar'], true)) {
+                $counts['pendientes']++;
+            }
+            if ($estado === 'asignado') {
+                $counts['asignados']++;
+            }
+            if (in_array($estado, ['en curso', 'en_ruta', 'en ruta'], true)) {
+                $counts['curso']++;
+            }
+            if (in_array($estado, ['parcialmente entregado', 'parcial'], true)) {
+                $counts['parcial']++;
+            }
+            if (in_array($estado, ['entregado', 'finalizado', 'completado'], true)) {
+                $counts['completados']++;
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    public static function operationalMetrics(): array
+    {
+        return self::dashboardCounts();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function mapEnvioRow(EnvioAsignacionMultiple $a): array
+    {
+        $p = $a->pedido;
+        $alm = $a->almacen;
+        $origen = $alm
+            ? trim(($alm->nombre ?? '').' · '.($alm->ubicacion ?? ''))
+            : 'Origen almacén';
+        $destino = $p?->direccion_texto ?: ($p?->nombre_planta ?? 'Sin destino');
+        $fecha = $a->fecha_asignacion ?? $a->created_at;
+        $detalles = is_array($a->detalles_productos) ? $a->detalles_productos : [];
+        $remitente = $detalles['remitente'] ?? $alm?->nombre ?? 'Operación logística Fusion';
+
+        return [
+            'id' => (int) $a->envioasignacionmultipleid,
+            'externo_envio_id' => $a->externo_envio_id,
+            'numero_solicitud' => $p?->numero_solicitud,
+            'estado' => $a->estado,
+            'estado_actual' => $a->estado,
+            'nombre_estado' => $a->estado,
+            'fecha_creacion' => $fecha?->toIso8601String(),
+            'nombre_remitente' => $remitente,
+            'destino' => $p?->nombre_planta ?? '',
+            'direccion_destino' => $destino,
+            'destino_direccion' => $destino,
+            'direccion_origen' => $origen,
+            'origen_direccion' => $origen,
+            'origen' => $origen,
+        ];
+    }
+
     private static function dashboardCounts(): array
     {
         $pendientes = 0;
@@ -243,15 +394,9 @@ final class LocalOrgTrackFallback
             ? (int) Usuario::query()->where('role', 'transportista')->where('activo', true)->count()
             : 0;
 
-        $vehiculosActivos = 0;
-        if (Schema::hasTable('ruta_multi_entrega')) {
-            foreach (RutaMultiEntrega::query()->get() as $r) {
-                $sum = $r->resumen;
-                if (is_array($sum) && ($sum['vehiculo_estado'] ?? '') === 'Activo') {
-                    $vehiculosActivos++;
-                }
-            }
-        }
+        $vehiculosActivos = Schema::hasTable('ruta_multi_entrega')
+            ? (int) RutaMultiEntrega::query()->where('estado', 'en_ruta')->count()
+            : 0;
 
         $rutasActivas = Schema::hasTable('ruta_multi_entrega')
             ? (int) RutaMultiEntrega::query()->whereIn('estado', ['planificada', 'en_ruta'])->count()
@@ -429,7 +574,6 @@ final class LocalOrgTrackFallback
         return [
             'data' => [],
             '_meta' => ['fuente' => 'fusion_local', 'mensaje' => $mensaje],
-            'local_dashboard' => self::dashboardCounts(),
         ];
     }
 }
