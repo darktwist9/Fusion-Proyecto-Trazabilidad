@@ -4,253 +4,135 @@
 @section('page_title', 'Editar Venta')
 
 @section('breadcrumbs')
-    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}" style="color: #2c5530;">Inicio</a></li>
-    <li class="breadcrumb-item"><a href="{{ route('ventas.index') }}" style="color: #2c5530;">Ventas</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('ventas.index') }}">Ventas</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('ventas.show', $venta) }}">#{{ $venta->ventaid }}</a></li>
     <li class="breadcrumb-item active">Editar</li>
 @endsection
 
 @push('styles')
-<style>
-    :root {
-        --primary-color: #2c5530;
-        --secondary-color: #4a7c59;
-    }
-
-    .form-header {
-        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-        color: white;
-        border-radius: 15px;
-        padding: 25px;
-        margin-bottom: 20px;
-    }
-
-    .form-header h2 {
-        margin: 0;
-        font-weight: 700;
-    }
-
-    .form-card {
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-        padding: 25px;
-        margin-bottom: 20px;
-    }
-
-    .form-card h5 {
-        color: var(--primary-color);
-        font-weight: 600;
-        margin-bottom: 20px;
-        padding-bottom: 10px;
-        border-bottom: 2px solid #f1f3f4;
-    }
-
-    .form-group label {
-        font-weight: 600;
-        color: #1a252f;
-        margin-bottom: 8px;
-    }
-
-    .form-control {
-        border-radius: 8px;
-        border: 2px solid #dee2e6;
-        padding: 12px 15px;
-        transition: border-color 0.2s ease;
-        height: auto;
-        min-height: 46px;
-        font-size: 0.95rem;
-    }
-
-    .form-control:focus {
-        border-color: var(--primary-color);
-        box-shadow: 0 0 0 0.2rem rgba(44, 85, 48, 0.15);
-    }
-
-    select.form-control {
-        padding-right: 35px;
-        background-position: right 12px center;
-    }
-
-    .input-group-text {
-        border: 2px solid #dee2e6;
-        border-radius: 8px;
-        min-height: 46px;
-    }
-
-    .btn-action {
-        padding: 12px 30px;
-        border-radius: 8px;
-        font-weight: 500;
-    }
-
-    .required-field::after {
-        content: " *";
-        color: #dc3545;
-    }
-
-    .total-preview {
-        background: #e8f5e9;
-        border-radius: 10px;
-        padding: 15px;
-        text-align: center;
-    }
-
-    .total-preview .amount {
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: #28a745;
-    }
-
-    .total-preview .label {
-        font-size: 0.85rem;
-        color: #6c757d;
-    }
-</style>
+@include('partials.modulo-ventas-styles')
 @endpush
 
 @section('content')
-<!-- Header -->
-<div class="form-header">
-    <h2><i class="fas fa-edit mr-2"></i>Editar Venta</h2>
-    <p class="mb-0 mt-2" style="opacity: 0.9;">
-        <i class="fas fa-user mr-1"></i> {{ $venta->cliente ?? 'Cliente no especificado' }}
-    </p>
-</div>
+<div class="modulo-ven">
 
-<form action="{{ route('ventas.update', $venta) }}" method="POST">
-    @csrf
-    @method('PUT')
-
-    <div class="row">
-        <div class="col-lg-9 col-md-8">
-            <!-- Información del Cliente -->
-            <div class="form-card">
-                <h5><i class="fas fa-user mr-2"></i>Información del Cliente</h5>
-                
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="required-field"><i class="fas fa-user mr-1"></i> Cliente</label>
-                            <input type="text" name="cliente" class="form-control" value="{{ $venta->cliente }}" maxlength="100" placeholder="Nombre del cliente" required>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="required-field"><i class="fas fa-calendar mr-1"></i> Fecha de Venta</label>
-                            <input type="date" name="fechaventa" class="form-control" value="{{ $venta->fechaventa ? \Carbon\Carbon::parse($venta->fechaventa)->format('Y-m-d') : '' }}" required>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Producción y Cantidad -->
-            <div class="form-card">
-                <h5><i class="fas fa-boxes mr-2"></i>Producción y Cantidad</h5>
-                
-                <div class="form-group">
-                    <label class="required-field"><i class="fas fa-tractor mr-1"></i> Producción</label>
-                    <select name="produccionid" class="form-control" required>
-                        <option value="">Seleccionar producción...</option>
-                        @foreach($producciones as $p)
-                            <option value="{{ $p->produccionid }}" {{ $p->produccionid == $venta->produccionid ? 'selected' : '' }}>
-                                {{ $p->lote->nombre ?? 'Lote' }}
-                                @if($p->lote && $p->lote->cultivo)
-                                    - {{ $p->lote->cultivo->nombre }}
-                                @endif
-                                ({{ number_format($p->cantidad ?? 0, 2) }} kg disponibles)
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="required-field"><i class="fas fa-weight-hanging mr-1"></i> Cantidad</label>
-                            <div class="input-group">
-                                <input type="number" step="0.01" name="cantidad" id="cantidad" class="form-control" min="0.01" value="{{ $venta->cantidad }}" required>
-                                <div class="input-group-append">
-                                    <span class="input-group-text">{{ $venta->unidadMedida->abreviatura ?? 'kg' }}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="required-field"><i class="fas fa-tag mr-1"></i> Precio Unitario</label>
-                            <div class="input-group">
-                                <div class="input-group-prepend">
-                                    <span class="input-group-text">Bs.</span>
-                                </div>
-                                <input type="number" step="0.01" name="preciounitario" id="preciounitario" class="form-control" min="0.01" value="{{ $venta->preciounitario }}" required>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Observaciones -->
-            <div class="form-card">
-                <h5><i class="fas fa-comment mr-2"></i>Observaciones</h5>
-                
-                <div class="form-group mb-0">
-                    <textarea name="observaciones" class="form-control" rows="3" maxlength="200" placeholder="Notas adicionales sobre la venta...">{{ $venta->observaciones }}</textarea>
-                </div>
-            </div>
-        </div>
-
-        <!-- Panel Lateral -->
-        <div class="col-lg-3 col-md-4">
-            <!-- Vista Previa del Total -->
-            <div class="form-card">
-                <h5><i class="fas fa-calculator mr-2"></i>Total</h5>
-                
-                <div class="total-preview">
-                    <div class="label">Total de la Venta</div>
-                    <div class="amount" id="total-preview">Bs. {{ number_format(($venta->cantidad ?? 0) * ($venta->preciounitario ?? 0), 2) }}</div>
-                </div>
-            </div>
-
-            <!-- Acciones -->
-            <div class="form-card">
-                <h5><i class="fas fa-cogs mr-2"></i>Acciones</h5>
-                
-                <button type="submit" class="btn btn-success btn-block btn-action mb-2">
-                    <i class="fas fa-save mr-1"></i> Guardar Cambios
-                </button>
-                
-                <a href="{{ route('ventas.show', $venta) }}" class="btn btn-info btn-block btn-action mb-2">
-                    <i class="fas fa-eye mr-1"></i> Ver Detalle
-                </a>
-                
-                <a href="{{ route('ventas.index') }}" class="btn btn-secondary btn-block btn-action">
-                    <i class="fas fa-times mr-1"></i> Cancelar
-                </a>
-            </div>
-
-            <!-- Info -->
-            <div class="form-card">
-                <h5><i class="fas fa-info-circle mr-2"></i>Información</h5>
-                <small class="text-muted">
-                    <p><strong>ID:</strong> #{{ $venta->ventaid }}</p>
-                    <p class="mb-0"><i class="fas fa-asterisk text-danger"></i> Campos obligatorios</p>
-                </small>
+    <div class="ven-page-header edit">
+        <div class="ven-page-header-inner">
+            <div class="ven-page-header-icon"><i class="fas fa-edit"></i></div>
+            <div class="ven-page-header-text">
+                <h2>Editar venta #{{ $venta->ventaid }}</h2>
+                <p>Al guardar se ajusta el stock del almacén según los cambios de cantidad o producción.</p>
             </div>
         </div>
     </div>
-</form>
+
+    @if($errors->any())
+    <div class="alert alert-danger">
+        <ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+    </div>
+    @endif
+
+    <form action="{{ route('ventas.update', $venta) }}" method="POST">
+        @csrf @method('PUT')
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card card-outline card-warning card-form-modulo card-edit elevation-1">
+                    <div class="card-header">
+                        <h3 class="card-title mb-0"><i class="fas fa-edit mr-1"></i> Datos de la venta</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 form-group">
+                                <label class="font-weight-bold"><i class="fas fa-user mr-1"></i> Cliente <span class="text-danger">*</span></label>
+                                <input type="text" name="cliente" class="form-control" value="{{ old('cliente', $venta->cliente) }}" maxlength="100" required>
+                            </div>
+                            <div class="col-md-6 form-group">
+                                <label class="font-weight-bold"><i class="fas fa-calendar mr-1"></i> Fecha <span class="text-danger">*</span></label>
+                                <input type="date" name="fechaventa" class="form-control"
+                                    value="{{ old('fechaventa', $venta->fechaventa ? \Carbon\Carbon::parse($venta->fechaventa)->format('Y-m-d') : '') }}" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="font-weight-bold"><i class="fas fa-boxes mr-1"></i> Producción <span class="text-danger">*</span></label>
+                            <select name="produccionid" class="form-control" required>
+                                @foreach($producciones as $p)
+                                <option value="{{ $p->produccionid }}" @selected(old('produccionid', $venta->produccionid) == $p->produccionid)>
+                                    {{ $p->lote->nombre ?? 'Lote' }}
+                                    @if($p->lote?->cultivo) — {{ $p->lote->cultivo->nombre }} @endif
+                                    ({{ number_format($p->cantidad ?? 0, 2) }} kg)
+                                </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 form-group">
+                                <label class="font-weight-bold"><i class="fas fa-balance-scale mr-1"></i> Cantidad <span class="text-danger">*</span></label>
+                                <input type="number" step="0.01" name="cantidad" id="cantidad" class="form-control" min="0.01"
+                                    value="{{ old('cantidad', $venta->cantidad) }}" required>
+                            </div>
+                            <div class="col-md-6 form-group">
+                                <label class="font-weight-bold"><i class="fas fa-tag mr-1"></i> Precio unitario <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <div class="input-group-prepend"><span class="input-group-text">Bs.</span></div>
+                                    <input type="number" step="0.01" name="preciounitario" id="preciounitario" class="form-control" min="0"
+                                        value="{{ old('preciounitario', $venta->preciounitario) }}" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group mb-0">
+                            <label class="font-weight-bold"><i class="fas fa-ruler mr-1"></i> Unidad</label>
+                            <select name="unidadmedidaid" class="form-control" required>
+                                @foreach($unidades as $u)
+                                <option value="{{ $u->unidadmedidaid }}" @selected(old('unidadmedidaid', $venta->unidadmedidaid) == $u->unidadmedidaid)>{{ $u->nombre }} ({{ $u->abreviatura }})</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="form-group mt-3 mb-0">
+                            <label class="font-weight-bold"><i class="fas fa-comment mr-1"></i> Observaciones</label>
+                            <textarea name="observaciones" class="form-control" rows="2" maxlength="200">{{ old('observaciones', $venta->observaciones) }}</textarea>
+                        </div>
+                    </div>
+                    <div class="card-footer d-flex justify-content-between">
+                        <a href="{{ route('ventas.show', $venta) }}" class="btn btn-secondary"><i class="fas fa-times mr-1"></i> Cancelar</a>
+                        <button type="submit" class="btn btn-warning text-dark"><i class="fas fa-save mr-1"></i> Guardar cambios</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="panel-lateral">
+                    <div class="panel-header"><i class="fas fa-calculator mr-1"></i> Total</div>
+                    <div class="panel-body">
+                        <div class="total-estimado-box">
+                            <small class="text-muted d-block mb-1">Total de la venta</small>
+                            <div class="amount" id="total-preview">Bs. {{ number_format(($venta->cantidad ?? 0) * ($venta->preciounitario ?? 0), 2) }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="guia-venta">
+                    <strong><i class="fas fa-info-circle mr-1"></i> Importante</strong><br>
+                    Si cambias la cantidad, el sistema devuelve el stock anterior y descuenta la nueva cantidad del almacén vinculado a la producción.
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
 @endsection
 
 @push('scripts')
 <script>
-$(document).ready(function() {
+$(function () {
     function calcularTotal() {
-        var cantidad = parseFloat($('#cantidad').val()) || 0;
-        var precio = parseFloat($('#preciounitario').val()) || 0;
-        var total = cantidad * precio;
-        $('#total-preview').text('Bs. ' + total.toLocaleString('es-BO', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+        var c = parseFloat($('#cantidad').val()) || 0;
+        var p = parseFloat($('#preciounitario').val()) || 0;
+        $('#total-preview').text('Bs. ' + (c * p).toFixed(2));
     }
-
     $('#cantidad, #preciounitario').on('input', calcularTotal);
 });
 </script>

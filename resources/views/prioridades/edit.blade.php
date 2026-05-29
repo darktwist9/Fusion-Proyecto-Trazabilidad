@@ -1,35 +1,25 @@
 @extends('layouts.app')
 
+@section('title', 'Prioridades | AgroFusion')
+@section('page_title', 'Prioridades')
+
+@section('breadcrumbs')
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('catalogos.index') }}">Catálogos</a></li>
+    <li class="breadcrumb-item active">Prioridades</li>
+@endsection
+
+@push('styles')
+@include('partials.modulo-catalogos-styles')
+@endpush
+
 @section('content')
-<div class="card">
-
-    <div class="card-header">
-        <h3 class="card-title">Editar Prioridad</h3>
-    </div>
-
-    <form action="{{ route('prioridades.update', $prioridad) }}" method="POST">
-        @csrf
-        @method('PUT')
-
-        <div class="card-body">
-
-            <div class="form-group">
-                <label>Nombre de la prioridad</label>
-                <input type="text"
-                       name="nombre"
-                       class="form-control"
-                       value="{{ $prioridad->nombre }}"
-                       maxlength="30"
-                       required>
-            </div>
-
-        </div>
-
-        <div class="card-footer text-right">
-            <a href="{{ route('prioridades.index') }}" class="btn btn-secondary">Cancelar</a>
-            <button class="btn btn-primary">Actualizar</button>
-        </div>
-
-    </form>
-</div>
+@include('catalogos.partials.simple-form-page', [
+    'esEdicion' => true,
+    'item' => $item,
+    'routePrefix' => 'prioridades',
+    'singular' => 'Prioridad',
+    'tieneDescripcion' => false,
+    'formAction' => route('prioridades.update', $item),
+])
 @endsection

@@ -1,35 +1,25 @@
 @extends('layouts.app')
 
+@section('title', 'Estados de aplicación de insumo | AgroFusion')
+@section('page_title', 'Estados de aplicación de insumo')
+
+@section('breadcrumbs')
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('catalogos.index') }}">Catálogos</a></li>
+    <li class="breadcrumb-item active">Estados de aplicación de insumo</li>
+@endsection
+
+@push('styles')
+@include('partials.modulo-catalogos-styles')
+@endpush
+
 @section('content')
-<div class="card">
-
-    <div class="card-header">
-        <h3 class="card-title">Editar Estado de Insumo</h3>
-    </div>
-
-    <form action="{{ route('estado-lote-insumos.update', $estadoLoteInsumo) }}" method="POST">
-        @csrf
-        @method('PUT')
-
-        <div class="card-body">
-
-            <div class="form-group">
-                <label>Nombre del estado</label>
-                <input type="text"
-                       name="nombre"
-                       class="form-control"
-                       value="{{ $estadoLoteInsumo->nombre }}"
-                       maxlength="50"
-                       required>
-            </div>
-
-        </div>
-
-        <div class="card-footer text-right">
-            <a href="{{ route('estado-lote-insumos.index') }}" class="btn btn-secondary">Cancelar</a>
-            <button class="btn btn-primary">Actualizar</button>
-        </div>
-
-    </form>
-</div>
+@include('catalogos.partials.simple-form-page', [
+    'esEdicion' => true,
+    'item' => $item,
+    'routePrefix' => 'estado-lote-insumos',
+    'singular' => 'Estado de insumo',
+    'tieneDescripcion' => false,
+    'formAction' => route('estado-lote-insumos.update', $item),
+])
 @endsection

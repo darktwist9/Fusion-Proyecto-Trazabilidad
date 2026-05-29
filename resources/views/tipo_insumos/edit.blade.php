@@ -1,35 +1,25 @@
 @extends('layouts.app')
 
+@section('title', 'Tipos de insumo | AgroFusion')
+@section('page_title', 'Tipos de insumo')
+
+@section('breadcrumbs')
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('catalogos.index') }}">Catálogos</a></li>
+    <li class="breadcrumb-item active">Tipos de insumo</li>
+@endsection
+
+@push('styles')
+@include('partials.modulo-catalogos-styles')
+@endpush
+
 @section('content')
-<div class="card">
-
-    <div class="card-header">
-        <h3 class="card-title">Editar Tipo de Insumo</h3>
-    </div>
-
-    <form action="{{ route('tipo-insumos.update', $tipoInsumo) }}" method="POST">
-        @csrf
-        @method('PUT')
-
-        <div class="card-body">
-
-            <div class="form-group">
-                <label>Nombre</label>
-                <input type="text"
-                       name="nombre"
-                       class="form-control"
-                       value="{{ $tipoInsumo->nombre }}"
-                       maxlength="50"
-                       required>
-            </div>
-
-        </div>
-
-        <div class="card-footer text-right">
-            <a href="{{ route('tipo-insumos.index') }}" class="btn btn-secondary">Cancelar</a>
-            <button class="btn btn-primary">Actualizar</button>
-        </div>
-
-    </form>
-</div>
+@include('catalogos.partials.simple-form-page', [
+    'esEdicion' => true,
+    'item' => $item,
+    'routePrefix' => 'tipo-insumos',
+    'singular' => 'Tipo de insumo',
+    'tieneDescripcion' => false,
+    'formAction' => route('tipo-insumos.update', $item),
+])
 @endsection

@@ -1,337 +1,165 @@
 @extends('layouts.app')
 
-@section('title', 'Historial de Estados | AgroFusion')
-@section('page_title', 'Historial de Estados de Lote')
+@section('title', 'Historial de estados de lote | AgroFusion')
+@section('page_title', 'Historial de estados de lote')
 
 @section('breadcrumbs')
-    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}" style="color: #2c5530;">Inicio</a></li>
-    <li class="breadcrumb-item active">Historial de Estados</li>
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('catalogos.index') }}">Catálogos</a></li>
+    <li class="breadcrumb-item active">Historial de estados</li>
 @endsection
 
 @push('styles')
-    <style>
-        :root {
-            --primary-color: #2c5530;
-            --secondary-color: #4a7c59;
-        }
-
-        .stats-row {
-            margin-bottom: 20px;
-        }
-
-        .stat-box {
-            background: linear-gradient(135deg, #2c5530, #4a7c59);
-            border-radius: 12px;
-            padding: 20px;
-            text-align: center;
-            box-shadow: 0 4px 15px rgba(44, 85, 48, 0.2);
-            transition: transform 0.2s;
-            color: white;
-        }
-
-        .stat-box:hover {
-            transform: translateY(-3px);
-        }
-
-        .stat-box h3 {
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 5px;
-            color: white;
-        }
-
-        .stat-box p {
-            margin: 0;
-            color: rgba(255, 255, 255, 0.9);
-            font-size: 0.9rem;
-        }
-
-        /* Estilos para Vista Lista (List Cards) */
-        .list-card {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-            margin-bottom: 15px;
-            overflow: hidden;
-            transition: all 0.3s ease;
-            border-left: 4px solid var(--primary-color);
-        }
-
-        .list-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.12);
-        }
-
-        .list-header {
-            padding: 15px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid #f1f3f4;
-        }
-
-        .list-body {
-            padding: 15px 20px;
-        }
-
-        .list-info {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-        }
-
-        .list-item {
-            flex: 1;
-            min-width: 120px;
-        }
-
-        .list-item label {
-            display: block;
-            font-size: 0.75rem;
-            color: #6c757d;
-            text-transform: uppercase;
-            margin-bottom: 3px;
-        }
-
-        .list-item span {
-            font-weight: 600;
-            color: #1a252f;
-        }
-
-        .list-footer {
-            padding: 12px 20px;
-            background: #f8f9fc;
-            display: flex;
-            justify-content: flex-end; /* Alineado a la derecha como Insumos */
-            align-items: center;
-        }
-
-        .btn-custom-action {
-            border-radius: 8px;
-            padding: 6px 12px;
-            font-size: 0.85rem;
-        }
-        
-        .search-box input {
-            border-radius: 20px;
-        }
-        
-        .search-box input:focus {
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 0.2rem rgba(44, 85, 48, 0.25);
-        }
-
-        .view-toggle .btn.active {
-            background-color: var(--primary-color);
-            color: white;
-            border-color: var(--primary-color);
-        }
-    </style>
+@include('partials.modulo-catalogos-styles')
 @endpush
 
 @section('content')
+<div class="modulo-cat">
 
-    <!-- Estadísticas Rápidas -->
-    <div class="row stats-row">
-        <div class="col-md-12 mb-3">
-            <div class="stat-box">
-                <h3>{{ $historial->total() }}</h3>
-                <p><i class="fas fa-history mr-1"></i> Registros de Historial</p>
+    @if(session('success'))
+    <div class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle mr-1"></i> {{ session('success') }}
+        <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
+    </div>
+    @endif
+
+    <div class="row mb-2">
+        <div class="col-lg-4 col-6">
+            <div class="small-box small-box-green">
+                <div class="inner">
+                    <h3>{{ $historial->total() }}</h3>
+                    <p>Registros de cambio</p>
+                </div>
+                <div class="icon"><i class="fas fa-history"></i></div>
+                <span class="small-box-footer">Trazabilidad de estados por lote</span>
             </div>
         </div>
     </div>
 
-    <!-- Filtros y Acciones -->
-    <div class="card mb-4" style="border-radius: 12px; border: none; box-shadow: 0 2px 10px rgba(0,0,0,0.08);">
-        <div class="card-body py-3">
-            <div class="row align-items-center">
-                <div class="col-md-5">
-                    <div class="input-group search-box">
-                        <div class="input-group-prepend">
-                            <span class="input-group-text bg-white border-right-0"><i class="fas fa-search text-muted"></i></span>
-                        </div>
-                        <input type="text" id="searchInput" class="form-control border-left-0" placeholder="Buscar por lote, estado o usuario...">
-                    </div>
-                </div>
-                <div class="col-md-7 text-md-right mt-3 mt-md-0 d-flex justify-content-md-end align-items-center gap-2">
-                    <a href="{{ route('historial-estados-lote.create') }}" class="btn btn-success text-white mr-3" style="border-radius: 20px; background-color: #28a745; border-color: #28a745;">
-                        <i class="fas fa-plus mr-1"></i> Nuevo Registro
-                    </a>
-                    <div class="btn-group view-toggle">
-                        <button type="button" class="btn btn-outline-secondary active" id="btnCardView"><i class="fas fa-th-large"></i></button>
-                        <button type="button" class="btn btn-outline-secondary" id="btnTableView"><i class="fas fa-list"></i></button>
-                    </div>
-                </div>
+    <div class="card card-outline card-success card-modulo-main elevation-1 mb-3">
+        <div class="card-header">
+            <h3 class="card-title mb-0">
+                <i class="fas fa-history text-success mr-1"></i>
+                Historial de estados de lote
+                <span class="badge badge-light border text-muted badge-registros ml-2">{{ $historial->total() }} registros</span>
+            </h3>
+            <div class="card-tools d-flex align-items-center flex-wrap" style="gap: 6px;">
+                <button type="button" class="btn btn-tool" data-toggle="collapse" data-target="#filtrosHistorialPanel" title="Filtros">
+                    <i class="fas fa-filter"></i>
+                </button>
+                <a href="{{ route('historial-estados-lote.create') }}" class="btn btn-success btn-sm">
+                    <i class="fas fa-plus mr-1"></i> Nuevo registro
+                </a>
             </div>
         </div>
-    </div>
 
-    <!-- Vista Cards (Default) -->
-    <div id="cardView">
-        @forelse($historial as $h)
-            <div class="list-card search-item" data-nombre="{{ strtolower($h->lote->nombre ?? '') }} {{ strtolower($h->estadoTipo->nombre ?? '') }} {{ strtolower($h->usuario->nombre ?? '') }}">
-                <div class="list-header">
-                    <div class="d-flex align-items-center">
-                        <div class="rounded-circle bg-light p-2 mr-3" style="color: #2c5530; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
-                            <i class="fas fa-clipboard-list"></i>
-                        </div>
-                        <div>
-                            <h5 class="m-0 font-weight-bold" style="color: #1a252f;">{{ $h->lote->nombre ?? 'Lote Eliminado' }}</h5>
-                        </div>
+        <div id="filtrosHistorialPanel" class="filtros-panel collapse {{ request()->hasAny(['buscar','loteid','estadolotetipoid','fecha_desde','fecha_hasta']) ? 'show' : '' }}">
+            <form method="GET" action="{{ route('historial-estados-lote.index') }}">
+                <div class="row align-items-end">
+                    <div class="col-md-3 mb-2 mb-md-0">
+                        <label class="small text-muted mb-1">Buscar</label>
+                        <input type="text" name="buscar" class="form-control form-control-sm" value="{{ request('buscar') }}"
+                            placeholder="Lote, estado u observaciones…">
                     </div>
-                    <div>
-                        <span class="badge badge-info">{{ $h->estadoTipo->nombre ?? 'Desconocido' }}</span>
+                    <div class="col-md-2 mb-2 mb-md-0">
+                        <label class="small text-muted mb-1">Lote</label>
+                        <select name="loteid" class="form-control form-control-sm">
+                            <option value="">Todos</option>
+                            @foreach($lotes as $lote)
+                                <option value="{{ $lote->loteid }}" @selected(request('loteid') == $lote->loteid)>{{ $lote->nombre }}</option>
+                            @endforeach
+                        </select>
                     </div>
-                </div>
-                <div class="list-body">
-                    <div class="list-info">
-                        <div class="list-item">
-                            <label><i class="fas fa-calendar mr-1"></i> Fecha Cambio</label>
-                            <span>{{ $h->fecha_cambio }}</span>
-                        </div>
-                        <div class="list-item">
-                            <label><i class="fas fa-user mr-1"></i> Usuario</label>
-                            <span>{{ $h->usuario->nombre ?? 'Sistema' }}</span>
-                        </div>
-                        <div class="list-item" style="flex: 2;">
-                            <label><i class="fas fa-comment-alt mr-1"></i> Observaciones</label>
-                            <span class="text-muted">{{ Str::limit($h->observaciones, 50) ?: 'Sin observaciones' }}</span>
-                        </div>
+                    <div class="col-md-2 mb-2 mb-md-0">
+                        <label class="small text-muted mb-1">Estado</label>
+                        <select name="estadolotetipoid" class="form-control form-control-sm">
+                            <option value="">Todos</option>
+                            @foreach($tiposEstado as $tipo)
+                                <option value="{{ $tipo->estadolotetipoid }}" @selected(request('estadolotetipoid') == $tipo->estadolotetipoid)>{{ $tipo->nombre }}</option>
+                            @endforeach
+                        </select>
                     </div>
-                </div>
-                <div class="list-footer">
-                    <div class="d-flex align-items-center gap-1">
-                        <a href="{{ route('historial-estados-lote.show', $h) }}" class="btn btn-custom-action btn-info text-white" title="Ver Detalle">
-                            <i class="fas fa-eye"></i>
-                        </a>
-                        <a href="{{ route('historial-estados-lote.edit', $h) }}" class="btn btn-custom-action btn-warning text-white" title="Editar">
-                            <i class="fas fa-edit"></i>
-                        </a>
-                        <form action="{{ route('historial-estados-lote.destroy', $h) }}" method="POST" class="d-inline on-submit-confirm">
-                            @csrf
-                            @method('DELETE')
-                            <button class="btn btn-custom-action btn-danger" title="Eliminar">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </form>
+                    <div class="col-md-2 mb-2 mb-md-0">
+                        <label class="small text-muted mb-1">Desde</label>
+                        <input type="date" name="fecha_desde" class="form-control form-control-sm" value="{{ request('fecha_desde') }}">
+                    </div>
+                    <div class="col-md-2 mb-2 mb-md-0">
+                        <label class="small text-muted mb-1">Hasta</label>
+                        <input type="date" name="fecha_hasta" class="form-control form-control-sm" value="{{ request('fecha_hasta') }}">
+                    </div>
+                    <div class="col-md-1 d-flex" style="gap: 8px;">
+                        <button type="submit" class="btn btn-success btn-sm" title="Filtrar"><i class="fas fa-search"></i></button>
+                        <a href="{{ route('historial-estados-lote.index') }}" class="btn btn-outline-secondary btn-sm" title="Limpiar"><i class="fas fa-eraser"></i></a>
                     </div>
                 </div>
-            </div>
-        @empty
-            <div class="card">
-                <div class="card-body text-center py-5">
-                    <i class="fas fa-history fa-3x text-muted mb-3"></i>
-                    <h4 class="text-muted">No hay registros de historial</h4>
-                    <p class="text-muted mb-3">Registra los cambios de estado de tus lotes para llevar un seguimiento.</p>
-                    <a href="{{ route('historial-estados-lote.create') }}" class="btn btn-success mt-2">Registrar Cambio</a>
-                </div>
-            </div>
-        @endforelse
-    </div>
-
-    <!-- Vista Tabla (Oculta) -->
-    <div id="tableView" style="display: none;">
-        <div class="card" style="border-radius: 12px; border: none; box-shadow: 0 2px 10px rgba(0,0,0,0.08);">
-            <div class="card-body p-0">
-                <table class="table table-hover mb-0">
-                    <thead class="bg-light">
-                        <tr>
-                            <th>Lote</th>
-                            <th>Estado</th>
-                            <th>Usuario</th>
-                            <th>Fecha Cambio</th>
-                            <th>Observaciones</th>
-                            <th class="text-right">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($historial as $h)
-                            <tr class="search-item-row" data-nombre="{{ strtolower($h->lote->nombre ?? '') }} {{ strtolower($h->estadoTipo->nombre ?? '') }} {{ strtolower($h->usuario->nombre ?? '') }}">
-                                <td class="font-weight-bold" style="color: #2c5530;">{{ $h->lote->nombre ?? '-' }}</td>
-                                <td><span class="badge badge-light border">{{ $h->estadoTipo->nombre ?? '-' }}</span></td>
-                                <td>{{ $h->usuario->nombre ?? '-' }}</td>
-                                <td>{{ $h->fecha_cambio }}</td>
-                                <td>{{ Str::limit($h->observaciones, 30) }}</td>
-                                <td class="text-right">
-                                    <div class="d-flex justify-content-end gap-1">
-                                        <a href="{{ route('historial-estados-lote.show', $h) }}" class="btn btn-sm btn-info text-white"><i class="fas fa-eye"></i></a>
-                                        <a href="{{ route('historial-estados-lote.edit', $h) }}" class="btn btn-sm btn-warning text-white"><i class="fas fa-edit"></i></a>
-                                        <form action="{{ route('historial-estados-lote.destroy', $h) }}" method="POST" class="d-inline on-submit-confirm">
-                                            @csrf @method('DELETE')
-                                            <button class="btn btn-sm btn-danger"><i class="fas fa-trash"></i></button>
-                                        </form>
-                                    </div>
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
+            </form>
         </div>
+
+        <div class="card-body p-0 table-responsive">
+            <table class="table table-modulo table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 55px">#</th>
+                        <th>Lote</th>
+                        <th>Estado</th>
+                        <th>Fecha cambio</th>
+                        <th>Usuario</th>
+                        <th>Observaciones</th>
+                        <th style="width: 130px" class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($historial as $registro)
+                    <tr>
+                        <td class="text-muted font-weight-bold">#{{ $registro->historial_estado_id }}</td>
+                        <td><strong>{{ $registro->lote->nombre ?? '—' }}</strong></td>
+                        <td>
+                            <span class="badge badge-light border">{{ $registro->estadoTipo->nombre ?? '—' }}</span>
+                        </td>
+                        <td class="text-muted">{{ $registro->fecha_cambio ? $registro->fecha_cambio->format('d/m/Y H:i') : '—' }}</td>
+                        <td>{{ $registro->usuario ? $registro->usuario->nombre.' '.$registro->usuario->apellido : '—' }}</td>
+                        <td class="text-muted small">{{ Str::limit($registro->observaciones, 60) ?: '—' }}</td>
+                        <td class="text-center btn-actions">
+                            <a href="{{ route('historial-estados-lote.show', $registro) }}" class="btn btn-sm btn-outline-info" title="Ver detalles">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <a href="{{ route('historial-estados-lote.edit', $registro) }}" class="btn btn-sm btn-outline-warning" title="Editar">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <form action="{{ route('historial-estados-lote.destroy', $registro) }}" method="POST" class="d-inline"
+                                onsubmit="return confirm('¿Eliminar este registro?')">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    @empty
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-5">
+                            <i class="fas fa-history fa-3x mb-3 d-block"></i>
+                            No hay registros que coincidan con los filtros.
+                        </td>
+                    </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+
+        @if($historial->hasPages())
+        <div class="card-footer d-flex justify-content-between align-items-center flex-wrap">
+            <small class="text-muted mb-2 mb-md-0">
+                Mostrando {{ $historial->firstItem() }}–{{ $historial->lastItem() }} de {{ $historial->total() }}
+            </small>
+            {{ $historial->links() }}
+        </div>
+        @endif
     </div>
 
-    <div class="mt-4 d-flex justify-content-center">
-        {{ $historial->links() }}
-    </div>
-
+    <a href="{{ route('catalogos.index') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-arrow-left mr-1"></i> Volver a Catálogos
+    </a>
+</div>
 @endsection
-
-@push('scripts')
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script>
-        $(function() {
-            // Toggle Vistas
-            $('#btnCardView').click(function() {
-                $(this).addClass('active').siblings().removeClass('active');
-                $('#cardView').fadeIn();
-                $('#tableView').hide();
-            });
-            $('#btnTableView').click(function() {
-                $(this).addClass('active').siblings().removeClass('active');
-                $('#tableView').fadeIn();
-                $('#cardView').hide();
-            });
-
-            // Buscador
-            $('#searchInput').keyup(function() {
-                var val = $(this).val().toLowerCase();
-                $('.search-item').each(function() {
-                    var match = $(this).data('nombre').indexOf(val) > -1;
-                    $(this).toggle(match);
-                });
-                $('.search-item-row').each(function() {
-                    var match = $(this).data('nombre').indexOf(val) > -1;
-                    $(this).toggle(match);
-                });
-            });
-
-            // Confirmar eliminación
-            $('.on-submit-confirm').submit(function(e) {
-                e.preventDefault();
-                var form = this;
-                Swal.fire({
-                    title: '¿Eliminar registro?',
-                    text: "No podrás revertir esto",
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#dc3545',
-                    cancelButtonColor: '#6c757d',
-                    confirmButtonText: 'Sí, eliminar'
-                }).then((result) => {
-                    if (result.isConfirmed) form.submit();
-                });
-            });
-
-            @if(session('success'))
-                Swal.fire({
-                    icon: 'success',
-                    title: '¡Hecho!',
-                    text: '{{ session('success') }}',
-                    confirmButtonColor: '#2c5530',
-                    timer: 3000,
-                    showConfirmButton: false
-                });
-            @endif
-        });
-    </script>
-@endpush

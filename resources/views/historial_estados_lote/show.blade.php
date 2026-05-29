@@ -1,126 +1,84 @@
 @extends('layouts.app')
 
-@section('title', 'Detalle de Historial | AgroFusion')
-@section('page_title', 'Detalle de Historial')
+@section('title', 'Detalle historial | AgroFusion')
+@section('page_title', 'Detalle de historial')
 
 @section('breadcrumbs')
-    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}" style="color: #2c5530;">Inicio</a></li>
-    <li class="breadcrumb-item"><a href="{{ route('historial-estados-lote.index') }}" style="color: #2c5530;">Historial</a>
-    </li>
-    <li class="breadcrumb-item active">Detalle #{{ $registro->historial_estado_id }}</li>
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('catalogos.index') }}">Catálogos</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('historial-estados-lote.index') }}">Historial de estados</a></li>
+    <li class="breadcrumb-item active">#{{ $registro->historial_estado_id }}</li>
 @endsection
 
+@push('styles')
+@include('partials.modulo-catalogos-styles')
+@endpush
+
 @section('content')
-    <div class="d-flex justify-content-center">
-        <div class="col-lg-10">
-            <div class="card shadow-lg border-0 rounded-lg">
+<div class="modulo-cat">
 
-                {{-- HEADER PREMIUM --}}
-                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center py-3"
-                    style="background: linear-gradient(135deg, #2c5530, #4a7c59);">
-                    <div>
-                        <h5 class="mb-0 font-weight-bold">
-                            <i class="fas fa-clipboard-check mr-2"></i> Detalle del Registro
-                        </h5>
-                        <small class="opacity-75">ID: {{ $registro->historial_estado_id }} | Fecha:
-                            {{ $registro->fecha_cambio }}</small>
-                    </div>
-                    <div>
-                        <span class="badge badge-light text-success font-weight-bold px-3 py-2" style="font-size: 0.9rem;">
-                            {{ $registro->estadoTipo->nombre ?? 'Estado Desconocido' }}
-                        </span>
-                    </div>
-                </div>
+    @if(session('success'))
+    <div class="alert alert-success alert-dismissible fade show">
+        <i class="fas fa-check-circle mr-1"></i> {{ session('success') }}
+        <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
+    </div>
+    @endif
 
-                <div class="card-body p-4 bg-light">
+    <div class="mb-3 d-flex flex-wrap" style="gap: 8px;">
+        <a href="{{ route('historial-estados-lote.index') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left mr-1"></i> Listado
+        </a>
+        <a href="{{ route('historial-estados-lote.edit', $registro) }}" class="btn btn-warning btn-sm">
+            <i class="fas fa-edit mr-1"></i> Editar
+        </a>
+    </div>
 
-                    {{-- INFORMACIÓN PRINCIPAL --}}
-                    <div class="card shadow-sm border-0 mb-4">
-                        <div class="card-body">
-                            <h6 class="text-uppercase text-muted font-weight-bold mb-3 border-bottom pb-2">Información del
-                                Evento</h6>
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="text-secondary small font-weight-bold">Lote Afectado</label>
-                                    <div class="h5 text-dark font-weight-bold">
-                                        <i class="fas fa-layer-group text-success mr-2"></i>
-                                        {{ $registro->lote->nombre ?? 'Lote No Encontrado' }}
-                                    </div>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="text-secondary small font-weight-bold">Registrado Por</label>
-                                    <div class="h5 text-dark">
-                                        <i class="fas fa-user-circle text-primary mr-2"></i>
-                                        {{ $registro->usuario->nombre ?? 'Sistema' }}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {{-- OBSERVACIONES E IMAGEN --}}
-                    <div class="row">
-                        <div class="col-md-8">
-                            <div class="card shadow-sm border-0 h-100">
-                                <div class="card-body">
-                                    <h6 class="text-uppercase text-muted font-weight-bold mb-3 border-bottom pb-2">
-                                        Observaciones y Detalles</h6>
-                                    <p class="text-justify text-dark">
-                                        {{ $registro->observaciones ?: 'No se registraron observaciones adicionales para este cambio de estado.' }}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="card shadow-sm border-0 h-100">
-                                <div class="card-body text-center">
-                                    <h6 class="text-uppercase text-muted font-weight-bold mb-3 border-bottom pb-2">Evidencia
-                                        Fotográfica</h6>
-                                    @if($registro->imagenurl)
-                                        <div class="rounded overflow-hidden shadow-sm mb-2">
-                                            <img src="{{ $registro->imagenurl }}" class="img-fluid" alt="Evidencia"
-                                                style="max-height: 200px; object-fit: cover; cursor: pointer;"
-                                                onclick="window.open(this.src)">
-                                        </div>
-                                        <small class="text-muted"><i class="fas fa-search-plus"></i> Clic para ampliar</small>
-                                    @else
-                                        <div class="py-4 text-muted border rounded bg-white">
-                                            <i class="fas fa-camera-slash fa-3x mb-2 opacity-50"></i>
-                                            <p class="mb-0 small">Sin imagen adjunta</p>
-                                        </div>
-                                    @endif
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                </div>
-
-                {{-- FOOTER CON ACCIONES --}}
-                <div class="card-footer bg-white d-flex justify-content-between align-items-center py-3">
-                    <a href="{{ route('historial-estados-lote.index') }}"
-                        class="btn btn-outline-secondary rounded-pill px-4">
-                        <i class="fas fa-arrow-left mr-2"></i> Volver al Listado
-                    </a>
-
-                    <div class="d-flex gap-2">
-                        <a href="{{ route('historial-estados-lote.edit', $registro) }}"
-                            class="btn btn-warning text-white rounded-pill px-4 shadow-sm">
-                            <i class="fas fa-edit mr-2"></i> Editar
-                        </a>
-
-                        <form action="{{ route('historial-estados-lote.destroy', $registro) }}" method="POST"
-                            class="d-inline"
-                            onsubmit="return confirm('¿Confirma eliminar este registro permanentemente?');">
-                            @csrf
-                            @method('DELETE')
-                            <button class="btn btn-danger rounded-pill px-4 shadow-sm">
-                                <i class="fas fa-trash-alt mr-2"></i> Eliminar
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            </div>
+    <div class="card card-modulo-main elevation-1">
+        <div class="card-header">
+            <h3 class="card-title mb-0">
+                <i class="fas fa-history text-success mr-1"></i>
+                Registro #{{ $registro->historial_estado_id }}
+            </h3>
+        </div>
+        <div class="card-body">
+            <dl class="row mb-0">
+                <dt class="col-sm-3 text-muted">Lote</dt>
+                <dd class="col-sm-9"><strong>{{ $registro->lote->nombre ?? '—' }}</strong></dd>
+                <dt class="col-sm-3 text-muted">Estado</dt>
+                <dd class="col-sm-9">
+                    <span class="badge badge-light border">{{ $registro->estadoTipo->nombre ?? '—' }}</span>
+                </dd>
+                <dt class="col-sm-3 text-muted">Fecha del cambio</dt>
+                <dd class="col-sm-9">{{ $registro->fecha_cambio ? $registro->fecha_cambio->format('d/m/Y H:i') : '—' }}</dd>
+                <dt class="col-sm-3 text-muted">Usuario</dt>
+                <dd class="col-sm-9">
+                    @if($registro->usuario)
+                        {{ $registro->usuario->nombre }} {{ $registro->usuario->apellido }}
+                    @else
+                        —
+                    @endif
+                </dd>
+                <dt class="col-sm-3 text-muted">Observaciones</dt>
+                <dd class="col-sm-9">{{ $registro->observaciones ?: '—' }}</dd>
+                @if($registro->imagenurl)
+                <dt class="col-sm-3 text-muted">Imagen</dt>
+                <dd class="col-sm-9"><a href="{{ $registro->imagenurl }}" target="_blank" rel="noopener">Ver imagen</a></dd>
+                @endif
+            </dl>
+        </div>
+        <div class="card-footer d-flex flex-wrap" style="gap: 8px;">
+            <a href="{{ route('historial-estados-lote.edit', $registro) }}" class="btn btn-warning btn-sm">
+                <i class="fas fa-edit mr-1"></i> Editar
+            </a>
+            <form action="{{ route('historial-estados-lote.destroy', $registro) }}" method="POST" class="d-inline"
+                onsubmit="return confirm('¿Eliminar este registro?')">
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="btn btn-outline-danger btn-sm">
+                    <i class="fas fa-trash mr-1"></i> Eliminar
+                </button>
+            </form>
         </div>
     </div>
+</div>
 @endsection

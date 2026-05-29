@@ -1,33 +1,25 @@
 @extends('layouts.app')
 
+@section('title', 'Estados de lote | AgroFusion')
+@section('page_title', 'Estados de lote')
+
+@section('breadcrumbs')
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('catalogos.index') }}">Catálogos</a></li>
+    <li class="breadcrumb-item active">Estados de lote</li>
+@endsection
+
+@push('styles')
+@include('partials.modulo-catalogos-styles')
+@endpush
+
 @section('content')
-<div class="card">
-
-    <div class="card-header">
-        <h3 class="card-title">Detalles del Tipo de Estado</h3>
-    </div>
-
-    <div class="card-body">
-
-        <p><strong>ID:</strong> {{ $estadoLoteTipo->estadolotetipoid }}</p>
-        <p><strong>Nombre:</strong> {{ $estadoLoteTipo->nombre }}</p>
-        <p><strong>Descripción:</strong> {{ $estadoLoteTipo->descripcion }}</p>
-
-    </div>
-
-    <div class="card-footer">
-        <a href="{{ route('estado-lote-tipos.index') }}" class="btn btn-secondary">Volver</a>
-
-        <a href="{{ route('estado-lote-tipos.edit', $estadoLoteTipo) }}" class="btn btn-warning">Editar</a>
-
-        <form action="{{ route('estado-lote-tipos.destroy', $estadoLoteTipo) }}"
-              method="POST" class="d-inline"
-              onsubmit="return confirm('¿Eliminar tipo de estado?')">
-            @csrf
-            @method('DELETE')
-            <button class="btn btn-danger">Eliminar</button>
-        </form>
-    </div>
-
-</div>
+@include('catalogos.partials.simple-show', [
+    'item' => $item,
+    'routePrefix' => 'estado-lote-tipos',
+    'pk' => 'estadolotetipoid',
+    'singular' => 'estado de lote',
+    'icono' => 'fa-map-marker-alt',
+    'tieneDescripcion' => true,
+])
 @endsection

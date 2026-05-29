@@ -3,265 +3,273 @@
 @section('title', 'Registrar Venta | AgroFusion')
 @section('page_title', 'Registrar Venta')
 
-@section('content')
-<div class="card">
+@section('breadcrumbs')
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('ventas.index') }}">Ventas</a></li>
+    <li class="breadcrumb-item active">Registrar</li>
+@endsection
 
-    <div class="card-header bg-purple text-white" style="background: #6f42c1 !important;">
-        <h3 class="card-title"><i class="fas fa-dollar-sign mr-2"></i>Registrar Venta</h3>
+@push('styles')
+@include('partials.modulo-ventas-styles')
+@endpush
+
+@section('content')
+<div class="modulo-ven">
+
+    <div class="ven-page-header">
+        <div class="ven-page-header-inner">
+            <div class="ven-page-header-icon"><i class="fas fa-cash-register"></i></div>
+            <div class="ven-page-header-text">
+                <h2>Registrar venta desde almacén</h2>
+                <p>Selecciona el producto en stock, indica cliente y cantidad. El sistema calcula el total y descuenta el almacén.</p>
+            </div>
+        </div>
+        <div>
+            <a href="{{ route('ventas.index') }}" class="btn btn-sm btn-outline-light"><i class="fas fa-arrow-left mr-1"></i> Volver</a>
+        </div>
     </div>
 
     @if($errors->any())
-        <div class="alert alert-danger m-3">
-            <ul class="mb-0">
-                @foreach($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
+    <div class="alert alert-danger">
+        <ul class="mb-0">
+            @foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach
+        </ul>
+    </div>
     @endif
 
-    <form action="{{ route('ventas.store') }}" method="POST">
+    @if($producciones->isEmpty())
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle mr-1"></i>
+        No hay productos con stock en almacén. Primero registra una cosecha y envíala a almacén desde el módulo de Producción.
+    </div>
+    @endif
+
+    <form action="{{ route('ventas.store') }}" method="POST" id="formVenta">
         @csrf
-
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-8">
-
-                    <div class="form-group">
-                        <label><i class="fas fa-warehouse mr-1"></i> Seleccionar Producto del Almacen <span class="text-danger">*</span></label>
-                        <select name="produccionid" id="produccionid" class="form-control" required>
-                            <option value="">-- Seleccione producto en almacen --</option>
-                            @foreach($producciones as $p)
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card card-outline card-success card-form-modulo elevation-1">
+                    <div class="card-header">
+                        <h3 class="card-title mb-0"><i class="fas fa-edit mr-1"></i> Datos de la venta</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="font-weight-bold"><i class="fas fa-warehouse mr-1 text-success"></i> Producto en almacén <span class="text-danger">*</span></label>
+                            <select name="produccionid" id="produccionid" class="form-control" required {{ $producciones->isEmpty() ? 'disabled' : '' }}>
+                                <option value="">— Seleccione producto con stock —</option>
+                                @foreach($producciones as $p)
                                 <option value="{{ $p->produccionid }}"
-                                        data-disponible="{{ $p->stock_disponible }}"
-                                        data-unidad="{{ $p->unidadMedida->abreviatura ?? 'kg' }}"
-                                        data-cultivo="{{ $p->lote->cultivo->nombre ?? 'Sin cultivo' }}"
-                                        data-lote="{{ $p->lote->nombre ?? '' }}"
-                                        data-almacen="{{ $p->almacen_nombre }}">
-                                    {{ $p->lote->cultivo->nombre ?? 'Producto' }} - {{ $p->almacen_nombre }}
-                                    (Stock: {{ $p->stock_disponible }} {{ $p->unidadMedida->abreviatura ?? 'kg' }})
+                                    @selected(old('produccionid') == $p->produccionid)
+                                    data-disponible="{{ $p->stock_disponible }}"
+                                    data-unidad="{{ $p->unidadMedida->abreviatura ?? 'kg' }}"
+                                    data-unidad-id="{{ $p->unidadmedidaid }}"
+                                    data-cultivo="{{ $p->lote->cultivo->nombre ?? 'Sin cultivo' }}"
+                                    data-lote="{{ $p->lote->nombre ?? '' }}"
+                                    data-almacen="{{ $p->almacen_nombre }}"
+                                    data-precio="{{ $p->precio_sugerido ?? '' }}">
+                                    {{ $p->lote->cultivo->nombre ?? 'Producto' }} · {{ $p->lote->nombre ?? 'Lote' }} · {{ $p->almacen_nombre }}
+                                    ({{ number_format($p->stock_disponible, 2) }} {{ $p->unidadMedida->abreviatura ?? 'kg' }})
                                 </option>
-                            @endforeach
-                        </select>
-                        @if($producciones->isEmpty())
-                            <small class="form-text text-warning">
-                                <i class="fas fa-exclamation-triangle"></i> No hay productos en almacen disponibles para venta.
-                            </small>
-                        @endif
-                    </div>
+                                @endforeach
+                            </select>
+                        </div>
 
-                    <div id="produccionInfo" class="alert alert-info" style="display: none;">
-                        <strong><i class="fas fa-info-circle mr-1"></i> Producto:</strong>
-                        <span id="infoCultivo"></span> del lote <span id="infoLote"></span><br>
-                        <strong>Almacen:</strong> <span id="infoAlmacen"></span><br>
-                        <strong>Stock disponible:</strong> <span id="infoDisponible" class="text-success font-weight-bold"></span>
-                    </div>
+                        <div id="productoPreview" class="producto-preview" style="display:none;">
+                            <div class="row">
+                                <div class="col-sm-6"><span class="info-label">Cultivo / Lote</span><strong id="pvCultivoLote">—</strong></div>
+                                <div class="col-sm-6"><span class="info-label">Almacén</span><strong id="pvAlmacen">—</strong></div>
+                                <div class="col-sm-6 mt-2"><span class="info-label">Stock disponible</span><strong class="text-success" id="pvStock">—</strong></div>
+                                <div class="col-sm-6 mt-2"><span class="info-label">Precio sugerido</span><strong id="pvPrecio">—</strong></div>
+                            </div>
+                        </div>
 
-                    <div class="form-group">
-                        <label><i class="fas fa-user mr-1"></i> Cliente <span class="text-danger">*</span></label>
-                        <input type="text" name="cliente" class="form-control" required 
-                               maxlength="100" placeholder="Nombre del comprador" value="{{ old('cliente') }}">
-                    </div>
+                        <div class="form-group">
+                            <label class="font-weight-bold"><i class="fas fa-user mr-1 text-success"></i> Cliente <span class="text-danger">*</span></label>
+                            <input type="text" name="cliente" id="cliente" class="form-control" required maxlength="100"
+                                placeholder="Nombre del comprador" value="{{ old('cliente') }}" {{ $producciones->isEmpty() ? 'disabled' : '' }}>
+                        </div>
 
-                    <div class="form-group">
-                        <label><i class="fas fa-balance-scale mr-1"></i> Cantidad a Vender <span class="text-danger">*</span></label>
-                        <div class="input-group">
-                            <input type="number" step="0.01" name="cantidad" id="cantidad"
-                                   class="form-control" min="0.01" required value="{{ old('cantidad') }}"
-                                   placeholder="Ej: 100">
-                            <div class="input-group-append">
-                                <select name="unidadmedidaid" id="unidadmedidaid" class="form-control" required>
-                                    @foreach($unidades as $u)
-                                        <option value="{{ $u->unidadmedidaid }}" {{ $u->es_base ? 'selected' : '' }}>
+                        <div class="form-group">
+                            <label class="font-weight-bold"><i class="fas fa-balance-scale mr-1 text-success"></i> Cantidad a vender <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <input type="number" step="0.01" name="cantidad" id="cantidad" class="form-control" min="0.01" required
+                                    value="{{ old('cantidad') }}" placeholder="Ej: 100" {{ $producciones->isEmpty() ? 'disabled' : '' }}>
+                                <div class="input-group-append">
+                                    <select name="unidadmedidaid" id="unidadmedidaid" class="form-control" required {{ $producciones->isEmpty() ? 'disabled' : '' }}>
+                                        @foreach($unidades as $u)
+                                        <option value="{{ $u->unidadmedidaid }}" @selected(old('unidadmedidaid', $u->es_base ? $u->unidadmedidaid : null) == $u->unidadmedidaid)>
                                             {{ $u->abreviatura }}
                                         </option>
-                                    @endforeach
-                                </select>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="d-flex flex-wrap align-items-center mt-2" style="gap:8px;">
+                                <small class="text-muted mb-0">Máximo: <strong id="maxDisponible">—</strong></small>
+                                <button type="button" class="btn btn-outline-success btn-sm" id="btnVenderTodo" disabled>
+                                    <i class="fas fa-box-open mr-1"></i> Vender stock completo
+                                </button>
                             </div>
                         </div>
-                        <small class="form-text text-muted">
-                            Maximo disponible en almacen: <span id="maxDisponible" class="font-weight-bold">-</span>
-                        </small>
-                    </div>
 
-                    <div class="form-group">
-                        <label><i class="fas fa-tag mr-1"></i> Precio Unitario (Bs.) <span class="text-danger">*</span></label>
-                        <div class="input-group">
-                            <div class="input-group-prepend">
-                                <span class="input-group-text">Bs.</span>
+                        <div class="form-group">
+                            <label class="font-weight-bold"><i class="fas fa-tag mr-1 text-success"></i> Precio unitario (Bs.) <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <div class="input-group-prepend"><span class="input-group-text">Bs.</span></div>
+                                <input type="number" step="0.01" name="preciounitario" id="preciounitario" class="form-control" min="0" required
+                                    value="{{ old('preciounitario') }}" placeholder="Ej: 15.00" {{ $producciones->isEmpty() ? 'disabled' : '' }}>
+                                <div class="input-group-append"><span class="input-group-text">por <span id="unidadPrecio">kg</span></span></div>
                             </div>
-                            <input type="number" step="0.01" name="preciounitario" id="preciounitario"
-                                   class="form-control" min="0" required value="{{ old('preciounitario') }}"
-                                   placeholder="Ej: 15.00">
-                            <div class="input-group-append">
-                                <span class="input-group-text">por <span id="unidadPrecio">kg</span></span>
-                            </div>
+                            <small class="text-muted" id="hintPrecio" style="display:none;">
+                                <i class="fas fa-magic mr-1"></i> Precio sugerido según ventas anteriores del mismo producto o cultivo.
+                            </small>
+                        </div>
+
+                        <div class="form-group mb-0">
+                            <label class="font-weight-bold"><i class="fas fa-comment mr-1 text-success"></i> Observaciones</label>
+                            <textarea name="observaciones" class="form-control" rows="2" maxlength="200" placeholder="Opcional…" {{ $producciones->isEmpty() ? 'disabled' : '' }}>{{ old('observaciones') }}</textarea>
                         </div>
                     </div>
-
-                    <div class="form-group">
-                        <label><i class="fas fa-comment mr-1"></i> Observaciones</label>
-                        <textarea name="observaciones" class="form-control" rows="2" 
-                                  maxlength="200" placeholder="Opcional...">{{ old('observaciones') }}</textarea>
+                    <div class="card-footer d-flex justify-content-between">
+                        <a href="{{ route('ventas.index') }}" class="btn btn-secondary"><i class="fas fa-times mr-1"></i> Cancelar</a>
+                        <button type="submit" class="btn btn-success" {{ $producciones->isEmpty() ? 'disabled' : '' }}>
+                            <i class="fas fa-save mr-1"></i> Registrar venta
+                        </button>
                     </div>
+                </div>
+            </div>
 
+            <div class="col-lg-4">
+                <div class="panel-lateral">
+                    <div class="panel-header"><i class="fas fa-calculator mr-1"></i> Total estimado</div>
+                    <div class="panel-body">
+                        <div class="total-estimado-box">
+                            <small class="text-muted d-block mb-1">Total a cobrar</small>
+                            <div class="amount" id="totalEstimado">Bs. 0.00</div>
+                            <small class="text-muted mt-2 d-block"><i class="far fa-calendar-alt mr-1"></i> Fecha: hoy (automática)</small>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="col-md-4">
-                    <div class="card bg-light">
-                        <div class="card-header">
-                            <h6 class="mb-0"><i class="fas fa-info-circle mr-1"></i> Informacion</h6>
-                        </div>
-                        <div class="card-body">
-                            <p class="small text-muted mb-2">
-                                <i class="fas fa-calendar mr-1"></i> <strong>Fecha:</strong> Se registra automaticamente
-                            </p>
-                            <p class="small text-muted mb-0">
-                                <i class="fas fa-calculator mr-1"></i> <strong>Total:</strong> Se calcula automaticamente
-                            </p>
-                        </div>
+                <div class="panel-lateral">
+                    <div class="panel-header"><i class="fas fa-route mr-1"></i> Flujo de la operación</div>
+                    <div class="panel-body flujo-venta">
+                        <div class="flujo-item"><i class="fas fa-check-circle text-success"></i> Cosecha registrada</div>
+                        <div class="flujo-item"><i class="fas fa-check-circle text-success"></i> Enviado a almacén</div>
+                        <div class="flujo-item active"><i class="fas fa-arrow-right"></i> Venta desde almacén (este paso)</div>
+                        <div class="flujo-item text-muted"><i class="fas fa-circle" style="font-size:0.5rem;vertical-align:middle;"></i> Stock actualizado al guardar</div>
                     </div>
+                </div>
 
-                    <div class="card mt-3 border-success">
-                        <div class="card-body text-center">
-                            <small class="text-muted">Total Estimado</small>
-                            <h2 class="text-success mb-0" id="totalEstimado">Bs. 0.00</h2>
-                        </div>
-                    </div>
-
-                    <div class="card mt-3 border-info">
-                        <div class="card-header bg-info text-white">
-                            <h6 class="mb-0"><i class="fas fa-exchange-alt mr-1"></i> Flujo</h6>
-                        </div>
-                        <div class="card-body small">
-                            <p class="mb-1"><i class="fas fa-check text-success"></i> Cosecha registrada</p>
-                            <p class="mb-1"><i class="fas fa-check text-success"></i> Enviado a almacen</p>
-                            <p class="mb-0"><i class="fas fa-arrow-right text-info"></i> <strong>Venta desde almacen</strong></p>
-                        </div>
+                <div class="panel-lateral">
+                    <div class="panel-header"><i class="fas fa-list-ol mr-1"></i> Pasos a seguir</div>
+                    <div class="panel-body p-0">
+                        <ul class="guia-pasos px-3 pb-2">
+                            <li><span class="paso-num" id="paso1">1</span><span><strong>Elige el producto</strong> con stock en almacén.</span></li>
+                            <li><span class="paso-num" id="paso2">2</span><span><strong>Indica cliente</strong> y cantidad (o usa «Vender stock completo»).</span></li>
+                            <li><span class="paso-num" id="paso3">3</span><span><strong>Confirma el precio</strong> — se sugiere automáticamente si hay historial.</span></li>
+                            <li><span class="paso-num" id="paso4">4</span><span><strong>Guarda</strong> y el stock se descuenta del almacén.</span></li>
+                        </ul>
                     </div>
                 </div>
             </div>
         </div>
-
-        <div class="card-footer">
-            <div class="d-flex justify-content-between">
-                <a href="{{ route('ventas.index') }}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left mr-1"></i> Cancelar
-                </a>
-                <button type="submit" class="btn btn-primary" style="background: #6f42c1; border-color: #6f42c1;" 
-                        {{ $producciones->isEmpty() ? 'disabled' : '' }}>
-                    <i class="fas fa-save mr-1"></i> Registrar Venta
-                </button>
-            </div>
-        </div>
-
     </form>
 </div>
 @endsection
 
 @push('scripts')
 <script>
-$(document).ready(function() {
-    $('#produccionid').on('change', function() {
-        const selected = $(this).find(':selected');
-        if (selected.val()) {
-            const disponible = selected.data('disponible');
-            const unidad = selected.data('unidad');
-            
-            $('#infoCultivo').text(selected.data('cultivo'));
-            $('#infoLote').text(selected.data('lote'));
-            $('#infoAlmacen').text(selected.data('almacen'));
-            $('#infoDisponible').text(disponible + ' ' + unidad);
-            $('#maxDisponible').text(disponible + ' ' + unidad);
-            $('#cantidad').attr('max', disponible);
-            $('#produccionInfo').slideDown();
-        } else {
-            $('#produccionInfo').slideUp();
-        }
-        calcularTotal();
-    });
-
-    $('#unidadmedidaid').on('change', function() {
-        const unidad = $(this).find(':selected').text();
-        $('#unidadPrecio').text(unidad);
-    });
-
-    $('#cantidad, #preciounitario').on('input', function() {
-        calcularTotal();
-    });
+$(function () {
+    var stockActual = 0;
 
     function calcularTotal() {
-        const cantidad = parseFloat($('#cantidad').val()) || 0;
-        const precio = parseFloat($('#preciounitario').val()) || 0;
-        const total = cantidad * precio;
-        $('#totalEstimado').text('Bs. ' + total.toFixed(2));
+        var cantidad = parseFloat($('#cantidad').val()) || 0;
+        var precio = parseFloat($('#preciounitario').val()) || 0;
+        $('#totalEstimado').text('Bs. ' + (cantidad * precio).toFixed(2));
     }
 
-    // SMART UNIT CONVERSION
-    function checkSmartConversion() {
-        const cantidadInput = $('#cantidad');
-        const unidadSelect = $('#unidadmedidaid');
-        const cantidad = parseFloat(cantidadInput.val()) || 0;
-        const unidadOption = unidadSelect.find('option:selected');
-        const unidadNombre = unidadOption.text().toLowerCase();
-        
-        // Limpiar sugerencias
-        $('#smartConversionAlert').remove();
-
-        // KG -> TON
-        if (unidadNombre.includes('kilo') || unidadNombre.includes('kg')) {
-            if (cantidad >= 1000) {
-                const toneladas = cantidad / 1000;
-                mostrarSugerenciaConversion(cantidadInput, 'Ton', toneladas, 'tonelada');
-            }
-        }
-        // GRAMOS -> KG
-        else if (unidadNombre.includes('gramo') || unidadNombre.includes(' gr')) {
-            if (cantidad >= 1000) {
-                const kilos = cantidad / 1000;
-                mostrarSugerenciaConversion(cantidadInput, 'Kg', kilos, 'kilo');
-            }
-        }
+    function marcarPasos() {
+        var p1 = $('#produccionid').val() ? 'done' : 'active';
+        var p2 = $('#cliente').val() && $('#cantidad').val() ? 'done' : ($('#produccionid').val() ? 'active' : '');
+        var p3 = $('#preciounitario').val() ? 'done' : (p2 === 'done' ? 'active' : '');
+        $('#paso1').attr('class', 'paso-num ' + (p1 === 'done' ? 'done' : 'active'));
+        $('#paso2').attr('class', 'paso-num ' + (p2 || ''));
+        $('#paso3').attr('class', 'paso-num ' + (p3 || ''));
+        $('#paso4').attr('class', 'paso-num');
     }
 
-    function mostrarSugerenciaConversion(inputElement, nuevaUnidadTexto, nuevoValor, keywordNuevaUnidad) {
-        const alertHtml = `
-            <div id="smartConversionAlert" class="alert alert-info p-2 mt-2 shadow-sm d-flex justify-content-between align-items-center" style="border-radius: 8px;">
-                <div>
-                    <i class="fas fa-lightbulb text-info mr-2"></i>
-                    <strong>Sugerencia:</strong> ¿Convertir a <strong>${nuevoValor} ${nuevaUnidadTexto}</strong>?
-                </div>
-                <button type="button" class="btn btn-sm btn-light border font-weight-bold" id="btnAplicarConversion">
-                    Sí, cambiar
-                </button>
-            </div>
-        `;
-        
-        if ($('#smartConversionAlert').length === 0) {
-            inputElement.closest('.form-group').append(alertHtml);
+    function aplicarProducto(selected) {
+        if (!selected.val()) {
+            $('#productoPreview').slideUp();
+            $('#btnVenderTodo').prop('disabled', true);
+            stockActual = 0;
+            $('#maxDisponible').text('—');
+            marcarPasos();
+            return;
         }
 
-        $('#btnAplicarConversion').on('click', function(e) {
-            e.preventDefault();
-            $('#cantidad').val(nuevoValor);
-            
-            // Buscar y seleccionar nueva unidad
-            $('#unidadmedidaid option').each(function() {
-                const text = $(this).text().toLowerCase();
-                if (text.includes(keywordNuevaUnidad)) {
-                    $(this).prop('selected', true);
-                    return false; 
-                }
-            });
+        stockActual = parseFloat(selected.data('disponible')) || 0;
+        var unidad = selected.data('unidad') || 'kg';
+        var unidadId = selected.data('unidad-id');
+        var precio = selected.data('precio');
 
-            $('#smartConversionAlert').remove();
-            calcularTotal(); // Recalcular total si es venta
-        });
+        $('#pvCultivoLote').text(selected.data('cultivo') + ' · ' + selected.data('lote'));
+        $('#pvAlmacen').text(selected.data('almacen'));
+        $('#pvStock').text(stockActual.toFixed(2) + ' ' + unidad);
+        $('#maxDisponible').text(stockActual.toFixed(2) + ' ' + unidad);
+        $('#unidadPrecio').text(unidad);
+        $('#cantidad').attr('max', stockActual);
+        $('#btnVenderTodo').prop('disabled', stockActual <= 0);
+        $('#productoPreview').slideDown();
+
+        if (unidadId) {
+            $('#unidadmedidaid').val(unidadId);
+        }
+
+        if (precio && !$('#preciounitario').val()) {
+            $('#preciounitario').val(parseFloat(precio).toFixed(2));
+            $('#pvPrecio').text('Bs. ' + parseFloat(precio).toFixed(2));
+            $('#hintPrecio').show();
+        } else if (precio) {
+            $('#pvPrecio').text('Bs. ' + parseFloat(precio).toFixed(2));
+            $('#hintPrecio').show();
+        } else {
+            $('#pvPrecio').text('Sin historial — ingresa manualmente');
+            $('#hintPrecio').hide();
+        }
+
+        calcularTotal();
+        marcarPasos();
+        $('#cliente').focus();
     }
 
-    $('#cantidad, #unidadmedidaid').on('change keyup blur', function() {
-        checkSmartConversion();
+    $('#produccionid').on('change', function () {
+        aplicarProducto($(this).find(':selected'));
     });
+
+    $('#btnVenderTodo').on('click', function () {
+        if (stockActual > 0) {
+            $('#cantidad').val(stockActual);
+            calcularTotal();
+            marcarPasos();
+            $('#preciounitario').focus();
+        }
+    });
+
+    $('#cantidad, #preciounitario, #cliente').on('input', function () {
+        calcularTotal();
+        marcarPasos();
+    });
+
+    $('#unidadmedidaid').on('change', function () {
+        $('#unidadPrecio').text($(this).find(':selected').text());
+    });
+
+    if ($('#produccionid').val()) {
+        aplicarProducto($('#produccionid').find(':selected'));
+    }
+    calcularTotal();
 });
 </script>
 @endpush

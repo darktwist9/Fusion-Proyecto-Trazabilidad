@@ -1,35 +1,25 @@
 @extends('layouts.app')
 
+@section('title', 'Unidades de medida | AgroFusion')
+@section('page_title', 'Unidades de medida')
+
+@section('breadcrumbs')
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('catalogos.index') }}">Catálogos</a></li>
+    <li class="breadcrumb-item active">Unidades de medida</li>
+@endsection
+
+@push('styles')
+@include('partials.modulo-catalogos-styles')
+@endpush
+
 @section('content')
-<div class="card">
-
-    <div class="card-header">
-        <h3 class="card-title">Editar Unidad de Medida</h3>
-    </div>
-
-    <form action="{{ route('unidades-medida.update', $unidad) }}" method="POST">
-        @csrf
-        @method('PUT')
-
-        <div class="card-body">
-
-            <div class="form-group">
-                <label>Nombre</label>
-                <input type="text"
-                       name="nombre"
-                       class="form-control"
-                       value="{{ $unidad->nombre }}"
-                       maxlength="20"
-                       required>
-            </div>
-
-        </div>
-
-        <div class="card-footer text-right">
-            <a href="{{ route('unidades-medida.index') }}" class="btn btn-secondary">Cancelar</a>
-            <button class="btn btn-primary">Actualizar</button>
-        </div>
-
-    </form>
-</div>
+@include('catalogos.partials.simple-form-page', [
+    'esEdicion' => true,
+    'item' => $item,
+    'routePrefix' => 'unidades-medida',
+    'singular' => 'Unidad de medida',
+    'tieneDescripcion' => false,
+    'formAction' => route('unidades-medida.update', $item),
+])
 @endsection

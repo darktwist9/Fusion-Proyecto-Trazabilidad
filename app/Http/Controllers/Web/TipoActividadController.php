@@ -2,15 +2,21 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Http\Controllers\Concerns\FiltersCatalogoSimple;
 use App\Http\Controllers\Controller;
 use App\Models\TipoActividad;
 use Illuminate\Http\Request;
 
 class TipoActividadController extends Controller
 {
-    public function index()
+    use FiltersCatalogoSimple;
+
+    public function index(Request $request)
     {
-        $tipos = TipoActividad::orderBy('tipoactividadid', 'desc')->paginate(15);
+        $query = TipoActividad::query();
+        $this->aplicarFiltroBuscar($query, $request, ['nombre', 'descripcion']);
+        $tipos = $query->orderByDesc('tipoactividadid')->paginate(15)->withQueryString();
+
         return view('tipo_actividad.index', compact('tipos'));
     }
 
@@ -33,12 +39,12 @@ class TipoActividadController extends Controller
 
     public function show(TipoActividad $tipoActividad)
     {
-        return view('tipo_actividad.show', compact('tipoActividad'));
+        return view('tipo_actividad.show', ['item' => $tipoActividad]);
     }
 
     public function edit(TipoActividad $tipoActividad)
     {
-        return view('tipo_actividad.edit', compact('tipoActividad'));
+        return view('tipo_actividad.edit', ['item' => $tipoActividad]);
     }
 
     public function update(Request $request, TipoActividad $tipoActividad)

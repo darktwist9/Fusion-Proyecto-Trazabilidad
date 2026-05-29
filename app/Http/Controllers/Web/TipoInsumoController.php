@@ -2,17 +2,22 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Http\Controllers\Concerns\FiltersCatalogoSimple;
 use App\Http\Controllers\Controller;
 use App\Models\TipoInsumo;
 use Illuminate\Http\Request;
 
 class TipoInsumoController extends Controller
 {
-    public function index()
-    {
-        $tipoInsumos = TipoInsumo::orderBy('tipoinsumoid', 'desc')->paginate(15);
+    use FiltersCatalogoSimple;
 
-        return view('tipo_insumos.index', compact('tipoInsumos'));
+    public function index(Request $request)
+    {
+        $query = TipoInsumo::query();
+        $this->aplicarFiltroBuscar($query, $request, ['nombre']);
+        $tipos = $query->orderByDesc('tipoinsumoid')->paginate(15)->withQueryString();
+
+        return view('tipo_insumos.index', compact('tipos'));
     }
 
     public function create()
@@ -28,19 +33,17 @@ class TipoInsumoController extends Controller
 
         TipoInsumo::create($data);
 
-        return redirect()
-            ->route('tipo-insumos.index')
-            ->with('success', 'Tipo de insumo creado correctamente.');
+        return redirect()->route('tipo-insumos.index')->with('success', 'Tipo de insumo creado correctamente.');
     }
 
     public function show(TipoInsumo $tipoInsumo)
     {
-        return view('tipo_insumos.show', compact('tipoInsumo'));
+        return view('tipo_insumos.show', ['item' => $tipoInsumo]);
     }
 
     public function edit(TipoInsumo $tipoInsumo)
     {
-        return view('tipo_insumos.edit', compact('tipoInsumo'));
+        return view('tipo_insumos.edit', ['item' => $tipoInsumo]);
     }
 
     public function update(Request $request, TipoInsumo $tipoInsumo)
@@ -51,17 +54,13 @@ class TipoInsumoController extends Controller
 
         $tipoInsumo->update($data);
 
-        return redirect()
-            ->route('tipo-insumos.index')
-            ->with('success', 'Tipo de insumo actualizado correctamente.');
+        return redirect()->route('tipo-insumos.index')->with('success', 'Tipo de insumo actualizado correctamente.');
     }
 
     public function destroy(TipoInsumo $tipoInsumo)
     {
         $tipoInsumo->delete();
 
-        return redirect()
-            ->route('tipo-insumos.index')
-            ->with('success', 'Tipo de insumo eliminado correctamente.');
+        return redirect()->route('tipo-insumos.index')->with('success', 'Tipo de insumo eliminado correctamente.');
     }
 }
