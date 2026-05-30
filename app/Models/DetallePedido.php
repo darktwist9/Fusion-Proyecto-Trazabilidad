@@ -15,20 +15,35 @@ class DetallePedido extends Model
 
     protected $fillable = [
         'pedidoid',
+        'insumoid',
+        'producto_ref',
+        'produccionalmacenamientoid',
         'nombre_planta',
         'cultivo_personalizado',
-        'cantidad',          // Se asume en kilos
+        'cantidad',
         'observaciones',
     ];
 
     protected $casts = [
         'detallepedidoid' => 'integer',
         'pedidoid'        => 'integer',
+        'insumoid'        => 'integer',
+        'produccionalmacenamientoid' => 'integer',
         'cantidad'        => 'float',
     ];
 
     public function pedido()
     {
         return $this->belongsTo(Pedido::class, 'pedidoid', 'pedidoid');
+    }
+
+    public function insumo()
+    {
+        return $this->belongsTo(Insumo::class, 'insumoid', 'insumoid');
+    }
+
+    public function cosechaAlmacen()
+    {
+        return $this->belongsTo(ProduccionAlmacenamiento::class, 'produccionalmacenamientoid', 'produccionalmacenamientoid');
     }
 }

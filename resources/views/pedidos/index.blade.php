@@ -4,8 +4,34 @@
 @section('page_title', 'Gestión de Pedidos')
 
 @section('content')
+        @if(session('success'))
+            <div class="alert alert-success alert-dismissible fade show">
+                <i class="fas fa-check-circle mr-1"></i> {{ session('success') }}
+                <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
+            </div>
+        @endif
+
+        <div class="alert alert-light border">
+            <i class="fas fa-leaf text-success mr-1"></i>
+            Los pedidos nuevos quedan <strong>pendientes de producción agrícola</strong>.
+            Logística solo puede asignar envíos después de que agrícola acepte y reserve stock en
+            <a href="{{ route('agricola.pedidos.index') }}">Producción → Pedidos de planta</a>.
+        </div>
+
         <!-- Stats Cards -->
         <div class="row">
+            <div class="col-lg-3 col-6">
+                <div class="small-box bg-secondary">
+                    <div class="inner">
+                        <h3>{{ $pedidos->where('estado', 'sin asignacion')->count() }}</h3>
+                        <p>Pendiente agrícola</p>
+                    </div>
+                    <div class="icon">
+                        <i class="fas fa-inbox"></i>
+                    </div>
+                </div>
+            </div>
+
             <div class="col-lg-3 col-6">
                 <div class="small-box bg-info">
                     <div class="inner">
@@ -34,22 +60,10 @@
                 <div class="small-box bg-warning">
                     <div class="inner">
                         <h3>{{ $pedidos->where('estado', 'en produccion')->count() }}</h3>
-                        <p>En Producción</p>
+                        <p>En producción</p>
                     </div>
                     <div class="icon">
                         <i class="fas fa-cogs"></i>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-lg-3 col-6">
-                <div class="small-box bg-danger">
-                    <div class="inner">
-                        <h3>{{ $pedidos->where('estado', 'rechazado')->count() }}</h3>
-                        <p>Rechazados</p>
-                    </div>
-                    <div class="icon">
-                        <i class="fas fa-times-circle"></i>
                     </div>
                 </div>
             </div>
@@ -75,7 +89,7 @@
                                     <i class="fas fa-hashtag mr-1"></i>Solicitud
                                 </th>
                                 <th>
-                                    <i class="fas fa-seedling mr-1"></i>Planta
+                                    <i class="fas fa-seedling mr-1"></i>Cultivo / producto
                                 </th>
                                 <th style="width: 130px">
                                     <i class="fas fa-list-ul mr-1"></i>Ítems
@@ -113,8 +127,11 @@
 
                                     <td>
                                         <span class="text-primary font-weight-bold">
-                                            {{ $pedido->nombre_planta }}
+                                            {{ $pedido->detalles->first()?->cultivo_personalizado ?? '—' }}
                                         </span>
+                                        @if($pedido->detalles->first()?->insumo)
+                                            <br><small class="text-muted">{{ $pedido->detalles->first()->insumo->nombre }}</small>
+                                        @endif
                                     </td>
 
                                     <td>
@@ -136,22 +153,26 @@
 
                                             <select name="estado"
                                                     class="form-control form-control-sm estado-select {{
-                                                        $pedido->estado === 'pendiente' ? 'bg-info' :
+                                                        $pedido->estado === 'sin asignacion' ? 'bg-secondary' :
+                                                        ($pedido->estado === 'pendiente' ? 'bg-info' :
                                                         ($pedido->estado === 'confirmado' ? 'bg-success' :
-                                                        ($pedido->estado === 'en produccion' ? 'bg-warning' : 'bg-danger'))
+                                                        ($pedido->estado === 'en produccion' ? 'bg-warning' : 'bg-danger')))
                                                     }}"
                                                     style="color: white; font-weight: 500;"
                                                     onchange="this.form.submit()">
-                                                @foreach(['pendiente','confirmado','en produccion','rechazado'] as $estado)
+                                                @foreach(['sin asignacion','pendiente','confirmado','en produccion','rechazado'] as $estado)
+                                                    @if(in_array($estado, ['confirmado','en produccion']) && \App\Support\PedidoCatalogo::pendienteAprobacionAgricola($pedido))
+                                                        @continue
+                                                    @endif
                                                     <option value="{{ $estado }}"
                                                         {{ $pedido->estado === $estado ? 'selected' : '' }}>
-                                                        {{ ucfirst($estado) }}
+                                                        {{ \App\Support\PedidoCatalogo::etiquetaEstado($estado) }}
                                                     </option>
                                                 @endforeach
                                             </select>
                                         </form>
                                         @else
-                                            <span class="badge badge-secondary">{{ ucfirst($pedido->estado) }}</span>
+                                            <span class="badge badge-secondary">{{ \App\Support\PedidoCatalogo::etiquetaEstado($pedido->estado) }}</span>
                                         @endcan
                                     </td>
 

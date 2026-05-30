@@ -6,7 +6,6 @@ services:
     container_name: agronexus-laravel
     volumes:
       - .:/var/www
-      - vendor_data:/var/www/vendor
     environment:
       DB_CONNECTION: pgsql
       DB_HOST: db
@@ -41,7 +40,7 @@ services:
       - internal-network
       - proxy-network
   db:
-    image: postgres:16-alpine
+    image: postgres:16
     container_name: agronexus-db
     restart: unless-stopped
     environment:
@@ -49,7 +48,7 @@ services:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: admin123
     volumes:
-      - db-data:/var/lib/postgresql/data
+      - db-data-v2:/var/lib/postgresql/data
     networks:
       - agronexus-net
 
@@ -62,5 +61,4 @@ networks:
     external: true
 
 volumes:
-  db-data:
-  vendor_data:
+  db-data-v2:
