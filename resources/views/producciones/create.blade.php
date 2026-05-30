@@ -1,12 +1,12 @@
 @extends('layouts.app')
 
-@section('title', 'Registrar cosecha | Fusion-Proyectos')
+@section('title', 'Registrar cosecha | AgroFusion')
 @section('page_title', 'Registrar Cosecha')
 
 @section('breadcrumbs')
-    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}" style="color: #2c5530;">Inicio</a></li>
-    <li class="breadcrumb-item"><a href="{{ route('producciones.index') }}" style="color: #2c5530;">Producciones</a></li>
-    <li class="breadcrumb-item active">Nueva Cosecha</li>
+    <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('producciones.index') }}">Registro de Cosechas</a></li>
+    <li class="breadcrumb-item active">Registrar cosecha</li>
 @endsection
 
 @push('styles')
@@ -154,14 +154,17 @@
 
             <form action="{{ route('producciones.store') }}" method="POST">
                 @csrf
+                @if(!empty($returnUrl))
+                    <input type="hidden" name="return" value="{{ $returnUrl }}">
+                @endif
                 <div class="card-body">
                     
                     {{-- Lote --}}
                     <div class="form-group">
                         <label><i class="fas fa-map-marked-alt mr-1 text-success"></i> Lote a cosechar <span class="text-danger">*</span></label>
                         <div class="guia-campo mb-2">
-                            <strong>¿Para qué sirve?</strong> Identifica el campo parcelado que ya está en etapa productiva.
-                            Solo aparecen lotes en estado <em>en producción</em> (listos para cosechar).
+                            <strong>¿Para qué sirve?</strong> Identifica el lote que ya está <em>listo para cosecha</em>.
+                            Solo aparecen lotes en ese estado del ciclo agrícola.
                         </div>
                         @include('partials.selector-catalogo', [
                             'id' => 'produccion_lote',
@@ -169,20 +172,20 @@
                             'value' => $lotePreseleccionado ?? '',
                             'labelSelected' => $lotePreseleccionadoLabel ?? '',
                             'endpoint' => route('catalogo-selector.lotes'),
-                            'params' => ['solo_produccion' => '1'],
-                            'title' => 'Seleccionar lote en producción',
-                            'searchPlaceholder' => 'Nombre, código o ubicación…',
+                            'params' => ['solo_cosecha' => '1'],
+                            'title' => 'Seleccionar lote listo para cosecha',
+                            'searchPlaceholder' => 'Nombre, código TRAZ o ubicación…',
                             'inputGroup' => true,
                             'required' => true,
                         ])
                         @if($lotes->isEmpty())
                             <small class="form-text text-warning">
-                                <i class="fas fa-exclamation-triangle"></i> No hay lotes en estado «en producción».
-                                Cambia el estado del lote en <a href="{{ route('lotes.index') }}">Gestión de lotes</a> antes de registrar la cosecha.
+                                <i class="fas fa-exclamation-triangle"></i> No hay lotes en estado «Listo para cosecha».
+                                Actualiza el estado del lote en <a href="{{ route('lotes.index') }}">Gestión de lotes</a> antes de registrar la cosecha.
                             </small>
                         @else
                             <small class="form-text text-muted">
-                                {{ $lotes->count() === 1 ? 'Un solo lote disponible — ya está preseleccionado.' : 'Solo lotes en estado «en producción».' }}
+                                {{ $lotes->count() === 1 ? 'Un solo lote disponible — ya está preseleccionado.' : 'Solo lotes listos para cosecha.' }}
                             </small>
                         @endif
                     </div>
@@ -191,53 +194,6 @@
                         <strong><i class="fas fa-leaf mr-1 text-success"></i> Cultivo:</strong> <span id="infoCultivo"></span>
                         <span class="mx-2">|</span>
                         <strong><i class="fas fa-user mr-1"></i> Responsable:</strong> <span id="infoResponsable"></span>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label><i class="fas fa-cogs mr-1 text-success"></i> Proceso de planta</label>
-                                <div class="guia-campo mb-2">
-                                    <strong>Opcional.</strong> Indica qué tratamiento industrial aplicó la cosecha (lavado, secado, empaque, etc.).
-                                    Catálogo en <a href="{{ route('procesos-planta.index') }}">Procesos de planta</a>.
-                                </div>
-                                @include('partials.selector-catalogo', [
-                                    'id' => 'produccion_proceso',
-                                    'name' => 'procesoplantaid',
-                                    'value' => old('procesoplantaid'),
-                                    'labelSelected' => '',
-                                    'endpoint' => route('catalogo-selector.procesos-planta'),
-                                    'params' => [],
-                                    'allowEmpty' => true,
-                                    'emptyLabel' => '— Sin proceso específico —',
-                                    'title' => 'Seleccionar proceso de planta',
-                                    'searchPlaceholder' => 'Nombre del proceso…',
-                                    'inputGroup' => true,
-                                ])
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label><i class="fas fa-industry mr-1 text-success"></i> Máquina usada</label>
-                                <div class="guia-campo mb-2">
-                                    <strong>Opcional.</strong> Registra el equipo utilizado (cosechadora, secadora, embolsadora).
-                                    Catálogo en <a href="{{ route('maquinas-planta.index') }}">Máquinas de planta</a>.
-                                </div>
-                                @include('partials.selector-catalogo', [
-                                    'id' => 'produccion_maquina',
-                                    'name' => 'maquinaplantaid',
-                                    'value' => old('maquinaplantaid'),
-                                    'labelSelected' => '',
-                                    'endpoint' => route('catalogo-selector.maquinas-planta'),
-                                    'params' => ['activo' => '1'],
-                                    'allowEmpty' => true,
-                                    'emptyLabel' => '— Sin máquina específica —',
-                                    'title' => 'Seleccionar máquina',
-                                    'searchPlaceholder' => 'Nombre o código…',
-                                    'inputGroup' => true,
-                                ])
-                            </div>
-                        </div>
                     </div>
 
                     {{-- Cantidad --}}
@@ -269,24 +225,18 @@
                         </div>
                     </div>
 
-                    {{-- Sección de Almacenamiento --}}
-                    <div class="almacen-section" id="almacenSection">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h6 class="mb-0"><i class="fas fa-warehouse mr-2"></i>Enviar a almacén</h6>
-                            <div class="custom-control custom-switch">
-                                <input type="checkbox" class="custom-control-input" id="enviarAlmacen" name="enviar_almacen" value="1">
-                                <label class="custom-control-label" for="enviarAlmacen">Almacenar cosecha</label>
-                            </div>
-                        </div>
+                    {{-- Almacén obligatorio --}}
+                    <div class="almacen-section active" id="almacenSection">
+                        <h6 class="mb-2"><i class="fas fa-warehouse mr-2"></i>Enviar a almacén <span class="text-danger">*</span></h6>
                         <div class="guia-campo mb-3">
-                            <strong>Opcional pero recomendado.</strong> Si activas el interruptor, la cosecha ingresa al inventario del almacén elegido.
-                            El sistema valida capacidad disponible y sugiere el almacén según el cultivo.
+                            <strong>Obligatorio.</strong> Toda cosecha debe ingresar al inventario del almacén elegido.
+                            El sistema valida la capacidad disponible y puede sugerir un almacén según el cultivo.
                         </div>
                         <p class="small text-muted mb-2" id="almacen-seleccionado">
                             <i class="fas fa-warehouse mr-1"></i> <strong>Almacén:</strong> ninguno seleccionado
                         </p>
 
-                        <div id="almacenOptions" style="display: none;">
+                        <div id="almacenOptions">
                             <p class="text-muted small mb-3">
                                 <i class="fas fa-info-circle mr-1"></i>
                                 Seleccione el almacén o silo donde guardar la producción
@@ -371,7 +321,7 @@
 
                 <div class="card-footer bg-white">
                     <div class="d-flex justify-content-between">
-                        <a href="{{ route('producciones.index') }}" class="btn btn-secondary">
+                        <a href="{{ $returnUrl ?? route('producciones.index') }}" class="btn btn-secondary">
                             <i class="fas fa-arrow-left mr-1"></i> Cancelar
                         </a>
                         <button type="submit" class="btn btn-success btn-lg" {{ $lotes->isEmpty() ? 'disabled' : '' }}>
@@ -418,7 +368,7 @@
 
         const wrapLoteProd = document.getElementById('selector_wrap_produccion_lote');
 
-        if ($('.almacen-card').length === 1 && $('#enviarAlmacen').is(':checked')) {
+        if ($('.almacen-card').length === 1) {
             $('.almacen-card').first().trigger('click');
         }
         
@@ -527,9 +477,6 @@
                 $('#infoCultivo').text(extra.cultivo || '—');
                 $('#infoResponsable').text(extra.responsable || '—');
                 $('#loteInfo').slideDown();
-                if (!$('#enviarAlmacen').is(':checked')) {
-                    $('#enviarAlmacen').prop('checked', true).trigger('change');
-                }
                 recomendarAlmacen(extra.cultivo || '');
             } else {
                 $('#loteInfo').slideUp();
@@ -550,19 +497,13 @@
             @endif
         @endif
 
-        // Switch de almacén
-        $('#enviarAlmacen').on('change', function() {
-            if ($(this).is(':checked')) {
-                $('#almacenOptions').slideDown();
-                $('#almacenSection').addClass('active');
-            } else {
-                $('#almacenOptions').slideUp();
-                $('#almacenSection').removeClass('active');
-                $('.almacen-card').removeClass('selected').css('background', 'white').css('border-color', '#dee2e6');
-                $('.almacen-card .fa-check-circle').hide();
-                $('#almacenid').val('');
-                $('.alert-dismissible').remove();
-                $('#almacen-seleccionado').html('<i class="fas fa-warehouse mr-1"></i> <strong>Almacén:</strong> ninguno seleccionado');
+        $('form').filter(function () {
+            return $(this).attr('action') && $(this).attr('action').indexOf('producciones') !== -1;
+        }).on('submit', function (e) {
+            if (!$('#almacenid').val()) {
+                e.preventDefault();
+                alert('Debe seleccionar un almacén para registrar la cosecha.');
+                $('#almacenSection')[0]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
         });
 

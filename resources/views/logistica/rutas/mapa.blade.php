@@ -89,13 +89,20 @@ function iniciarMapaEnvios() {
     const bounds = [];
 
     conCoords.forEach(e => {
-        const m = L.marker([e.lat, e.lng], {
-            icon: L.divIcon({
-                className: '',
-                html: `<div style="background:#17a2b8;color:#fff;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:bold;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.3)">${e.codigo}</div>`,
-                iconAnchor: [20, 10],
-            }),
-        }).addTo(map).bindPopup(`<strong>${e.codigo}</strong><br>${e.destino || ''}`);
+        const labelHtml = `<span class="envio-mapa-marker-label" data-env-id="${e.id}">${e.codigo}</span>`;
+        const buildIcon = (anchor) => L.divIcon({
+            className: 'envio-mapa-marker',
+            html: labelHtml,
+            iconAnchor: anchor || [0, 0],
+        });
+        const m = L.marker([e.lat, e.lng], { icon: buildIcon() }).addTo(map)
+            .bindPopup(`<strong>${e.codigo}</strong><br>${e.destino || ''}`);
+        const el = m.getElement();
+        if (el) {
+            const w = el.offsetWidth || 120;
+            const h = el.offsetHeight || 24;
+            m.setIcon(buildIcon([Math.round(w / 2), h]));
+        }
         markers[e.id] = m;
         bounds.push([e.lat, e.lng]);
         m.on('click', () => toggleEnvio(e.id, true));
@@ -111,8 +118,8 @@ function iniciarMapaEnvios() {
         item?.classList.toggle('active', chk.checked);
         const m = markers[id];
         if (m) {
-            const el = m.getElement();
-            if (el) el.style.filter = chk.checked ? 'hue-rotate(90deg) brightness(1.1)' : '';
+            const label = m.getElement()?.querySelector('.envio-mapa-marker-label');
+            if (label) label.classList.toggle('is-selected', chk.checked);
         }
     }
 

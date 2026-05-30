@@ -9,33 +9,21 @@
 
 @section('content')
 <div class="content-header">
-    <div class="container-fluid d-flex justify-content-between align-items-center flex-wrap">
-        <div>
-            <h1 class="m-0">
-                @can('rutas_multi.create')
-                    Rutas de entrega
-                @else
-                    Mis rutas de entrega
-                @endcan
-            </h1>
-            <p class="text-muted mb-0 mt-1">
-                @can('rutas_multi.create')
-                    Organice el recorrido del chofer: lugares donde debe parar y cuándo sale.
-                @else
-                    Rutas que la empresa le asignó para repartir pedidos.
-                @endcan
-            </p>
-        </div>
-        @can('rutas_multi.create')
-        <div class="mt-2 mt-md-0">
-            <a href="{{ route('logistica.rutas.mapa') }}" class="btn btn-outline-primary mr-1">
-                <i class="fas fa-map mr-1"></i> Mapa de envíos
-            </a>
-            <a href="{{ route('logistica.rutas.create') }}" class="btn btn-success">
-                <i class="fas fa-plus mr-1"></i> Crear nueva ruta
-            </a>
-        </div>
-        @endcan
+    <div class="container-fluid">
+        <h1 class="m-0">
+            @can('rutas_multi.create')
+                Rutas de entrega
+            @else
+                Mis rutas de entrega
+            @endcan
+        </h1>
+        <p class="text-muted mb-0 mt-1">
+            @can('rutas_multi.create')
+                Organice el recorrido del chofer: lugares donde debe parar y cuándo sale.
+            @else
+                Rutas que la empresa le asignó para repartir pedidos.
+            @endcan
+        </p>
     </div>
 </div>
 
@@ -75,10 +63,23 @@
         </div>
         @endcan
 
-        <div class="card x-card">
-            <div class="card-header">
-                <h3 class="card-title mb-0">Listado de rutas</h3>
-            </div>
+        <div class="card card-outline card-success card-modulo-main elevation-1">
+            <x-modulo-index-header
+                titulo="Rutas de entrega"
+                icono="fa-route"
+                :registros="$rutas->total()"
+                :nuevo-href="route('logistica.rutas.create')"
+                nuevo-text="Nueva ruta"
+                nuevo-can="rutas_multi.create"
+            >
+                <x-slot:tools>
+                    @can('rutas_multi.create')
+                    <a href="{{ route('logistica.rutas.mapa') }}" class="btn btn-outline-primary btn-sm ml-1">
+                        <i class="fas fa-map mr-1"></i> Mapa
+                    </a>
+                    @endcan
+                </x-slot:tools>
+            </x-modulo-index-header>
             <div class="card-body table-responsive p-0">
                 <table class="table table-hover x-table">
                     <thead>

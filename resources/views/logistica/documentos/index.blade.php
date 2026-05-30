@@ -63,7 +63,12 @@
         </div>
         @endcan
 
-        <div class="card x-card">
+        <div class="card card-outline card-success card-modulo-main elevation-1">
+            <x-modulo-index-header
+                titulo="Documentos cargados"
+                icono="fa-folder-open"
+                :registros="$documentos->total()"
+            />
             <div class="card-body table-responsive p-0">
                 <table class="table table-hover x-table">
                     <thead>

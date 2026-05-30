@@ -12,33 +12,6 @@
             border-radius: 5px;
             border: 2px solid #ddd;
         }
-
-        .image-preview {
-            max-width: 200px;
-            max-height: 150px;
-            border-radius: 5px;
-            border: 2px solid #ddd;
-        }
-
-        .current-image {
-            max-width: 150px;
-            border-radius: 5px;
-            border: 2px solid #28a745;
-        }
-
-        .image-upload-container {
-            border: 2px dashed #ccc;
-            border-radius: 5px;
-            padding: 15px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .image-upload-container:hover {
-            border-color: #28a745;
-            background-color: #f8fff8;
-        }
     </style>
 @endpush
 
@@ -58,7 +31,7 @@
             </div>
         @endif
 
-        <form action="{{ route('lotes.update', $lote) }}" method="POST" enctype="multipart/form-data">
+        <form action="{{ route('lotes.update', $lote) }}" method="POST">
             @csrf
             @method('PUT')
 
@@ -68,28 +41,19 @@
                         @include('partials.selector-catalogo', [
                             'id' => 'lote_edit_responsable',
                             'name' => 'usuarioid',
-                            'label' => 'Usuario propietario',
+                            'label' => 'Encargado',
                             'icon' => 'fa-user',
                             'value' => $responsableLabel ? $lote->usuarioid : '',
                             'labelSelected' => $responsableLabel ?? '',
                             'endpoint' => route('catalogo-selector.usuarios'),
-                            'params' => ['roles' => 'agricultor,operador'],
-                            'filter' => [
-                                'param' => 'role',
-                                'options' => [
-                                    ['value' => '', 'label' => 'Agricultor y operador'],
-                                    ['value' => 'agricultor', 'label' => 'Solo agricultores'],
-                                    ['value' => 'operador', 'label' => 'Solo operadores'],
-                                ],
-                            ],
-                            'title' => 'Seleccionar responsable',
+                            'params' => ['roles' => 'agricultor'],
+                            'title' => 'Seleccionar encargado',
                             'searchPlaceholder' => 'Nombre, correo o usuario…',
                             'required' => true,
                         ])
 
                         <div class="form-group">
-                            <label><i class="fas fa-tag mr-1"></i> Nombre del Lote <span
-                                    class="text-danger">*</span></label>
+                            <label><i class="fas fa-tag mr-1"></i> Nombre del Lote <span class="text-danger">*</span></label>
                             <input type="text" name="nombre" class="form-control" maxlength="100" required
                                 value="{{ $lote->nombre }}">
                         </div>
@@ -101,8 +65,7 @@
                         </div>
 
                         <div class="form-group">
-                            <label><i class="fas fa-ruler-combined mr-1"></i> Superficie (hectareas) <span
-                                    class="text-danger">*</span></label>
+                            <label><i class="fas fa-ruler-combined mr-1"></i> Superficie (hectareas) <span class="text-danger">*</span></label>
                             <input type="number" step="0.01" name="superficie" id="superficie" class="form-control" min="0"
                                 required value="{{ $lote->superficie }}">
                         </div>
@@ -123,57 +86,26 @@
 
                         <div class="form-group">
                             <label><i class="fas fa-id-badge mr-1"></i> Código de trazabilidad</label>
-                            <input type="text" name="codigo_trazabilidad" class="form-control" maxlength="80"
-                                value="{{ $lote->codigo_trazabilidad }}" placeholder="Ej: LT-2026-0001">
+                            <input type="text" class="form-control bg-light" readonly
+                                value="{{ $lote->codigo_trazabilidad ?? '—' }}">
+                            <small class="text-muted">Asignado automáticamente al crear el lote.</small>
                         </div>
 
-                        @include('partials.selector-catalogo', [
-                            'id' => 'lote_edit_actor',
-                            'name' => 'actorid',
-                            'label' => 'Actor de abastecimiento',
-                            'icon' => 'fa-truck-loading',
-                            'value' => $lote->actorid ?? '',
-                            'labelSelected' => $actorLabel ?? '',
-                            'endpoint' => route('catalogo-selector.actores'),
-                            'allowEmpty' => true,
-                            'emptyLabel' => '— Sin actor —',
-                            'title' => 'Seleccionar actor de abastecimiento',
-                            'searchPlaceholder' => 'Nombre o contacto…',
-                        ])
-
-                        <div class="form-group">
-                            <label><i class="fas fa-image mr-1"></i> Imagen del Lote</label>
-                            @if($lote->imagenurl)
-                                <div class="mb-2">
-                                    <img src="{{ $lote->imagenurl }}" class="img-thumbnail" style="max-height: 150px;"
-                                        alt="Actual">
-                                </div>
-                            @endif
-                            <div class="custom-file">
-                                <input type="file" class="custom-file-input" id="imagen" name="imagen" accept="image/*">
-                                <label class="custom-file-label" for="imagen">Cambiar imagen...</label>
-                            </div>
-                        </div>
-
+                        @if($mostrarFechaSiembra)
                         <div class="form-group">
                             <label><i class="fas fa-calendar mr-1"></i> Fecha de Siembra</label>
-                            <input type="date" name="fechasiembra" class="form-control"
-                                value="{{ $lote->fechasiembra ? \Carbon\Carbon::parse($lote->fechasiembra)->format('Y-m-d') : '' }}">
+                            <input type="text" class="form-control bg-light" readonly
+                                value="{{ \Carbon\Carbon::parse($lote->fechasiembra)->format('d/m/Y') }}">
+                            <small class="text-muted">Se registra al completar la actividad de siembra.</small>
                         </div>
+                        @endif
 
                         <div class="form-group">
                             <label><i class="fas fa-flag mr-1"></i> Estado del Lote</label>
-                            <select name="estadolotetipoid" class="form-control">
-                                <option value="">-- Sin estado --</option>
-                                @foreach($estados as $e)
-                                    <option value="{{ $e->estadolotetipoid }}" {{ $e->estadolotetipoid == $lote->estadolotetipoid ? 'selected' : '' }}>
-                                        {{ ucfirst($e->nombre) }}
-                                    </option>
-                                @endforeach
-                            </select>
+                            <input type="text" class="form-control bg-light" readonly
+                                value="{{ ucfirst($lote->estadoTipo->nombre ?? '—') }}">
+                            <small class="text-muted">Cámbialo desde el listado de lotes con el botón de estado.</small>
                         </div>
-
-
                     </div>
 
                     <div class="col-md-6">
@@ -213,25 +145,6 @@
 @push('scripts')
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        function previewImage(input) {
-            if (input.files && input.files[0]) {
-                var reader = new FileReader();
-                reader.onload = function (e) {
-                    document.getElementById('imagePreview').src = e.target.result;
-                    document.getElementById('previewContainer').style.display = 'block';
-                    document.querySelector('.image-upload-container').style.display = 'none';
-                };
-                reader.readAsDataURL(input.files[0]);
-            }
-        }
-
-        function removeImage() {
-            document.getElementById('imagen').value = '';
-            document.getElementById('previewContainer').style.display = 'none';
-            document.querySelector('.image-upload-container').style.display = 'block';
-        }
-
-        // Mapa
         var initialLat = {{ $lote->latitud ?? -17.7833 }};
         var initialLng = {{ $lote->longitud ?? -63.1821 }};
         var superficie = {{ $lote->superficie ?? 0 }};
@@ -244,7 +157,6 @@
 
         function calcularRadio(ha) { return Math.sqrt(ha * 10000 / Math.PI); }
 
-        // Marcador inicial si tiene coordenadas
         @if($lote->latitud && $lote->longitud)
             marker = L.marker([initialLat, initialLng]).addTo(map).bindPopup('{{ $lote->nombre }}').openPopup();
             if (superficie > 0) {

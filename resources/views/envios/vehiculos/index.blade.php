@@ -29,30 +29,31 @@
         </div>
     </div>
 
-    <div class="card card-modulo-main">
-        <div class="card-header">
-            <h3 class="card-title mb-0"><i class="fas fa-truck-moving text-success mr-2"></i>Flota logística</h3>
-            <div class="card-tools">
-                @can('vehiculos.create')
-                <a href="{{ route('envios.vehiculos.create') }}" class="btn btn-success btn-sm mr-2">
-                    <i class="fas fa-plus mr-1"></i> Nuevo vehículo
-                </a>
-                @endcan
-                <button type="button" class="btn btn-tool" data-toggle="collapse" data-target="#filtrosVehiculos">
-                    <i class="fas fa-filter"></i>
-                </button>
-            </div>
-        </div>
+    <div class="card card-outline card-success card-modulo-main elevation-1">
+        <x-modulo-index-header
+            titulo="Flota logística"
+            icono="fa-truck-moving"
+            :registros="$vehiculos->total()"
+            filtros-target="#filtrosVehiculos"
+            :nuevo-href="route('envios.vehiculos.create')"
+            nuevo-text="Nuevo vehículo"
+            nuevo-can="vehiculos.create"
+        />
 
         <div id="filtrosVehiculos" class="filtros-panel collapse {{ request()->hasAny(['buscar','estado']) ? 'show' : '' }}">
-            <form method="GET" action="{{ route('envios.vehiculos') }}" class="p-3">
+            <form method="GET" action="{{ route('envios.vehiculos') }}">
                 <div class="row align-items-end">
                     <div class="col-lg-5 col-md-6 mb-2 mb-md-0">
-                        <label class="text-muted">Buscar</label>
-                        <input type="text" name="buscar" class="form-control form-control-sm" value="{{ request('buscar') }}" placeholder="Placa, marca o modelo">
+                        <label class="small text-muted mb-1">Buscar</label>
+                        <div class="input-group input-group-sm">
+                            <div class="input-group-prepend">
+                                <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+                            </div>
+                            <input type="text" name="buscar" class="form-control" value="{{ request('buscar') }}" placeholder="Placa, marca o modelo">
+                        </div>
                     </div>
                     <div class="col-lg-3 col-md-6 mb-2 mb-md-0">
-                        <label class="text-muted">Estado</label>
+                        <label class="small text-muted mb-1">Estado</label>
                         <select name="estado" class="form-control form-control-sm">
                             <option value="">Todos</option>
                             @foreach($estadosFiltro ?? [] as $estado)
@@ -60,9 +61,8 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-lg-4 col-md-12">
-                        <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-search mr-1"></i> Filtrar</button>
-                        <a href="{{ route('envios.vehiculos') }}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+                    <div class="col-12">
+                        <x-filtros-form-actions :limpiar-url="route('envios.vehiculos', ['filtros_abiertos' => 1])" />
                     </div>
                 </div>
             </form>

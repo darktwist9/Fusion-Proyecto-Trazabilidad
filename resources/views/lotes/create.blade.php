@@ -36,11 +36,11 @@
 
         <div class="alert alert-light border m-3 mb-0">
             <strong><i class="fas fa-magic text-success mr-1"></i> Se completa automáticamente:</strong>
-            código de trazabilidad, fecha de siembra (hoy), estado «Disponible» y unidad en hectáreas.
-            Las actividades de campo se generan al registrar insumos o cosechas; no hace falta cargarlas aquí.
+            código de trazabilidad, estado «Planificado» y unidad en hectáreas.
+            La fecha de siembra se registrará al completar la actividad de siembra.
         </div>
 
-        <form action="{{ route('lotes.store') }}" method="POST" id="formNuevoLote">
+        <form action="{{ route('lotes.store') }}" method="POST" enctype="multipart/form-data" id="formNuevoLote">
             @csrf
             <div class="card-body">
                 <div class="row">
@@ -54,18 +54,10 @@
                                 'value' => $usuarioidInicial ?: '',
                                 'labelSelected' => $responsableLabel ?? '',
                                 'endpoint' => route('catalogo-selector.usuarios'),
-                                'params' => ['roles' => 'agricultor,operador'],
-                                'filter' => [
-                                    'param' => 'role',
-                                    'options' => [
-                                        ['value' => '', 'label' => 'Agricultor y operador'],
-                                        ['value' => 'agricultor', 'label' => 'Solo agricultores'],
-                                        ['value' => 'operador', 'label' => 'Solo operadores'],
-                                    ],
-                                ],
+                                'params' => ['roles' => 'agricultor'],
                                 'title' => 'Seleccionar responsable del lote',
                                 'searchPlaceholder' => 'Nombre, correo o usuario…',
-                                'help' => 'Solo agricultor u operador de campo. El administrador supervisa el sistema y no es responsable de parcelas.',
+                                'help' => 'Solo usuarios con rol agricultor. El administrador supervisa el sistema y no es responsable de parcelas.',
                                 'required' => true,
                             ])
                         @else
@@ -113,6 +105,15 @@
                             <input type="text" name="ubicacion" id="ubicacion" class="form-control" maxlength="200"
                                    placeholder="Se completa al marcar el mapa" value="{{ old('ubicacion') }}" readonly>
                             <p class="campo-guia">Se genera al hacer clic en el mapa. Puedes editarla después si necesitas una descripción más clara.</p>
+                        </div>
+
+                        <div class="form-group">
+                            <label><i class="fas fa-image mr-1"></i> Imagen del lote <span class="text-muted">(opcional)</span></label>
+                            <div class="custom-file">
+                                <input type="file" class="custom-file-input" id="imagen" name="imagen" accept="image/*">
+                                <label class="custom-file-label" for="imagen">Elegir imagen…</label>
+                            </div>
+                            <p class="campo-guia">Puedes omitirla y agregarla más tarde.</p>
                         </div>
                     </div>
 
@@ -234,6 +235,11 @@
                     e.preventDefault();
                     alert('Marca la ubicación del lote haciendo clic en el mapa.');
                 }
+            });
+
+            document.getElementById('imagen')?.addEventListener('change', function () {
+                var label = this.nextElementSibling;
+                if (label) label.textContent = this.files[0]?.name || 'Elegir imagen…';
             });
 
             document.getElementById('btnGuardarCultivo').addEventListener('click', function () {

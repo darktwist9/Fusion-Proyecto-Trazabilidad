@@ -110,4 +110,7 @@
     padding: 0.2rem 0.45rem;
     line-height: 1.2;
 }
+.modulo-inv .card-footer .pagination {
+    margin-bottom: 0;
+}
 </style>

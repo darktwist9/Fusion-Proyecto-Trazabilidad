@@ -63,13 +63,15 @@
 <div class="row">
     {{-- Left: Lotes registrados --}}
     <div class="col-lg-8 mb-4">
-        <div class="card">
-            <div class="card-header d-flex align-items-center justify-content-between">
-                <div><i class="fas fa-clipboard-list text-success mr-2"></i><strong>Lotes en proceso de planta</strong></div>
-                <a href="{{ route('registro-planta.create') }}" class="btn btn-sm btn-success">
-                    <i class="fas fa-plus mr-1"></i>Nuevo registro
-                </a>
-            </div>
+        <div class="card card-outline card-success card-modulo-main elevation-1">
+            <x-modulo-index-header
+                titulo="Lotes en proceso de planta"
+                icono="fa-clipboard-list"
+                :registros="$lotesConRegistro->count()"
+                registros-label="lotes"
+                :nuevo-href="route('registro-planta.create')"
+                nuevo-text="Nuevo registro"
+            />
             <div class="card-body p-0">
                 @forelse($lotesConRegistro as $lote)
                 @php

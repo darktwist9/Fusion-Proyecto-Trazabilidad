@@ -83,41 +83,40 @@
 @include('partials.flash-messages')
 
 {{-- Tabla --}}
-<div class="card x-card">
-    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <div>
-            <h3 class="card-title mb-0" style="font-weight:700;color:#2c5530;">
-                <i class="fas fa-id-card mr-2"></i>Transportistas
-            </h3>
-            <small class="text-muted">Gestión completa del equipo de transporte</small>
-        </div>
-        @can('transportistas.create')
-        <a href="{{ route('orgtrack.transportistas.create') }}" class="btn btn-nuevo">
-            <i class="fas fa-plus mr-1"></i> Nuevo transportista
-        </a>
-        @endcan
-    </div>
+<div class="card card-outline card-success card-modulo-main elevation-1">
+    <x-modulo-index-header
+        titulo="Transportistas"
+        icono="fa-id-card"
+        :registros="$transportistas->total()"
+        filtros-target="#filtrosTransportistasPanel"
+        :nuevo-href="route('orgtrack.transportistas.create')"
+        nuevo-text="Nuevo transportista"
+        nuevo-can="transportistas.create"
+    />
 
-    {{-- Filtros --}}
-    <div class="card-body border-bottom pb-3" style="background:#fafbfc;">
-        <form method="GET" action="{{ route('orgtrack.transportistas.index') }}" class="d-flex flex-wrap align-items-center gap-2" style="gap:.5rem;">
-            <div class="input-group" style="max-width:340px;">
-                <input type="text" name="q" class="form-control search-bar" placeholder="Buscar por nombre, email, usuario..."
-                    value="{{ request('q') }}">
-                <div class="input-group-append">
-                    <button type="submit" class="btn search-btn"><i class="fas fa-search"></i></button>
+    <div id="filtrosTransportistasPanel" class="filtros-panel collapse {{ request()->hasAny(['q','activo']) || request('filtros_abiertos') === '1' ? 'show' : '' }}">
+        <form method="GET" action="{{ route('orgtrack.transportistas.index') }}">
+            <div class="row align-items-end">
+                <div class="col-lg-5 col-md-6 mb-2 mb-md-0">
+                    <label class="small text-muted mb-1">Buscar</label>
+                    <div class="input-group input-group-sm">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+                        </div>
+                        <input type="text" name="q" class="form-control" placeholder="Nombre, email, usuario..."
+                            value="{{ request('q') }}">
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6 mb-2 mb-md-0">
+                    <label class="small text-muted mb-1">Estado</label>
+                    <select name="activo" class="form-control form-control-sm">
+                        <option value="">Todos los estados</option>
+                        <option value="1" {{ request('activo') === '1' ? 'selected' : '' }}>Activos</option>
+                        <option value="0" {{ request('activo') === '0' ? 'selected' : '' }}>Inactivos</option>
+                    </select>
                 </div>
             </div>
-            <select name="activo" class="form-control filter-select" style="width:auto;" onchange="this.form.submit()">
-                <option value="">Todos los estados</option>
-                <option value="1" {{ request('activo') === '1' ? 'selected' : '' }}>Activos</option>
-                <option value="0" {{ request('activo') === '0' ? 'selected' : '' }}>Inactivos</option>
-            </select>
-            @if(request('q') || request('activo') !== null && request('activo') !== '')
-            <a href="{{ route('orgtrack.transportistas.index') }}" class="btn btn-outline-secondary btn-sm" style="border-radius:8px;">
-                <i class="fas fa-times mr-1"></i>Limpiar
-            </a>
-            @endif
+            <x-filtros-form-actions :limpiar-url="route('orgtrack.transportistas.index', ['filtros_abiertos' => 1])" />
         </form>
     </div>
 

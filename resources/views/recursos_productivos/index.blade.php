@@ -60,21 +60,22 @@
     </div>
     <div class="col-6 col-md-3 mb-3">
         <div class="rp-stat valor">
-            <div class="s-num" style="font-size:1.5rem;">Bs. {{ number_format($stats['valor_total'], 0) }}</div>
-            <div class="s-lbl">Valor en stock</div>
-            <div class="s-sub">Stock × precio unitario</div>
-            <div class="s-icon"><i class="fas fa-coins"></i></div>
+            <div class="s-num">{{ $stats['en_atencion'] ?? 0 }}</div>
+            <div class="s-lbl">En atención</div>
+            <div class="s-sub">Umbral crítico: ≤ {{ $stats['umbral'] ?? 5 }} u.</div>
+            <div class="s-icon"><i class="fas fa-bell"></i></div>
         </div>
     </div>
 </div>
 
 {{-- Main panel --}}
-<div class="card">
-    <div class="card-header d-flex align-items-center gap-2">
-        <i class="fas fa-layer-group text-success mr-2"></i>
-        <strong>Recursos productivos</strong>
-        <span class="badge badge-secondary ml-1">{{ $stats['insumos'] }} insumos</span>
-    </div>
+<div class="card card-outline card-success card-modulo-main elevation-1">
+    <x-modulo-index-header
+        titulo="Recursos productivos"
+        icono="fa-layer-group"
+        :registros="$stats['insumos']"
+        :registros-text="$stats['insumos'] . ' insumos · ' . $stats['cultivos'] . ' cultivos'"
+    />
     <div class="card-body p-0">
         <div class="row no-gutters">
 
@@ -111,8 +112,7 @@
                                 <th>Tipo</th>
                                 <th>Nivel</th>
                                 <th>Stock</th>
-                                <th>Mínimo</th>
-                                <th>Actor / Proveedor</th>
+                                <th>Unidad</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -140,19 +140,11 @@
                                         {{ $insumo->unidadMedida->abreviatura ?? 'u' }}
                                     </span>
                                 </td>
-                                <td class="text-muted">{{ number_format($insumo->stockminimo ?? 0, 2) }}</td>
-                                <td>
-                                    @if($insumo->actorAbastecimiento)
-                                        <i class="fas fa-handshake text-muted mr-1" style="font-size:.7rem;"></i>
-                                        {{ $insumo->actorAbastecimiento->nombre }}
-                                    @else
-                                        <span class="text-muted">—</span>
-                                    @endif
-                                </td>
+                                <td class="text-muted">{{ $insumo->unidadMedida->nombre ?? '—' }}</td>
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="6" class="text-center text-muted py-4">
+                                <td colspan="5" class="text-center text-muted py-4">
                                     <i class="fas fa-boxes fa-2x mb-2 d-block"></i>
                                     Sin insumos registrados
                                 </td>

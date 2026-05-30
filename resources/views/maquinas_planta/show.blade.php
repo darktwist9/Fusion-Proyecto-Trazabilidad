@@ -85,9 +85,7 @@
                 <span class="badge badge-light border text-muted ml-2">{{ $producciones->total() }} registros</span>
             </h3>
             <div class="card-tools">
-                <button type="button" class="btn btn-tool" data-toggle="collapse" data-target="#filtrosCosechasMaquina" title="Filtros">
-                    <i class="fas fa-filter"></i>
-                </button>
+                @include('partials.btn-filtros-toggle', ['target' => '#filtrosCosechasMaquina'])
             </div>
         </div>
 

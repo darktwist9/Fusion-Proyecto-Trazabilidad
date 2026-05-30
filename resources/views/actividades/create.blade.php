@@ -21,6 +21,10 @@
 
     <form action="{{ route('actividades.store') }}" method="POST">
         @csrf
+        @if(!empty($returnUrl))
+            <input type="hidden" name="return" value="{{ $returnUrl }}">
+            <input type="hidden" name="completar" value="1">
+        @endif
         <div class="card-body">
             <div class="row">
                 <div class="col-md-8">
@@ -30,7 +34,7 @@
                         'name' => 'loteid',
                         'label' => 'Lote',
                         'icon' => 'fa-map-marked-alt',
-                        'value' => old('loteid'),
+                        'value' => old('loteid', $loteid ?? null),
                         'labelSelected' => $loteLabel ?? '',
                         'endpoint' => route('catalogo-selector.lotes'),
                         'title' => 'Seleccionar lote',
@@ -52,7 +56,10 @@
                         <select name="tipoactividadid" class="form-control" required>
                             <option value="">-- Seleccione tipo --</option>
                             @foreach($tipos as $t)
-                                <option value="{{ $t->tipoactividadid }}">{{ ucfirst($t->nombre) }}</option>
+                                <option value="{{ $t->tipoactividadid }}"
+                                    @selected(old('tipoactividadid', $tipoPreselect?->tipoactividadid) == $t->tipoactividadid)>
+                                    {{ ucfirst($t->nombre) }}
+                                </option>
                             @endforeach
                         </select>
                     </div>
@@ -60,7 +67,7 @@
                     <div class="form-group">
                         <label><i class="fas fa-align-left mr-1"></i> Descripcion <span class="text-danger">*</span></label>
                         <input type="text" name="descripcion" class="form-control" required maxlength="200"
-                               placeholder="Describa brevemente la actividad" value="{{ old('descripcion') }}">
+                               placeholder="Describa brevemente la actividad" value="{{ old('descripcion', $tipoPreselect?->nombre ?? '') }}">
                     </div>
 
                     <div class="form-group">
@@ -115,7 +122,7 @@
 
         <div class="card-footer">
             <div class="d-flex justify-content-between">
-                <a href="{{ route('actividades.index') }}" class="btn btn-secondary">
+                <a href="{{ $returnUrl ?? route('actividades.index') }}" class="btn btn-secondary">
                     <i class="fas fa-arrow-left mr-1"></i> Cancelar
                 </a>
                 <button type="submit" class="btn btn-info">

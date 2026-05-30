@@ -49,21 +49,14 @@
     </div>
 
     <div class="card card-outline card-success card-modulo-main elevation-1">
-        <div class="card-header">
-            <h3 class="card-title mb-0">
-                <i class="fas fa-industry text-success mr-1"></i>
-                Catálogo de procesos
-                <span class="badge badge-light border text-muted badge-registros ml-2">{{ $procesos->total() }} registros</span>
-            </h3>
-            <div class="card-tools d-flex align-items-center" style="gap: 6px;">
-                <a href="{{ route('procesos-planta.create') }}" class="btn btn-success btn-sm">
-                    <i class="fas fa-plus mr-1"></i> Nuevo proceso
-                </a>
-                <button type="button" class="btn btn-tool" data-toggle="collapse" data-target="#filtrosProcesosPanel" title="Filtros">
-                    <i class="fas fa-filter"></i>
-                </button>
-            </div>
-        </div>
+        <x-modulo-index-header
+            titulo="Catálogo de procesos"
+            icono="fa-industry"
+            :registros="$procesos->total()"
+            filtros-target="#filtrosProcesosPanel"
+            :nuevo-href="route('procesos-planta.create')"
+            nuevo-text="Nuevo proceso"
+        />
 
         <div id="filtrosProcesosPanel" class="filtros-panel collapse {{ request()->hasAny(['buscar','estado']) ? 'show' : '' }}">
             <form method="GET" action="{{ route('procesos-planta.index') }}">
@@ -80,9 +73,8 @@
                             <option value="inactivo" @selected(request('estado') === 'inactivo')>Inactivos</option>
                         </select>
                     </div>
-                    <div class="col-md-4 d-flex" style="gap: 8px;">
-                        <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-search mr-1"></i> Filtrar</button>
-                        <a href="{{ route('procesos-planta.index') }}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+                    <div class="col-12">
+                        <x-filtros-form-actions :limpiar-url="route('procesos-planta.index', ['filtros_abiertos' => 1])" />
                     </div>
                 </div>
             </form>

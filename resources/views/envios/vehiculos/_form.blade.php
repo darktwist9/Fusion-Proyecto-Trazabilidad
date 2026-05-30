@@ -32,8 +32,8 @@
     </div>
     <div class="col-md-3">
         <div class="form-group">
-            <label>Tipo de vehículo</label>
-            <select name="tipovehiculoid" class="form-control">
+            <label>Tipo de vehículo <span class="text-danger">*</span></label>
+            <select name="tipovehiculoid" class="form-control" required>
                 <option value="">— Seleccionar —</option>
                 @foreach($tipos as $tipo)
                     <option value="{{ $tipo->tipovehiculoid }}" @selected((string) old('tipovehiculoid', $v?->tipovehiculoid) === (string) $tipo->tipovehiculoid)>
@@ -41,6 +41,7 @@
                     </option>
                 @endforeach
             </select>
+            <small class="form-text text-muted">La capacidad (kg) se toma del catálogo de tipos.</small>
         </div>
     </div>
     <div class="col-md-3">

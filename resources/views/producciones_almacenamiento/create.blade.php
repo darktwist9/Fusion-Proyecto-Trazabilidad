@@ -9,6 +9,9 @@
 
         <form action="{{ route('producciones_almacenamiento.store') }}" method="POST">
             @csrf
+            @if(!empty($returnUrl))
+                <input type="hidden" name="return" value="{{ $returnUrl }}">
+            @endif
 
             <div class="card-body">
 
@@ -17,7 +20,8 @@
                     <select name="produccionid" class="form-control" required>
                         <option value="">Seleccione...</option>
                         @foreach($producciones as $p)
-                            <option value="{{ $p->produccionid }}">
+                            <option value="{{ $p->produccionid }}"
+                                @selected(old('produccionid', $produccionPreseleccionada ?? null) == $p->produccionid)>
                                 #{{ $p->produccionid }}
                                 @if($p->lote)
                                     - Lote: {{ $p->lote->nombre }}
@@ -107,7 +111,7 @@
             </div>
 
             <div class="card-footer text-right">
-                <a href="{{ route('producciones_almacenamiento.index') }}" class="btn btn-secondary">Cancelar</a>
+                <a href="{{ $returnUrl ?? route('producciones_almacenamiento.index') }}" class="btn btn-secondary">Cancelar</a>
                 <button class="btn btn-primary">Guardar</button>
             </div>
 

@@ -79,18 +79,15 @@
     </div>
 
     <div class="card card-outline card-success card-modulo-main elevation-1">
-        <div class="card-header">
-            <h3 class="card-title mb-0">
-                <i class="fas fa-dolly text-success mr-1"></i>
-                Movimientos de almacén
-                <span class="badge badge-light border text-muted badge-registros ml-2">{{ $movimientos->total() }} registros</span>
-            </h3>
-            <div class="card-tools d-flex align-items-center flex-wrap" style="gap: 6px;">
-                <button type="button" class="btn btn-tool" data-toggle="collapse" data-target="#filtrosMovimientosPanel" title="Filtros">
-                    <i class="fas fa-filter"></i>
-                </button>
+        <x-modulo-index-header
+            titulo="Movimientos de almacén"
+            icono="fa-dolly"
+            :registros="$movimientos->total()"
+            filtros-target="#filtrosMovimientosPanel"
+        >
+            <x-slot:tools>
                 @can('almacen.ingresos.create')
-                <a class="btn btn-success btn-sm" href="{{ route('almacen-movimientos.create', ['naturaleza' => 'ingreso']) }}">
+                <a class="btn btn-success btn-sm ml-1" href="{{ route('almacen-movimientos.create', ['naturaleza' => 'ingreso']) }}">
                     <i class="fas fa-arrow-down mr-1"></i> Ingreso
                 </a>
                 @endcan
@@ -104,8 +101,8 @@
                     <i class="fas fa-chart-bar mr-1"></i> Reportes
                 </a>
                 @endcan
-            </div>
-        </div>
+            </x-slot:tools>
+        </x-modulo-index-header>
 
         <div id="filtrosMovimientosPanel" class="filtros-panel collapse {{ $filtroNaturaleza ? 'show' : '' }}">
             <div class="row">
@@ -145,12 +142,8 @@
                         <option value="salida" {{ $filtroNaturaleza === 'salida' ? 'selected' : '' }}>Salidas</option>
                     </select>
                 </div>
-                <div class="col-lg-2 col-md-12 mb-2 d-flex align-items-end">
-                    <button type="button" class="btn btn-outline-secondary btn-sm btn-block" id="btnLimpiarFiltros">
-                        <i class="fas fa-times mr-1"></i> Limpiar
-                    </button>
-                </div>
             </div>
+            <x-filtros-client-actions />
         </div>
 
         <div class="table-responsive">
@@ -252,6 +245,7 @@ document.addEventListener('DOMContentLoaded', function () {
     fAlmacen?.addEventListener('change', aplicarFiltroMovimientos);
     fTipo?.addEventListener('change', aplicarFiltroMovimientos);
     fNaturaleza?.addEventListener('change', aplicarFiltroMovimientos);
+    document.getElementById('btnAplicarFiltros')?.addEventListener('click', aplicarFiltroMovimientos);
 
     document.getElementById('btnLimpiarFiltros')?.addEventListener('click', function () {
         if (q) q.value = '';

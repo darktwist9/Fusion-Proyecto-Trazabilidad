@@ -50,21 +50,14 @@
     </div>
 
     <div class="card card-outline card-success card-modulo-main elevation-1">
-        <div class="card-header">
-            <h3 class="card-title mb-0">
-                <i class="fas fa-cogs text-success mr-1"></i>
-                Catálogo de máquinas
-                <span class="badge badge-light border text-muted badge-registros ml-2">{{ $maquinas->total() }} registros</span>
-            </h3>
-            <div class="card-tools d-flex align-items-center" style="gap: 6px;">
-                <a href="{{ route('maquinas-planta.create') }}" class="btn btn-success btn-sm">
-                    <i class="fas fa-plus mr-1"></i> Nueva máquina
-                </a>
-                <button type="button" class="btn btn-tool" data-toggle="collapse" data-target="#filtrosMaquinasPanel" title="Filtros">
-                    <i class="fas fa-filter"></i>
-                </button>
-            </div>
-        </div>
+        <x-modulo-index-header
+            titulo="Catálogo de máquinas"
+            icono="fa-cogs"
+            :registros="$maquinas->total()"
+            filtros-target="#filtrosMaquinasPanel"
+            :nuevo-href="route('maquinas-planta.create')"
+            nuevo-text="Nueva máquina"
+        />
 
         <div id="filtrosMaquinasPanel" class="filtros-panel collapse {{ request()->hasAny(['buscar','estado','con_codigo']) ? 'show' : '' }}">
             <form method="GET" action="{{ route('maquinas-planta.index') }}">
@@ -87,11 +80,8 @@
                             <label class="custom-control-label small" for="filtroConCodigo">Solo con código</label>
                         </div>
                     </div>
-                    <div class="col-md-3 d-flex" style="gap: 8px;">
-                        <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-search mr-1"></i> Filtrar</button>
-                        <a href="{{ route('maquinas-planta.index') }}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
-                    </div>
                 </div>
+                <x-filtros-form-actions :limpiar-url="route('maquinas-planta.index', ['filtros_abiertos' => 1])" />
             </form>
         </div>
 

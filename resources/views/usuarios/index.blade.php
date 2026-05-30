@@ -59,23 +59,16 @@
     </div>
 
     <div class="card card-outline card-success card-modulo-main elevation-1 mb-4">
-        <div class="card-header">
-            <h3 class="card-title mb-0">
-                <i class="fas fa-list text-success mr-1"></i>
-                Usuarios del sistema
-                <span class="badge badge-light border text-muted badge-registros ml-2">{{ $usuarios->total() }} registros</span>
-            </h3>
-            <div class="card-tools d-flex align-items-center flex-wrap" style="gap: 6px;">
-                <button type="button" class="btn btn-tool" data-toggle="collapse" data-target="#filtrosUsuariosPanel" title="Filtros">
-                    <i class="fas fa-filter"></i>
-                </button>
-                @can('usuarios.create')
-                <a href="{{ route('gestion.create') }}" class="btn btn-success btn-sm">
-                    <i class="fas fa-user-plus mr-1"></i> Nuevo usuario
-                </a>
-                @endcan
-            </div>
-        </div>
+        <x-modulo-index-header
+            titulo="Usuarios del sistema"
+            icono="fa-users"
+            :registros="$usuarios->total()"
+            filtros-target="#filtrosUsuariosPanel"
+            :nuevo-href="route('gestion.create')"
+            nuevo-text="Nuevo usuario"
+            nuevo-icon="fa-user-plus"
+            nuevo-can="usuarios.create"
+        />
 
         <div id="filtrosUsuariosPanel" class="filtros-panel collapse {{ request()->hasAny(['buscar','rol','estado']) ? 'show' : '' }}">
             <form method="GET" action="{{ route('gestion.index') }}">
@@ -102,9 +95,8 @@
                             <option value="inactivo" @selected(request('estado') === 'inactivo')>Inactivos</option>
                         </select>
                     </div>
-                    <div class="col-md-3 d-flex" style="gap: 8px;">
-                        <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-search mr-1"></i> Filtrar</button>
-                        <a href="{{ route('gestion.index') }}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+                    <div class="col-12">
+                        <x-filtros-form-actions :limpiar-url="route('gestion.index', ['filtros_abiertos' => 1])" />
                     </div>
                 </div>
             </form>

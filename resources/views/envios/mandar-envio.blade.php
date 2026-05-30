@@ -1,157 +1,74 @@
 @extends('layouts.app')
 
-@section('title', 'Crear envío')
+@section('title', 'Crear envío | AgroNexus')
 
 @section('page_title', 'Crear envío')
 
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Inicio</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('envios.seguimiento') }}">Envíos</a></li>
     <li class="breadcrumb-item active">Crear envío</li>
 @endsection
 
+@push('styles')
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+@include('partials.modulo-envios-styles')
+@endpush
+
 @section('content')
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<div class="modulo-env page-mandar-envio">
 
-    <style>
-        .wizard-step {
-            display: none;
-        }
-
-        .wizard-step.active {
-            display: block;
-        }
-
-        #map {
-            height: 100%;
-        }
-
-        .readonly-input {
-            background-color: #f4f6f9;
-            cursor: not-allowed;
-        }
-
-        .equal-height-row {
-            display: flex;
-            flex-wrap: wrap;
-        }
-
-        .equal-height-row>[class*='col-'] {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .equal-height-row .card {
-            flex: 1;
-        }
-
-        /* Estilos del indicador de conexión */
-        #conexion-indicator {
-            position: fixed;
-            top: 70px;
-            right: 20px;
-            padding: 10px 20px;
-            border-radius: 25px;
-            font-weight: 600;
-            font-size: 0.9rem;
-            z-index: 9999;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-            transition: all 0.3s ease;
-        }
-
-        .indicador-online {
-            background: linear-gradient(135deg, #28a745, #20c997);
-            color: white;
-        }
-
-        .indicador-offline {
-            background: linear-gradient(135deg, #dc3545, #e74a3b);
-            color: white;
-            animation: pulse-offline 2s infinite;
-        }
-
-        @keyframes pulse-offline {
-
-            0%,
-            100% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0.7;
-            }
-        }
-
-        .cola-pendientes-card {
-            background: #fff3cd;
-            border: 1px solid #ffc107;
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 20px;
-        }
-    </style>
-
-    <!-- Indicador de conexión -->
-    <div id="conexion-indicator" class="indicador-online">
-        <i class="fas fa-wifi"></i>
-        <span id="conexion-texto">Verificando conexión...</span>
-        <span class="badge badge-light ml-2" id="pendientes-badge" style="display: none;">0 pendientes</span>
-    </div>
-
-    <!-- Alert de cola local si hay pendientes -->
     <div id="cola-alert" class="cola-pendientes-card" style="display: none;">
-        <div class="d-flex justify-content-between align-items-center">
-            <div>
+        <div class="d-flex justify-content-between align-items-center flex-wrap">
+            <div class="mb-2 mb-md-0">
                 <i class="fas fa-clock text-warning mr-2"></i>
-                <strong>Tienes envíos en cola local</strong>
-                <p class="mb-0 small text-muted">Se sincronizarán automáticamente cuando la conexión esté disponible</p>
+                <strong>Envíos en cola local</strong>
+                <span class="small text-muted d-block d-md-inline ml-md-2">Se sincronizarán al recuperar conexión.</span>
             </div>
-            <button class="btn btn-warning btn-sm" onclick="ToleranciaFallos.sincronizarPendientes()">
-                <i class="fas fa-sync-alt"></i> Sincronizar Ahora
+            <button type="button" class="btn btn-warning btn-sm" onclick="ToleranciaFallos.sincronizarPendientes()">
+                <i class="fas fa-sync-alt mr-1"></i> Sincronizar ahora
             </button>
         </div>
     </div>
 
-    <!-- Alert informativo -->
-    <div class="alert alert-info alert-dismissible fade show">
-        <button type="button" class="close" data-dismiss="alert">&times;</button>
-        <h5><i class="icon fas fa-info-circle"></i> Guía rápida</h5>
-        Crea tu solicitud de envío en 3 simples pasos: <strong>Ubicación</strong>, <strong>Detalles del envío</strong> y
-        <strong>Confirmación</strong>.
-        <br><small class="text-muted"><i class="fas fa-shield-alt"></i> Sistema con tolerancia a fallos: tus envíos se
-            guardarán localmente si no hay conexión.</small>
+    <div class="card card-modulo-main mb-3">
+        <div class="card-body py-3">
+            <div class="d-flex flex-wrap align-items-center justify-content-between">
+                <div>
+                    <h5 class="mb-1"><i class="fas fa-truck-loading text-success mr-2"></i>Nueva solicitud de envío</h5>
+                    <p class="text-muted mb-0 small">Completa los 3 pasos: ubicación, detalles y confirmación. Si no hay red, el borrador se guarda en este equipo.</p>
+                </div>
+                <div class="d-flex align-items-center flex-wrap mt-2 mt-md-0">
+                    <span id="conexion-indicator" class="env-conexion-aviso is-offline d-none mr-2" role="status">
+                        <i class="fas fa-wifi-slash"></i>
+                        <span id="conexion-texto">Sin conexión</span>
+                    </span>
+                    <span class="badge badge-warning d-none mr-2" id="pendientes-badge">0 pendientes</span>
+                    <a href="{{ route('envios.seguimiento') }}" class="btn btn-outline-secondary btn-sm" rel="prefetch">
+                        <i class="fas fa-list mr-1"></i> Ver seguimiento
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- Progress Steps usando BS4 -->
-    <div class="card card-outline card-primary mb-3">
-        <div class="card-body">
-            <div class="row text-center">
-                <div class="col-md-4 step-indicator" data-step="1">
-                    <div class="mb-2">
-                        <span class="step-badge badge badge-primary badge-lg"
-                            style="width: 50px; height: 50px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 1.5rem;">1</span>
-                    </div>
-                    <h6 class="font-weight-bold">Paso 1: Ubicación</h6>
-                    <small class="text-muted d-none d-md-block">Origen y Destino</small>
+    <div class="card card-modulo-main mb-3 wizard-progress">
+        <div class="card-body py-3">
+            <div class="row">
+                <div class="col-md-4 step-item step-indicator active" data-step="1">
+                    <span class="step-badge badge mb-2">1</span>
+                    <h6 class="font-weight-bold mb-0">Ubicación</h6>
+                    <small class="text-muted">Origen y destino en el mapa</small>
                 </div>
-                <div class="col-md-4 step-indicator" data-step="2">
-                    <div class="mb-2">
-                        <span class="step-badge badge badge-secondary badge-lg"
-                            style="width: 50px; height: 50px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 1.5rem;">2</span>
-                    </div>
-                    <h6>Paso 2: Detalles</h6>
-                    <small class="text-muted d-none d-md-block">Cargas y Transporte</small>
+                <div class="col-md-4 step-item step-indicator pending" data-step="2">
+                    <span class="step-badge badge mb-2">2</span>
+                    <h6 class="mb-0">Detalles</h6>
+                    <small class="text-muted">Cargas y transporte</small>
                 </div>
-                <div class="col-md-4 step-indicator" data-step="3">
-                    <div class="mb-2">
-                        <span class="step-badge badge badge-secondary badge-lg"
-                            style="width: 50px; height: 50px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 1.5rem;">3</span>
-                    </div>
-                    <h6>Paso 3: Confirmación</h6>
-                    <small class="text-muted d-none d-md-block">Resumen y Envío</small>
+                <div class="col-md-4 step-item step-indicator pending" data-step="3">
+                    <span class="step-badge badge mb-2">3</span>
+                    <h6 class="mb-0">Confirmación</h6>
+                    <small class="text-muted">Resumen y envío</small>
                 </div>
             </div>
         </div>
@@ -165,15 +82,18 @@
             <div class="row equal-height-row">
                 <!-- Formulario -->
                 <div class="col-md-4">
-                    <div class="card card-primary">
+                    <div class="card card-outline card-success h-100">
                         <div class="card-header">
-                            <h3 class="card-title"><i class="fas fa-map-marker-alt"></i> Datos del Envío</h3>
+                            <h3 class="card-title mb-0"><i class="fas fa-user mr-2"></i> Datos del remitente</h3>
                         </div>
                         <div class="card-body">
                             <div class="form-group">
                                 <label>Nº de Solicitud</label>
-                                <input type="text" class="form-control" id="numero_solicitud" placeholder="Ej: SOL-001"
-                                    maxlength="50">
+                                <input type="text" class="form-control readonly-input" id="numero_solicitud"
+                                    value="{{ $numeroSolicitud ?? '' }}" readonly maxlength="50">
+                                <small class="form-text text-muted">
+                                    <i class="fas fa-magic mr-1"></i> Se genera automáticamente al abrir el formulario
+                                </small>
                             </div>
                             <div class="form-group">
                                 <label>Nombre Completo <span class="text-danger">*</span></label>
@@ -213,9 +133,9 @@
 
                 <!-- Mapa -->
                 <div class="col-md-8">
-                    <div class="card card-success">
+                    <div class="card card-modulo-main h-100">
                         <div class="card-header">
-                            <h3 class="card-title"><i class="fas fa-map"></i> Mapa Interactivo</h3>
+                            <h3 class="card-title mb-0"><i class="fas fa-map text-success mr-2"></i> Mapa interactivo</h3>
                             <div class="card-tools">
                                 <button type="button" class="btn btn-tool" id="btnResetMap">
                                     <i class="fas fa-eraser"></i> Limpiar
@@ -242,9 +162,9 @@
 
         <!-- STEP 3: CONFIRMACIÓN -->
         <div class="wizard-step" data-step="3">
-            <div class="card card-success">
+            <div class="card card-modulo-main">
                 <div class="card-header">
-                    <h3 class="card-title"><i class="fas fa-check-circle"></i> Resumen de la Solicitud</h3>
+                    <h3 class="card-title mb-0"><i class="fas fa-check-circle text-success mr-2"></i> Resumen de la solicitud</h3>
                 </div>
                 <div class="card-body">
                     <div id="alertContainer"></div>
@@ -315,11 +235,11 @@
             </button>
         </div>
         <div class="col-6 text-right">
-            <button type="button" class="btn btn-primary" id="btnNext">
+            <button type="button" class="btn btn-success" id="btnNext">
                 Siguiente <i class="fas fa-arrow-right"></i>
             </button>
             <button type="button" class="btn btn-success" id="btnFinish" style="display: none;">
-                <i class="fas fa-check"></i> Confirmar y Crear Envío
+                <i class="fas fa-check mr-1"></i> Confirmar y crear envío
             </button>
         </div>
     </div>
@@ -549,6 +469,7 @@
         </div>
     </template>
 
+</div>{{-- .modulo-env --}}
 @endsection
 
 @push('scripts')
@@ -575,22 +496,26 @@
 
             init: function () {
                 this.cargarColaLocal();
+                this.conectado = true;
+                this.actualizarIndicador();
                 this.verificarConexion();
-                setInterval(() => this.verificarConexion(), 30000);
+                setInterval(() => this.verificarConexion(), 60000);
             },
 
             verificarConexion: async function () {
                 try {
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+                    const timeoutId = setTimeout(() => controller.abort(), 2000);
 
-                    const response = await fetch(`${LOCAL_API_URL}/tipo-transporte`, {
+                    const response = await fetch(`${LOCAL_API_URL}/ping`, {
                         method: 'GET',
-                        signal: controller.signal
+                        signal: controller.signal,
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                     });
 
                     clearTimeout(timeoutId);
-                    this.conectado = response.ok;
+                    const body = await response.json().catch(() => ({}));
+                    this.conectado = response.ok && (body?.ok === true || response.ok);
 
                     if (this.conectado && this.colaLocal.length > 0) {
                         this.sincronizarPendientes();
@@ -611,21 +536,21 @@
                 const colaAlert = document.getElementById('cola-alert');
 
                 if (this.conectado) {
-                    indicator.className = 'indicador-online';
-                    indicator.querySelector('i').className = 'fas fa-wifi';
-                    texto.textContent = 'Conectado';
+                    indicator.classList.add('d-none');
+                    indicator.classList.remove('is-offline');
                 } else {
-                    indicator.className = 'indicador-offline';
+                    indicator.classList.remove('d-none');
+                    indicator.classList.add('is-offline');
                     indicator.querySelector('i').className = 'fas fa-wifi-slash';
-                    texto.textContent = 'Sin Conexión - Modo Offline';
+                    texto.textContent = 'Sin conexión — se guardará en este equipo';
                 }
 
                 if (this.colaLocal.length > 0) {
-                    badge.style.display = 'inline';
-                    badge.textContent = `${this.colaLocal.length} pendientes`;
+                    badge.classList.remove('d-none');
+                    badge.textContent = `${this.colaLocal.length} pendiente(s)`;
                     colaAlert.style.display = 'block';
                 } else {
-                    badge.style.display = 'none';
+                    badge.classList.add('d-none');
                     colaAlert.style.display = 'none';
                 }
             },
@@ -1129,22 +1054,14 @@
             document.querySelector(`.wizard-step[data-step="${step}"]`).classList.add('active');
 
             document.querySelectorAll('.step-indicator').forEach(ind => {
-                const badge = ind.querySelector('.step-badge');
-                const stepNum = parseInt(ind.dataset.step);
-                const h6 = ind.querySelector('h6');
-
+                const stepNum = parseInt(ind.dataset.step, 10);
+                ind.classList.remove('active', 'done', 'pending');
                 if (stepNum === step) {
-                    badge.classList.remove('badge-secondary', 'badge-success');
-                    badge.classList.add('badge-primary');
-                    h6.classList.add('font-weight-bold', 'text-primary');
+                    ind.classList.add('active');
                 } else if (stepNum < step) {
-                    badge.classList.remove('badge-secondary', 'badge-primary');
-                    badge.classList.add('badge-success');
-                    h6.classList.remove('font-weight-bold', 'text-primary');
+                    ind.classList.add('done');
                 } else {
-                    badge.classList.remove('badge-primary', 'badge-success');
-                    badge.classList.add('badge-secondary');
-                    h6.classList.remove('font-weight-bold', 'text-primary');
+                    ind.classList.add('pending');
                 }
             });
 

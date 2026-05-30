@@ -133,10 +133,15 @@
         @endif
         @endcan
 
-        <div class="card x-card">
-            <div class="card-header">
-                <h3 class="card-title x-head mb-0">Envíos ya asignados</h3>
-            </div>
+        <div class="card card-outline card-success card-modulo-main elevation-1">
+            <x-modulo-index-header
+                titulo="Envíos ya asignados"
+                icono="fa-truck-loading"
+                :registros="$asignaciones->total()"
+                :nuevo-href="route('logistica.asignaciones.create')"
+                nuevo-text="Asignar manualmente"
+                nuevo-can="asignaciones.create"
+            />
             <div class="card-body table-responsive p-0">
                 <table class="table table-hover x-table">
                     <thead>

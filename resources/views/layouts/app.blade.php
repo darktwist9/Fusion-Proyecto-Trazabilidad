@@ -710,6 +710,56 @@
             line-height: 1.3;
         }
 
+        .card-tools {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .card-modulo-main > .card-header {
+            background: #fff;
+            border-bottom: 1px solid #dee2e6;
+            padding: 0.75rem 1rem;
+        }
+
+        .card-modulo-main > .card-header .card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1a252f;
+        }
+
+        .card-modulo-main .badge-registros {
+            font-size: 0.78rem;
+            font-weight: 500;
+            padding: 0.35em 0.65em;
+            white-space: nowrap;
+        }
+
+        .card-modulo-main .view-toggle .btn {
+            border-color: #ced4da;
+            color: #6c757d;
+        }
+
+        .card-modulo-main .view-toggle .btn.active {
+            background: #2c5530;
+            border-color: #2c5530;
+            color: #fff;
+        }
+
+        .filtros-panel {
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            padding: 1rem 1.25rem;
+        }
+
+        .card-tools .btn-filtros-toggle {
+            display: inline-flex;
+            align-items: center;
+            white-space: nowrap;
+            font-weight: 500;
+        }
+
         .form-control:focus {
             border-color: var(--brand) !important;
             box-shadow: 0 0 0 3px var(--brand-rng) !important;
@@ -880,7 +930,8 @@
     $authUser    = auth()->user();
     $userFull    = $authUser ? trim(($authUser->nombre ?? '') . ' ' . ($authUser->apellido ?? '')) : 'Usuario';
     if ($authUser && !$userFull) $userFull = $authUser->nombreusuario ?? 'Usuario';
-    $userImg     = ($authUser && $authUser->imagenurl) ? $authUser->imagenurl : asset('images/user.png');
+    $userImg     = $authUser ? $authUser->avatarUrl() : \App\Support\UsuarioAvatar::placeholder();
+    $userImgFallback = \App\Support\UsuarioAvatar::placeholder();
     $userRole    = $authUser ? ($authUser->getRoleNames()->first() ?? 'sin rol') : 'invitado';
     $isAdmin     = $authUser && ($authUser->hasRole('Admin') || $authUser->hasRole('admin'));
     $roleCss     = strtolower($userRole);
@@ -908,7 +959,9 @@
 
         {{-- User panel --}}
         <div class="ag-sb-user">
-            <img src="{{ $userImg }}" alt="Avatar" class="ag-sb-user-avatar">
+            <img src="{{ $userImg }}" alt="Avatar" class="ag-sb-user-avatar"
+                 data-avatar-fallback="{{ $userImgFallback }}"
+                 onerror="if(this.dataset.avatarFallback){this.onerror=null;this.src=this.dataset.avatarFallback;}">
             <div class="ag-sb-user-info">
                 <span class="ag-sb-user-name">{{ $userFull }}</span>
                 <span class="ag-sb-user-role">{{ ucfirst($userRole) }}</span>
@@ -958,15 +1011,6 @@
                 </li>
                 @endcan
 
-                @can('catalogos.view')
-                <li class="ag-nav-li">
-                    <a href="{{ route('catalogos.index') }}" class="ag-nav-a {{ request()->routeIs('catalogos.*') ? 'active' : '' }}">
-                        <i class="ag-nav-icon fas fa-book"></i>
-                        <span class="ag-nav-text">Catálogos</span>
-                    </a>
-                </li>
-                @endcan
-
                 {{-- Producción --}}
                 @php $prodOpen = request()->routeIs('producciones.*','climas.*','procesos-planta.*','maquinas-planta.*','registro-planta.*'); @endphp
                 <li class="ag-nav-li">
@@ -976,11 +1020,11 @@
                         <i class="ag-nav-arrow fas fa-chevron-right"></i>
                     </a>
                     <ul class="ag-subnav {{ $prodOpen ? 'open' : '' }}" id="sub-prod">
-                        @unless(auth()->user()?->hasRole('transportista') || auth()->user()?->hasRole('almacen'))
-                        <li class="ag-sub-li"><a href="{{ route('producciones.index') }}" class="ag-sub-a {{ request()->routeIs('producciones.*') ? 'active' : '' }}">Registro de producción</a></li>
+                        @unless(auth()->user()?->hasRole('transportista'))
+                        <li class="ag-sub-li"><a href="{{ route('producciones.index') }}" class="ag-sub-a {{ request()->routeIs('producciones.*') ? 'active' : '' }}">Cosechas</a></li>
                         @endunless
                         <li class="ag-sub-li"><a href="{{ route('climas.index') }}" class="ag-sub-a {{ request()->routeIs('climas.*') ? 'active' : '' }}">Clima</a></li>
-                        @unless(auth()->user()?->hasRole('agricultor') || auth()->user()?->hasRole('transportista') || auth()->user()?->hasRole('almacen'))
+                        @unless(auth()->user()?->hasRole('agricultor') || auth()->user()?->hasRole('transportista'))
                         <li class="ag-sub-li">
                             <a href="{{ route('registro-planta.index') }}" class="ag-sub-a {{ request()->routeIs('registro-planta.*') ? 'active' : '' }}" style="{{ request()->routeIs('registro-planta.*') ? '' : '' }}">
                                 <i class="fas fa-industry" style="font-size:.72rem; margin-right:4px;"></i>Registro a Planta
@@ -1020,12 +1064,24 @@
                 </li>
                 @endcanany
 
-                {{-- Envíos --}}
+                {{-- Envíos (incluye operación logística: rutas, asignaciones, mapa, etc.) --}}
                 @php
-                    $envPerm = ['envios.view','envios.create','envios.admin.view','vehiculos.view','transportistas.view','direcciones.view','reportes.view'];
+                    $envPerm = [
+                        'envios.view', 'envios.create', 'envios.admin.view',
+                        'vehiculos.view', 'transportistas.view', 'direcciones.view',
+                        'reportes.view', 'pedidos.view',
+                        'asignaciones.view', 'rutas_multi.view', 'rutas_multi.create',
+                        'documentos.view', 'incidentes.view',
+                    ];
+                    $envOpen = request()->routeIs(
+                        'envios.*',
+                        'logistica.asignaciones.*',
+                        'logistica.rutas.*',
+                        'logistica.documentos.*',
+                        'logistica.incidentes.*'
+                    );
                 @endphp
                 @if($isAdmin || ($authUser && $authUser->hasAnyPermission($envPerm)))
-                @php $envOpen = request()->routeIs('envios.*'); @endphp
                 <li class="ag-nav-li">
                     <a href="#" class="ag-nav-a {{ $envOpen ? 'active group-open' : '' }}" data-toggle-sub="sub-env">
                         <i class="ag-nav-icon fas fa-truck"></i>
@@ -1042,6 +1098,15 @@
                         @if($isAdmin || auth()->user()?->can('envios.admin.view'))
                         <li class="ag-sub-li"><a href="{{ route('envios.admin') }}" class="ag-sub-a {{ request()->routeIs('envios.admin') ? 'active' : '' }}">Dashboard logístico</a></li>
                         @endif
+                        @can('asignaciones.view')
+                        <li class="ag-sub-li"><a href="{{ route('logistica.asignaciones.index') }}" class="ag-sub-a {{ request()->routeIs('logistica.asignaciones.*') ? 'active' : '' }}">Asignar envíos</a></li>
+                        @endcan
+                        @can('rutas_multi.view')
+                        <li class="ag-sub-li"><a href="{{ route('logistica.rutas.index') }}" class="ag-sub-a {{ request()->routeIs('logistica.rutas.index', 'logistica.rutas.create', 'logistica.rutas.show', 'logistica.rutas.trazado') ? 'active' : '' }}">Rutas de entrega</a></li>
+                        @endcan
+                        @if($isAdmin || auth()->user()?->can('rutas_multi.create'))
+                        <li class="ag-sub-li"><a href="{{ route('logistica.rutas.mapa') }}" class="ag-sub-a {{ request()->routeIs('logistica.rutas.mapa') ? 'active' : '' }}">Mapa de envíos</a></li>
+                        @endif
                         @if($isAdmin || auth()->user()?->can('transportistas.view'))
                         <li class="ag-sub-li"><a href="{{ route('envios.transportistas') }}" class="ag-sub-a {{ request()->routeIs('envios.transportistas*') ? 'active' : '' }}">Transportistas</a></li>
                         @endif
@@ -1051,6 +1116,12 @@
                         @if($isAdmin || auth()->user()?->can('direcciones.view'))
                         <li class="ag-sub-li"><a href="{{ route('envios.direcciones') }}" class="ag-sub-a {{ request()->routeIs('envios.direcciones*') ? 'active' : '' }}">Direcciones</a></li>
                         @endif
+                        @can('documentos.view')
+                        <li class="ag-sub-li"><a href="{{ route('logistica.documentos.index') }}" class="ag-sub-a {{ request()->routeIs('logistica.documentos.*') ? 'active' : '' }}">Documentos entrega</a></li>
+                        @endcan
+                        @can('incidentes.view')
+                        <li class="ag-sub-li"><a href="{{ route('logistica.incidentes.index') }}" class="ag-sub-a {{ request()->routeIs('logistica.incidentes.*') ? 'active' : '' }}">Incidentes</a></li>
+                        @endcan
                         @if($isAdmin || auth()->user()?->can('reportes.view'))
                         <li class="ag-sub-li"><a href="{{ route('envios.reportes-distribucion') }}" class="ag-sub-a {{ request()->routeIs('envios.reportes-distribucion') ? 'active' : '' }}">Reportes distribución</a></li>
                         @endif
@@ -1061,29 +1132,14 @@
                 </li>
                 @endif
 
-                {{-- Logística Operación --}}
-                @canany(['panel_planta.view','panel_transportista.view','panel_almacen.view','asignaciones.view','rutas_multi.view','incidentes.view','documentos.view'])
+                {{-- Paneles por rol (planta, transportista, almacén) --}}
+                @canany(['panel_planta.view','panel_transportista.view'])
                 <span class="ag-nav-label">Operación logística</span>
                 @can('panel_planta.view')
                 <li class="ag-nav-li"><a href="{{ route('dashboard.panel-planta') }}" class="ag-nav-a {{ request()->routeIs('dashboard.panel-planta') ? 'active' : '' }}"><i class="ag-nav-icon fas fa-industry"></i><span class="ag-nav-text">Panel Planta</span></a></li>
                 @endcan
                 @can('panel_transportista.view')
                 <li class="ag-nav-li"><a href="{{ route('dashboard.panel-transportista') }}" class="ag-nav-a {{ request()->routeIs('dashboard.panel-transportista') ? 'active' : '' }}"><i class="ag-nav-icon fas fa-truck-moving"></i><span class="ag-nav-text">Panel Transportista</span></a></li>
-                @endcan
-                @can('panel_almacen.view')
-                <li class="ag-nav-li"><a href="{{ route('dashboard.panel-almacen') }}" class="ag-nav-a {{ request()->routeIs('dashboard.panel-almacen') ? 'active' : '' }}"><i class="ag-nav-icon fas fa-boxes"></i><span class="ag-nav-text">Panel Almacén</span></a></li>
-                @endcan
-                @can('asignaciones.view')
-                <li class="ag-nav-li"><a href="{{ route('logistica.asignaciones.index') }}" class="ag-nav-a {{ request()->routeIs('logistica.asignaciones.*') ? 'active' : '' }}"><i class="ag-nav-icon fas fa-user-tag"></i><span class="ag-nav-text">Asignar envíos</span></a></li>
-                @endcan
-                @can('rutas_multi.view')
-                <li class="ag-nav-li"><a href="{{ route('logistica.rutas.index') }}" class="ag-nav-a {{ request()->routeIs('logistica.rutas.*') ? 'active' : '' }}"><i class="ag-nav-icon fas fa-route"></i><span class="ag-nav-text">Rutas de entrega</span></a></li>
-                @endcan
-                @can('documentos.view')
-                <li class="ag-nav-li"><a href="{{ route('logistica.documentos.index') }}" class="ag-nav-a {{ request()->routeIs('logistica.documentos.*') ? 'active' : '' }}"><i class="ag-nav-icon fas fa-file-signature"></i><span class="ag-nav-text">Documentos entrega</span></a></li>
-                @endcan
-                @can('incidentes.view')
-                <li class="ag-nav-li"><a href="{{ route('logistica.incidentes.index') }}" class="ag-nav-a {{ request()->routeIs('logistica.incidentes.*') ? 'active' : '' }}"><i class="ag-nav-icon fas fa-exclamation-triangle"></i><span class="ag-nav-text">Incidentes</span></a></li>
                 @endcan
                 @endcanany
 
@@ -1120,27 +1176,6 @@
                         <li class="ag-sub-li"><a href="{{ route('reportes.produccion') }}" class="ag-sub-a {{ request()->routeIs('reportes.produccion') ? 'active' : '' }}">Producción</a></li>
                         <li class="ag-sub-li"><a href="{{ route('reportes.climatico') }}" class="ag-sub-a {{ request()->routeIs('reportes.climatico') ? 'active' : '' }}">Climático</a></li>
                         <li class="ag-sub-li"><a href="{{ route('reportes.actividades') }}" class="ag-sub-a {{ request()->routeIs('reportes.actividades') ? 'active' : '' }}">Actividades</a></li>
-                    </ul>
-                </li>
-
-                {{-- Catálogos admin --}}
-                @php $catOpen = request()->routeIs('cultivos.*','tipo-actividad.*','tipo-insumos.*','unidades-medida.*','estado-lote-tipos.*','estado-lote-insumos.*','historial-estados-lote.*','prioridades.*','tipoalmacenes.*'); @endphp
-                <li class="ag-nav-li">
-                    <a href="#" class="ag-nav-a {{ $catOpen ? 'active group-open' : '' }}" data-toggle-sub="sub-cat">
-                        <i class="ag-nav-icon fas fa-book-open"></i>
-                        <span class="ag-nav-text">Catálogos</span>
-                        <i class="ag-nav-arrow fas fa-chevron-right"></i>
-                    </a>
-                    <ul class="ag-subnav {{ $catOpen ? 'open' : '' }}" id="sub-cat">
-                        <li class="ag-sub-li"><a href="{{ route('cultivos.index') }}" class="ag-sub-a {{ request()->routeIs('cultivos.*') ? 'active' : '' }}">Cultivos</a></li>
-                        <li class="ag-sub-li"><a href="{{ route('tipo-actividad.index') }}" class="ag-sub-a {{ request()->routeIs('tipo-actividad.*') ? 'active' : '' }}">Tipos de actividad</a></li>
-                        <li class="ag-sub-li"><a href="{{ route('tipo-insumos.index') }}" class="ag-sub-a {{ request()->routeIs('tipo-insumos.*') ? 'active' : '' }}">Tipos de insumo</a></li>
-                        <li class="ag-sub-li"><a href="{{ route('unidades-medida.index') }}" class="ag-sub-a {{ request()->routeIs('unidades-medida.*') ? 'active' : '' }}">Unidades de medida</a></li>
-                        <li class="ag-sub-li"><a href="{{ route('tipoalmacenes.index') }}" class="ag-sub-a {{ request()->routeIs('tipoalmacenes.*') ? 'active' : '' }}">Tipo de almacén</a></li>
-                        <li class="ag-sub-li"><a href="{{ route('estado-lote-tipos.index') }}" class="ag-sub-a {{ request()->routeIs('estado-lote-tipos.*') ? 'active' : '' }}">Estados de lote</a></li>
-                        <li class="ag-sub-li"><a href="{{ route('estado-lote-insumos.index') }}" class="ag-sub-a {{ request()->routeIs('estado-lote-insumos.*') ? 'active' : '' }}">Estados de aplicación</a></li>
-                        <li class="ag-sub-li"><a href="{{ route('historial-estados-lote.index') }}" class="ag-sub-a {{ request()->routeIs('historial-estados-lote.*') ? 'active' : '' }}">Historial estados</a></li>
-                        <li class="ag-sub-li"><a href="{{ route('prioridades.index') }}" class="ag-sub-a {{ request()->routeIs('prioridades.*') ? 'active' : '' }}">Prioridades</a></li>
                     </ul>
                 </li>
 
@@ -1203,7 +1238,9 @@
                 {{-- User menu --}}
                 <div class="ag-user-wrap">
                     <button class="ag-user-btn" id="agUserBtn">
-                        <img src="{{ $userImg }}" alt="Avatar">
+                        <img src="{{ $userImg }}" alt="Avatar"
+                             data-avatar-fallback="{{ $userImgFallback }}"
+                             onerror="if(this.dataset.avatarFallback){this.onerror=null;this.src=this.dataset.avatarFallback;}">
                         <span class="ag-user-btn-name">{{ $userFull }}</span>
                         <i class="fas fa-chevron-down"></i>
                     </button>
@@ -1354,6 +1391,8 @@
 
 })();
 </script>
+
+@include('partials.filtros-ui-script')
 
 @stack('scripts')
 </body>

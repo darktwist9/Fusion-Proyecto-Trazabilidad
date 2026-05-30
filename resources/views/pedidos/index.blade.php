@@ -56,13 +56,14 @@
         </div>
 
         <!-- Main Card -->
-        <div class="card card-primary card-outline">
-            <div class="card-header">
-                <h3 class="card-title">
-                    <i class="fas fa-list mr-2"></i>
-                    Listado de Pedidos
-                </h3>
-            </div>
+        <div class="card card-outline card-success card-modulo-main elevation-1">
+            <x-modulo-index-header
+                titulo="Pedidos"
+                icono="fa-shopping-cart"
+                :registros="$pedidos->count()"
+                :nuevo-href="route('pedidos.create')"
+                nuevo-can="pedidos.create"
+            />
 
             <div class="card-body p-0">
                 <div class="table-responsive">

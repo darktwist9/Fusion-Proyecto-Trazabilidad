@@ -38,30 +38,31 @@
         </div>
     </div>
 
-    <div class="card card-modulo-main">
-        <div class="card-header">
-            <h3 class="card-title mb-0"><i class="fas fa-map-pin text-success mr-2"></i>Direcciones de origen y destino</h3>
-            <div class="card-tools">
-                @can('direcciones.create')
-                <a href="{{ route('envios.direcciones.create') }}" class="btn btn-success btn-sm mr-2">
-                    <i class="fas fa-plus mr-1"></i> Nueva dirección
-                </a>
-                @endcan
-                <button type="button" class="btn btn-tool" data-toggle="collapse" data-target="#filtrosDirecciones">
-                    <i class="fas fa-filter"></i>
-                </button>
-            </div>
-        </div>
+    <div class="card card-outline card-success card-modulo-main elevation-1">
+        <x-modulo-index-header
+            titulo="Direcciones de origen y destino"
+            icono="fa-map-pin"
+            :registros="$direcciones->total()"
+            filtros-target="#filtrosDirecciones"
+            :nuevo-href="route('envios.direcciones.create')"
+            nuevo-text="Nueva dirección"
+            nuevo-can="direcciones.create"
+        />
 
         <div id="filtrosDirecciones" class="filtros-panel collapse {{ request()->hasAny(['buscar','tipo']) ? 'show' : '' }}">
-            <form method="GET" action="{{ route('envios.direcciones') }}" class="p-3">
+            <form method="GET" action="{{ route('envios.direcciones') }}">
                 <div class="row align-items-end">
                     <div class="col-lg-5 col-md-6 mb-2 mb-md-0">
-                        <label class="text-muted">Buscar</label>
-                        <input type="text" name="buscar" class="form-control form-control-sm" value="{{ request('buscar') }}" placeholder="Nombre, ciudad o dirección">
+                        <label class="small text-muted mb-1">Buscar</label>
+                        <div class="input-group input-group-sm">
+                            <div class="input-group-prepend">
+                                <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+                            </div>
+                            <input type="text" name="buscar" class="form-control" value="{{ request('buscar') }}" placeholder="Nombre, ciudad o dirección">
+                        </div>
                     </div>
                     <div class="col-lg-3 col-md-6 mb-2 mb-md-0">
-                        <label class="text-muted">Tipo de punto</label>
+                        <label class="small text-muted mb-1">Tipo de punto</label>
                         <select name="tipo" class="form-control form-control-sm">
                             <option value="">Todos</option>
                             <option value="origen" @selected(request('tipo') === 'origen')>Origen</option>
@@ -69,9 +70,8 @@
                             <option value="hub" @selected(request('tipo') === 'hub')>Hub / punto</option>
                         </select>
                     </div>
-                    <div class="col-lg-4 col-md-12">
-                        <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-search mr-1"></i> Filtrar</button>
-                        <a href="{{ route('envios.direcciones') }}" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+                    <div class="col-12">
+                        <x-filtros-form-actions :limpiar-url="route('envios.direcciones', ['filtros_abiertos' => 1])" />
                     </div>
                 </div>
             </form>
