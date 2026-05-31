@@ -180,7 +180,9 @@ final class LocalOrgTrackFallback
             return self::emptyEnvios('No hay asignaciones locales. Ejecute los seeders demo de envíos.');
         }
 
-        $data = $rows->map(fn (EnvioAsignacionMultiple $a) => self::mapEnvioRow($a))->values()->all();
+        $data = $rows->map(function (EnvioAsignacionMultiple $a) {
+            return self::mapEnvioRow($a);
+        })->values()->all();
 
         return [
             'data' => $data,

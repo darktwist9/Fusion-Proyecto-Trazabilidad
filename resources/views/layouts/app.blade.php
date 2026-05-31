@@ -999,7 +999,7 @@
                     $puedeAlmacenPlanta = $isAdmin || ($authUser && $authUser->hasRole('planta'));
                     $almAgrOpen = request()->routeIs('almacen-agricola.*');
                     $almPlaOpen = request()->routeIs('almacen-planta.*');
-                    $prodAgrOpen = request()->routeIs('producciones.*', 'climas.*');
+                    $prodAgrOpen = request()->routeIs('producciones.*', 'climas.*', 'agricola.pedidos.*');
                     $prodPlaMenuOpen = request()->routeIs('procesos-planta.*', 'maquinas-planta.*', 'registro-planta.*', 'almacen-planta.*');
                     $puedeProdPlanta = $isAdmin || ($authUser && ! $authUser->hasRole('agricultor') && ! $authUser->hasRole('transportista'));
                     $showProdAgricola = $isAdmin
@@ -1017,6 +1017,7 @@
                     ];
                     $envOpen = request()->routeIs(
                         'envios.*',
+                        'pedidos.*',
                         'logistica.asignaciones.*',
                         'logistica.rutas.*',
                         'logistica.documentos.*',
@@ -1061,7 +1062,7 @@
                 </li>
                 @endcan
 
-                {{-- Producción agrícola (cosechas y clima) --}}
+                {{-- Producción agrícola (cosechas, clima y pedidos de planta) --}}
                 <li class="ag-nav-li">
                     <a href="#" class="ag-nav-a {{ $prodAgrOpen ? 'active group-open' : '' }}" data-toggle-sub="sub-prod-agr">
                         <i class="ag-nav-icon fas fa-seedling"></i>
@@ -1072,6 +1073,9 @@
                         @unless(auth()->user()?->hasRole('transportista'))
                         <li class="ag-sub-li"><a href="{{ route('producciones.index') }}" class="ag-sub-a {{ request()->routeIs('producciones.*') ? 'active' : '' }}">Cosechas</a></li>
                         @endunless
+                        @can('pedidos.view')
+                        <li class="ag-sub-li"><a href="{{ route('agricola.pedidos.index') }}" class="ag-sub-a {{ request()->routeIs('agricola.pedidos.*') ? 'active' : '' }}">Pedidos de planta</a></li>
+                        @endcan
                         <li class="ag-sub-li"><a href="{{ route('climas.index') }}" class="ag-sub-a {{ request()->routeIs('climas.*') ? 'active' : '' }}">Clima</a></li>
                     </ul>
                 </li>
@@ -1128,20 +1132,8 @@
                         <i class="ag-nav-arrow fas fa-chevron-right"></i>
                     </a>
                     <ul class="ag-subnav {{ $envOpen ? 'open' : '' }}" id="sub-env">
-                        @if($isAdmin || auth()->user()?->can('envios.create'))
-                        <li class="ag-sub-li"><a href="{{ route('envios.mandar') }}" class="ag-sub-a {{ request()->routeIs('envios.mandar') ? 'active' : '' }}">Crear envío</a></li>
-                        @endif
-                        @if($isAdmin || auth()->user()?->can('envios.view'))
-                        <li class="ag-sub-li"><a href="{{ route('envios.seguimiento') }}" class="ag-sub-a {{ request()->routeIs('envios.seguimiento') ? 'active' : '' }}">Seguimiento</a></li>
-                        @endif
-                        @if($isAdmin || auth()->user()?->can('envios.admin.view'))
-                        <li class="ag-sub-li"><a href="{{ route('envios.admin') }}" class="ag-sub-a {{ request()->routeIs('envios.admin') ? 'active' : '' }}">Dashboard logístico</a></li>
-                        @endif
                         @can('asignaciones.view')
-                        <li class="ag-sub-li"><a href="{{ route('logistica.asignaciones.index') }}" class="ag-sub-a {{ request()->routeIs('logistica.asignaciones.*') ? 'active' : '' }}">Asignar envíos</a></li>
-                        @endcan
-                        @can('rutas_multi.view')
-                        <li class="ag-sub-li"><a href="{{ route('logistica.rutas.index') }}" class="ag-sub-a {{ request()->routeIs('logistica.rutas.index', 'logistica.rutas.create', 'logistica.rutas.show', 'logistica.rutas.trazado') ? 'active' : '' }}">Rutas de entrega</a></li>
+                        <li class="ag-sub-li"><a href="{{ route('logistica.asignaciones.create') }}" class="ag-sub-a {{ request()->routeIs('logistica.asignaciones.*') ? 'active' : '' }}">Asignar envíos</a></li>
                         @endcan
                         @if($isAdmin || auth()->user()?->can('rutas_multi.create'))
                         <li class="ag-sub-li"><a href="{{ route('logistica.rutas.mapa') }}" class="ag-sub-a {{ request()->routeIs('logistica.rutas.mapa') ? 'active' : '' }}">Mapa de envíos</a></li>
@@ -1151,9 +1143,6 @@
                         @endif
                         @if($isAdmin || auth()->user()?->can('vehiculos.view'))
                         <li class="ag-sub-li"><a href="{{ route('envios.vehiculos') }}" class="ag-sub-a {{ request()->routeIs('envios.vehiculos*') ? 'active' : '' }}">Vehículos</a></li>
-                        @endif
-                        @if($isAdmin || auth()->user()?->can('direcciones.view'))
-                        <li class="ag-sub-li"><a href="{{ route('envios.direcciones') }}" class="ag-sub-a {{ request()->routeIs('envios.direcciones*') ? 'active' : '' }}">Direcciones</a></li>
                         @endif
                         @can('documentos.view')
                         <li class="ag-sub-li"><a href="{{ route('logistica.documentos.index') }}" class="ag-sub-a {{ request()->routeIs('logistica.documentos.*') ? 'active' : '' }}">Documentos entrega</a></li>

@@ -88,4 +88,9 @@ class Usuario extends Authenticatable
     {
         return $this->belongsTo(Almacen::class, 'almacenid', 'almacenid');
     }
+
+    public function perfilTransportista()
+    {
+        return $this->hasOne(PerfilTransportista::class, 'usuarioid', 'usuarioid');
+    }
 }

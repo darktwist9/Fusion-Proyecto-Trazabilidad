@@ -4,19 +4,26 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\EnvioAsignacionMultiple;
+use App\Models\PerfilTransportista;
 use App\Models\RutaMultiEntrega;
 use App\Models\RutaParada;
 use App\Models\Usuario;
 use App\Support\EnvioAsignacionEstadoCatalogo;
+use App\Support\PedidoCatalogo;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 
 class AsignacionMultipleController extends Controller
 {
-    public function index(): View
+    public function index(): View|RedirectResponse
     {
+        if (auth()->user()->can('asignaciones.create')) {
+            return redirect()->route('logistica.asignaciones.create');
+        }
+
         $q = EnvioAsignacionMultiple::query()
             ->with(['transportista', 'asignadoPor', 'ruta']);
         $user = auth()->user();
@@ -48,7 +55,24 @@ class AsignacionMultipleController extends Controller
 
     public function create(): View
     {
-        return view('logistica.asignaciones.create');
+        $enviosPendientes = $this->enviosPendientesDeAsignar(100);
+        $transportistas = Usuario::query()
+            ->where('role', 'transportista')
+            ->where('activo', true)
+            ->with('perfilTransportista.vehiculo')
+            ->orderBy('nombre')
+            ->get();
+        $vehiculosPorTransportista = $transportistas->mapWithKeys(function (Usuario $t) {
+            $placa = $t->perfilTransportista?->vehiculo?->placa;
+
+            return [(string) $t->usuarioid => $placa ?? ''];
+        });
+
+        return view('logistica.asignaciones.create', compact(
+            'enviosPendientes',
+            'transportistas',
+            'vehiculosPorTransportista'
+        ));
     }
 
     public function store(Request $request): RedirectResponse
@@ -61,6 +85,15 @@ class AsignacionMultipleController extends Controller
             'vehiculo_ref' => ['nullable', 'string', 'max:80'],
             'almacenid' => ['nullable', 'integer', 'exists:almacen,almacenid'],
         ]);
+
+        $envioPendiente = EnvioAsignacionMultiple::query()
+            ->with('pedido')
+            ->where('externo_envio_id', $validated['externo_envio_id'])
+            ->first();
+
+        if ($envioPendiente && ! $this->envioListoParaLogistica($envioPendiente)) {
+            return back()->with('error', 'Producción agrícola debe aceptar el pedido y reservar stock antes de asignar transportista.');
+        }
 
         EnvioAsignacionMultiple::updateOrCreate(
             [
@@ -81,7 +114,7 @@ class AsignacionMultipleController extends Controller
         return back()->with('success', 'Envío asignado correctamente.');
     }
 
-    public function storeBatch(Request $request): RedirectResponse
+    public function storeBatch(Request $request): RedirectResponse|Response
     {
         $validated = $request->validate([
             'envio_ids' => ['required', 'array', 'min:1'],
@@ -90,36 +123,68 @@ class AsignacionMultipleController extends Controller
             'rutamultientregaid' => ['nullable', 'integer', 'exists:ruta_multi_entrega,rutamultientregaid'],
             'vehiculo_ref' => ['nullable', 'string', 'max:80'],
             'almacenid' => ['nullable', 'integer', 'exists:almacen,almacenid'],
-            'productos' => ['nullable', 'array'],
-            'productos.*.sku' => ['nullable', 'string'],
-            'productos.*.cantidad' => ['nullable', 'numeric'],
         ]);
 
+        $transportistaId = (int) $validated['transportista_usuarioid'];
+        $vehiculoDefault = $validated['vehiculo_ref'] ?? $this->vehiculoRefForTransportista($transportistaId);
+
+        $bloqueo = $this->validarEnviosListosParaLogistica($validated['envio_ids']);
+        if ($bloqueo !== null) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $bloqueo], 422);
+            }
+
+            return back()->with('error', $bloqueo);
+        }
+
         foreach ($validated['envio_ids'] as $envioId) {
+            $pendiente = EnvioAsignacionMultiple::query()
+                ->where('externo_envio_id', $envioId)
+                ->whereNull('transportista_usuarioid')
+                ->first();
+
+            $attrs = EnvioAsignacionEstadoCatalogo::applyToAttributes([
+                'transportista_usuarioid' => $transportistaId,
+                'pedidoid' => $pendiente?->pedidoid,
+                'asignadopor_usuarioid' => auth()->id(),
+                'rutamultientregaid' => $validated['rutamultientregaid'] ?? null,
+                'vehiculo_ref' => $vehiculoDefault ?? $pendiente?->vehiculo_ref,
+                'almacenid' => $validated['almacenid'] ?? null,
+                'estado' => 'asignado',
+                'fecha_asignacion' => now(),
+            ]);
+
+            if ($pendiente) {
+                $pendiente->update($attrs);
+                continue;
+            }
+
+            $existente = EnvioAsignacionMultiple::query()
+                ->where('externo_envio_id', $envioId)
+                ->first();
+
             EnvioAsignacionMultiple::updateOrCreate(
                 [
                     'externo_envio_id' => $envioId,
-                    'transportista_usuarioid' => $validated['transportista_usuarioid'],
+                    'transportista_usuarioid' => $transportistaId,
                 ],
-                EnvioAsignacionEstadoCatalogo::applyToAttributes([
-                    'asignadopor_usuarioid' => auth()->id(),
-                    'rutamultientregaid' => $validated['rutamultientregaid'] ?? null,
-                    'vehiculo_ref' => $validated['vehiculo_ref'] ?? null,
-                    'almacenid' => $validated['almacenid'] ?? null,
-                    'estado' => 'asignado',
-                    'fecha_asignacion' => now(),
-                    'detalles_productos' => $validated['productos'] ?? null,
+                array_merge($attrs, [
+                    'pedidoid' => $existente?->pedidoid,
                 ])
             );
         }
 
         return redirect()
-            ->route('logistica.asignaciones.index')
+            ->route('logistica.asignaciones.create')
             ->with('success', 'Los envíos se asignaron correctamente al chofer seleccionado.');
     }
 
     public function markDelivered(EnvioAsignacionMultiple $asignacion): RedirectResponse
     {
+        if (! $this->envioListoParaLogistica($asignacion)) {
+            return back()->with('error', 'No se puede avanzar el envío hasta que producción agrícola acepte el pedido y reserve stock.');
+        }
+
         $asignacion->update(EnvioAsignacionEstadoCatalogo::applyToAttributes([
             'estado' => 'entregado',
             'fecha_asignacion' => now(),
@@ -140,20 +205,22 @@ class AsignacionMultipleController extends Controller
             'crear_ruta' => ['nullable', 'boolean'],
         ]);
 
-        $envios = $this->enviosPendientesDeAsignar(50);
+        $envios = $this->enviosPendientesDeAsignar(50)
+            ->filter(fn (EnvioAsignacionMultiple $envio) => $this->envioListoParaLogistica($envio));
 
         if ($envios->isEmpty()) {
             return redirect()
                 ->route('logistica.asignaciones.index')
-                ->with('warning', 'No hay envíos pendientes de asignar. Todos ya tienen chofer o están entregados.');
+                ->with('warning', 'No hay envíos listos para asignar. Producción agrícola debe aceptar los pedidos y reservar stock primero.');
         }
 
         $transportistaId = (int) $validated['transportista_usuarioid'];
         $chofer = Usuario::find($transportistaId);
+        $vehiculoRef = $validated['vehiculo_ref'] ?? $this->vehiculoRefForTransportista($transportistaId);
         $rutaIdFinal = isset($validated['rutamultientregaid']) ? (int) $validated['rutamultientregaid'] : null;
         $crearRuta = $request->boolean('crear_ruta', true);
 
-        $asignados = DB::transaction(function () use ($envios, $transportistaId, $validated, $rutaIdFinal, $crearRuta, $chofer) {
+        $asignados = DB::transaction(function () use ($envios, $transportistaId, $validated, $rutaIdFinal, $crearRuta, $chofer, $vehiculoRef) {
             $rutaId = $rutaIdFinal;
 
             if ($crearRuta && ! $rutaId) {
@@ -186,7 +253,7 @@ class AsignacionMultipleController extends Controller
                     'transportista_usuarioid' => $transportistaId,
                     'asignadopor_usuarioid' => auth()->id(),
                     'rutamultientregaid' => $rutaId,
-                    'vehiculo_ref' => $validated['vehiculo_ref'] ?? $envio->vehiculo_ref,
+                    'vehiculo_ref' => $vehiculoRef ?? $envio->vehiculo_ref,
                     'estado' => 'asignado',
                     'fecha_asignacion' => now(),
                 ]));
@@ -202,8 +269,18 @@ class AsignacionMultipleController extends Controller
         }
 
         return redirect()
-            ->route('logistica.asignaciones.index')
+            ->route('logistica.asignaciones.create')
             ->with('success', $msg);
+    }
+
+    private function vehiculoRefForTransportista(int $transportistaId): ?string
+    {
+        $perfil = PerfilTransportista::query()
+            ->with('vehiculo')
+            ->where('usuarioid', $transportistaId)
+            ->first();
+
+        return $perfil?->vehiculo?->placa;
     }
 
     /**
@@ -223,6 +300,38 @@ class AsignacionMultipleController extends Controller
             ->orderByDesc('envioasignacionmultipleid')
             ->limit($limit)
             ->get();
+    }
+
+    private function envioListoParaLogistica(EnvioAsignacionMultiple $envio): bool
+    {
+        if (! $envio->relationLoaded('pedido')) {
+            $envio->load('pedido');
+        }
+
+        if (! $envio->pedido) {
+            return true;
+        }
+
+        return PedidoCatalogo::listoParaLogistica($envio->pedido);
+    }
+
+    /**
+     * @param  array<int, string>  $envioIds
+     */
+    private function validarEnviosListosParaLogistica(array $envioIds): ?string
+    {
+        $envios = EnvioAsignacionMultiple::query()
+            ->with('pedido')
+            ->whereIn('externo_envio_id', $envioIds)
+            ->get();
+
+        foreach ($envios as $envio) {
+            if (! $this->envioListoParaLogistica($envio)) {
+                return "El envío {$envio->externo_envio_id} requiere aceptación de producción agrícola antes de asignar transportista.";
+            }
+        }
+
+        return null;
     }
 }
 

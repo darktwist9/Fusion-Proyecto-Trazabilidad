@@ -42,11 +42,12 @@
                         </h3>
                         <div class="card-tools">
                             <span class="badge {{
-                                $pedido->estado === 'pendiente' ? 'badge-info' :
+                                $pedido->estado === 'sin asignacion' ? 'badge-secondary' :
+                                ($pedido->estado === 'pendiente' ? 'badge-info' :
                                 ($pedido->estado === 'confirmado' ? 'badge-success' :
-                                ($pedido->estado === 'en produccion' ? 'badge-warning' : 'badge-danger'))
+                                ($pedido->estado === 'en produccion' ? 'badge-warning' : 'badge-danger')))
                             }} badge-lg">
-                                {{ ucfirst($pedido->estado) }}
+                                {{ $pedido->estado === 'sin asignacion' ? 'Sin asignación' : ucfirst($pedido->estado) }}
                             </span>
                         </div>
                     </div>
@@ -199,6 +200,14 @@
                                 <code>{{ $pedido->latitud }}, {{ $pedido->longitud }}</code>
                             </dd>
 
+                            @if($pedido->origen_direccion)
+                            <dt class="col-sm-4">
+                                <i class="fas fa-map-marker-alt mr-2 text-success"></i>
+                                Origen
+                            </dt>
+                            <dd class="col-sm-8">{{ $pedido->origen_direccion }}</dd>
+                            @endif
+
                             @if($pedido->direccion_texto)
                             <dt class="col-sm-4">
                                 <i class="fas fa-location-arrow mr-2 text-info"></i>
@@ -229,7 +238,7 @@
                     <div class="card-header">
                         <h3 class="card-title">
                             <i class="fas fa-map mr-2"></i>
-                            Ubicación del Pedido
+                            Ruta de entrega
                         </h3>
                     </div>
                     <div class="card-body p-0">
@@ -424,54 +433,35 @@
 @endpush
 
 @push('scripts')
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+@include('logistica.partials.mapa-ruta-libs')
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', async function() {
         const lat = {{ $pedido->latitud }};
         const lng = {{ $pedido->longitud }};
+        const oLat = {{ $pedido->origen_latitud ?? 'null' }};
+        const oLng = {{ $pedido->origen_longitud ?? 'null' }};
 
-        const map = L.map('map').setView([lat, lng], 15);
-
+        const map = L.map('map').setView([lat, lng], 13);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors',
             maxZoom: 19
         }).addTo(map);
 
-        const customIcon = L.icon({
-            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-            iconSize: [25, 41],
-            iconAnchor: [12, 41],
-            popupAnchor: [1, -34],
-            shadowSize: [41, 41]
-        });
+        const capas = L.layerGroup().addTo(map);
 
-        const marker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
+        if (oLat != null && oLng != null && window.RutaPorCalles) {
+            const waypoints = [
+                { lat: oLat, lng: oLng, orden: 1, label: @json($pedido->origen_direccion ?? 'Origen') },
+                { lat: lat, lng: lng, orden: 2, label: @json($pedido->direccion_texto ?? 'Destino') },
+            ];
+            const routeResult = await RutaPorCalles.fetchRoute(waypoints);
+            RutaPorCalles.drawOnMap(map, capas, waypoints, routeResult);
+        } else {
+            L.marker([lat, lng]).addTo(capas).bindPopup(@json($pedido->direccion_texto ?? 'Destino')).openPopup();
+            map.setView([lat, lng], 15);
+        }
 
-        const popupContent = `
-            <div style="min-width: 220px;">
-                <h6 style="margin: 0 0 10px 0; font-weight: bold; color: #007bff;">
-                    <i class="fas fa-file-invoice"></i> ${@json($pedido->numero_solicitud)}
-                </h6>
-                <p style="margin: 5px 0;">
-                    <strong>Planta:</strong> ${@json($pedido->nombre_planta)}
-                </p>
-                <p style="margin: 5px 0;">
-                    <strong>Ítems:</strong> ${@json($itemsCount)} | <strong>Total:</strong> ${@json(number_format($totalKg, 2))} kg
-                </p>
-                ${@json($pedido->direccion_texto) ? `
-                <p style="margin: 5px 0; color: #6c757d; font-size: 12px;">
-                    <i class="fas fa-map-marker-alt"></i> ${@json($pedido->direccion_texto)}
-                </p>
-                ` : ''}
-                <hr style="margin: 10px 0;">
-                <small style="color: #6c757d;">
-                    <i class="fas fa-location-arrow"></i> ${lat.toFixed(6)}, ${lng.toFixed(6)}
-                </small>
-            </div>
-        `;
-
-        marker.bindPopup(popupContent).openPopup();
+        setTimeout(() => map.invalidateSize(), 150);
     });
 </script>
 @endpush

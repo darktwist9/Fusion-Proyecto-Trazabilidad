@@ -22,6 +22,7 @@ use App\Http\Controllers\Web\VentaController;
 use App\Http\Controllers\Web\GestionUsuariosController;
 use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\Web\PedidoController;
+use App\Http\Controllers\Web\PedidoAgricolaController;
 use App\Http\Controllers\Web\UserProfileController;
 
 // 🔹 nuevos controladores web de almacenamiento
@@ -263,6 +264,14 @@ Route::middleware('auth')->group(function () {
     Route::get('pedidos/{pedido}/edit', [PedidoController::class, 'edit'])->name('pedidos.edit')->middleware('action.permission:pedidos,update');
     Route::put('pedidos/{pedido}', [PedidoController::class, 'update'])->name('pedidos.update')->middleware('action.permission:pedidos,update');
     Route::delete('pedidos/{pedido}', [PedidoController::class, 'destroy'])->name('pedidos.destroy')->middleware('action.permission:pedidos,delete');
+
+    // Pedidos recibidos de planta — bandeja producción agrícola
+    Route::prefix('produccion-agricola/pedidos')->name('agricola.pedidos.')->group(function () {
+        Route::get('/', [PedidoAgricolaController::class, 'index'])->name('index')->middleware('action.permission:pedidos,read');
+        Route::get('/{pedido}', [PedidoAgricolaController::class, 'show'])->name('show')->middleware('action.permission:pedidos,read');
+        Route::post('/{pedido}/aceptar', [PedidoAgricolaController::class, 'aceptar'])->name('aceptar')->middleware('action.permission:pedidos,update');
+        Route::post('/{pedido}/rechazar', [PedidoAgricolaController::class, 'rechazar'])->name('rechazar')->middleware('action.permission:pedidos,update');
+    });
 
 
     // GESTIÓN UNIFICADA DE USUARIOS
