@@ -92,12 +92,17 @@
                                     'allowEmpty' => true,
                                     'placeholderEmpty' => 'Opcional — sin cultivo asignado',
                                     'title' => 'Seleccionar cultivo',
-                                    'searchPlaceholder' => 'Nombre del cultivo…',
+                                    'searchPlaceholder' => 'Nombre o detalle del cultivo…',
+                                    'searchLabel' => 'Buscar cultivo',
+                                    'modalIcon' => 'fa-seedling',
+                                    'rowIcon' => 'fa-seedling',
                                     'inputGroup' => true,
                                 ])
-                                <button type="button" class="btn btn-outline-success" data-toggle="modal" data-target="#modalCultivo" title="Agregar cultivo nuevo">
+                                <a href="{{ route('cultivos.create', ['retorno' => 'lote', 'selector' => 'lote_cultivo']) }}"
+                                   target="_blank" rel="noopener"
+                                   class="btn btn-outline-success" title="Crear cultivo en nueva pestaña">
                                     <i class="fas fa-plus"></i>
-                                </button>
+                                </a>
                             </div>
                             <p class="campo-guia">Opcional al crear; puedes asignarlo luego desde editar lote.</p>
                         </div>
@@ -152,23 +157,6 @@
         </form>
     </div>
 
-    <div class="modal fade" id="modalCultivo" tabindex="-1">
-        <div class="modal-dialog modal-sm">
-            <div class="modal-content">
-                <div class="modal-header bg-success text-white py-2">
-                    <h5 class="modal-title">Nuevo cultivo</h5>
-                    <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
-                </div>
-                <div class="modal-body">
-                    <input type="text" id="nuevoCultivoNombre" class="form-control" placeholder="Ej: Quinua" maxlength="100">
-                    <div id="cultivoError" class="alert alert-danger mt-2 py-1 small" style="display:none;"></div>
-                </div>
-                <div class="modal-footer py-2">
-                    <button type="button" class="btn btn-success btn-sm" id="btnGuardarCultivo">Guardar</button>
-                </div>
-            </div>
-        </div>
-    </div>
 @endsection
 
 @push('scripts')
@@ -244,39 +232,6 @@
                 if (label) label.textContent = this.files[0]?.name || 'Elegir imagen…';
             });
 
-            document.getElementById('btnGuardarCultivo').addEventListener('click', function () {
-                const nombre = document.getElementById('nuevoCultivoNombre').value.trim();
-                const err = document.getElementById('cultivoError');
-                if (!nombre) {
-                    err.textContent = 'Escribe el nombre del cultivo.';
-                    err.style.display = 'block';
-                    return;
-                }
-                fetch('{{ route("cultivos.store") }}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({ nombre: nombre })
-                })
-                    .then(r => r.json())
-                    .then(data => {
-                        if (data.cultivoid) {
-                            if (window.CatalogoSelector) {
-                                CatalogoSelector.setValue('lote_cultivo', data.cultivoid, data.nombre);
-                            }
-                            $('#modalCultivo').modal('hide');
-                            document.getElementById('nuevoCultivoNombre').value = '';
-                            err.style.display = 'none';
-                        }
-                    })
-                    .catch(() => {
-                        err.textContent = 'No se pudo crear el cultivo.';
-                        err.style.display = 'block';
-                    });
-            });
         })();
     </script>
 @endpush

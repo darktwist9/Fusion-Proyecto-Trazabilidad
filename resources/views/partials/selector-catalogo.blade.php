@@ -18,6 +18,9 @@
     $filter = $filter ?? null;
     $filterAlmacen = $filterAlmacen ?? null;
     $inputGroup = $inputGroup ?? false;
+    $searchLabel = $searchLabel ?? null;
+    $modalIcon = $modalIcon ?? null;
+    $rowIcon = $rowIcon ?? null;
 @endphp
 
 <div class="selector-catalogo-wrapper {{ $inputGroup ? 'flex-grow-1 w-100 mb-0' : 'form-group' }}" id="selector_wrap_{{ $id }}">
@@ -59,9 +62,111 @@
 @once
     @push('styles')
     <style>
+        #modalSelectorCatalogo.sel-modal .sel-modal-content {
+            border: 0;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 18px 48px rgba(18, 38, 63, 0.22);
+        }
+        #modalSelectorCatalogo .sel-modal-header {
+            background: linear-gradient(135deg, #1e4620 0%, #2c5530 55%, #3d7a46 100%);
+            border: 0;
+            padding: 1rem 1.25rem;
+        }
+        #modalSelectorCatalogo .sel-modal-header-inner {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+        }
+        #modalSelectorCatalogo .sel-modal-header-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.18);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.95rem;
+        }
+        #modalSelectorCatalogo .sel-modal-body { max-height: 68vh; overflow-y: auto; padding: 1.15rem 1.25rem; }
+        #modalSelectorCatalogo .sel-modal-search-panel {
+            background: #f8faf9;
+            border: 1px solid #e5efe7;
+            border-radius: 12px;
+            padding: 0.9rem 1rem;
+        }
+        #modalSelectorCatalogo .sel-modal-search-label {
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: #1e4620;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            margin-bottom: 0.4rem;
+            display: block;
+        }
+        #modalSelectorCatalogo .sel-modal-search-input .input-group-text {
+            background: #fff;
+            border-color: #c5dcc9;
+            color: #2c5530;
+        }
+        #modalSelectorCatalogo .sel-modal-search-input .form-control {
+            border-color: #c5dcc9;
+            border-radius: 0 10px 10px 0;
+        }
+        #modalSelectorCatalogo .sel-modal-search-input .form-control:focus {
+            border-color: #2c5530;
+            box-shadow: 0 0 0 0.15rem rgba(44, 85, 48, 0.15);
+        }
+        #modalSelectorCatalogo .sel-modal-table-wrap {
+            border: 1px solid #e5efe7;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #fff;
+        }
+        #modalSelectorCatalogo .sel-modal-table thead th {
+            background: #f0fdf4;
+            color: #1e4620;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            border-top: 0;
+            border-bottom: 1px solid #d1fae5;
+            padding: 0.65rem 1rem;
+        }
+        #modalSelectorCatalogo .selector-catalogo-row { cursor: pointer; transition: background 0.12s ease; }
+        #modalSelectorCatalogo .selector-catalogo-row:hover { background: #f0fdf4; }
+        #modalSelectorCatalogo .selector-catalogo-row td { padding: 0.75rem 1rem; vertical-align: top; border-top: 1px solid #f3f4f6; }
+        #modalSelectorCatalogo .sel-col-nombre { font-weight: 700; color: #1f2937; }
+        #modalSelectorCatalogo .sel-col-nombre .sel-row-icon {
+            display: inline-flex;
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            background: #fef3c7;
+            color: #b45309;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            margin-right: 0.5rem;
+            vertical-align: middle;
+        }
+        #modalSelectorCatalogo .sel-col-meta { color: #6b7280; font-size: 0.84rem; line-height: 1.45; }
+        #modalSelectorCatalogo .sel-modal-empty {
+            text-align: center;
+            color: #9ca3af;
+            padding: 2.5rem 1rem !important;
+            font-size: 0.9rem;
+        }
+        #modalSelectorCatalogo .sel-modal-footer {
+            background: #f8faf9;
+            border-top: 1px solid #e5efe7;
+            padding: 0.75rem 1.25rem;
+        }
+        #modalSelectorCatalogo .sel-modal-meta { color: #6b7280; font-size: 0.82rem; }
+        #modalSelectorCatalogo .sel-pager-btn { border-radius: 8px; font-weight: 600; }
+        #modalSelectorCatalogo .sel-close-btn { border-radius: 8px; font-weight: 600; background: #4b5563; border-color: #4b5563; }
         #modalSelectorCatalogo .selector-catalogo-row { cursor: pointer; }
         #modalSelectorCatalogo .selector-catalogo-row:hover { background: #f4f9f4; }
-        #modalSelectorCatalogo .modal-body { max-height: 68vh; overflow-y: auto; }
         #modalSelectorCatalogo .selector-filtros-panel {
             background: linear-gradient(145deg, #f8fbf8 0%, #eef6ef 100%);
             border: 1px solid #cfe8d4;
@@ -212,6 +317,9 @@ document.addEventListener('DOMContentLoaded', function () {
         params: @json($params),
         filter: @json($filter),
         filterAlmacen: @json($filterAlmacen),
+        searchLabel: @json($searchLabel),
+        modalIcon: @json($modalIcon),
+        rowIcon: @json($rowIcon),
     });
 });
 </script>

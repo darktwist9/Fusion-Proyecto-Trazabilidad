@@ -211,7 +211,7 @@ class LoteController extends Controller
             $usuarioidInicial = 0;
         }
 
-        $cultivoidInicial = old('cultivoid');
+        $cultivoidInicial = old('cultivoid', request()->query('cultivoid'));
         $cultivoLabel = $cultivoidInicial ? Cultivo::find($cultivoidInicial)?->nombre : null;
 
         return view('lotes.create', compact(

@@ -116,13 +116,13 @@ class CatalogoSelectorController extends Controller
     public function cultivos(Request $request): JsonResponse
     {
         $query = Cultivo::query();
-        $this->aplicarBusqueda($query, (string) $request->q, ['nombre']);
+        $this->aplicarBusqueda($query, (string) $request->q, ['nombre', 'detalle']);
 
         return $this->respuestaPaginada($request, $query->orderBy('nombre'), function (Cultivo $c) {
             return [
                 'id' => $c->cultivoid,
                 'label' => $c->nombre,
-                'meta' => CultivoCatalogo::detallePorNombre($c->nombre),
+                'meta' => $c->detalleVisible(),
             ];
         });
     }

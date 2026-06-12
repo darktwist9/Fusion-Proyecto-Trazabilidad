@@ -14,24 +14,33 @@ class CultivoController extends Controller
     public function index(Request $request)
     {
         $query = Cultivo::query();
-        $this->aplicarFiltroBuscar($query, $request, ['nombre']);
+        $this->aplicarFiltroBuscar($query, $request, ['nombre', 'detalle']);
         $cultivos = $query->orderByDesc('cultivoid')->paginate(15)->withQueryString();
 
         return view('cultivos.index', compact('cultivos'));
     }
 
-    public function create()
+    public function create(Request $request)
     {
-        return view('cultivos.create');
+        return view('cultivos.create', [
+            'retornoLote' => $request->query('retorno') === 'lote',
+            'selectorLoteId' => $request->query('selector', 'lote_cultivo'),
+        ]);
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
             'nombre' => ['required', 'string', 'max:100', 'unique:cultivo,nombre'],
+            'detalle' => ['nullable', 'string', 'max:500'],
+            'retorno' => ['nullable', 'string', 'in:lote'],
+            'selector' => ['nullable', 'string', 'max:80'],
         ]);
 
-        $cultivo = Cultivo::create($data);
+        $cultivo = Cultivo::create([
+            'nombre' => $data['nombre'],
+            'detalle' => $data['detalle'] ?? null,
+        ]);
 
         if ($request->ajax() || $request->wantsJson()) {
             return response()->json([
@@ -39,6 +48,13 @@ class CultivoController extends Controller
                 'cultivoid' => $cultivo->cultivoid,
                 'nombre' => $cultivo->nombre,
                 'message' => 'Cultivo creado exitosamente',
+            ]);
+        }
+
+        if (($data['retorno'] ?? null) === 'lote') {
+            return view('cultivos.asignar-opener', [
+                'cultivo' => $cultivo,
+                'selectorId' => $data['selector'] ?? 'lote_cultivo',
             ]);
         }
 
@@ -59,6 +75,7 @@ class CultivoController extends Controller
     {
         $data = $request->validate([
             'nombre' => ['required', 'string', 'max:100', 'unique:cultivo,nombre,'.$cultivo->cultivoid.',cultivoid'],
+            'detalle' => ['nullable', 'string', 'max:500'],
         ]);
 
         $cultivo->update($data);
@@ -68,6 +85,10 @@ class CultivoController extends Controller
 
     public function destroy(Cultivo $cultivo)
     {
+        if ($cultivo->lotes()->exists()) {
+            return back()->with('error', 'No se puede eliminar: hay lotes asociados a este cultivo.');
+        }
+
         $cultivo->delete();
 
         return redirect()->route('cultivos.index')->with('success', 'Cultivo eliminado correctamente.');

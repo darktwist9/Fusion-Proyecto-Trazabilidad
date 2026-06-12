@@ -37,6 +37,10 @@
                     @method('PUT')
                 @endif
 
+                @foreach($camposOcultos ?? [] as $campoNombre => $campoValor)
+                    <input type="hidden" name="{{ $campoNombre }}" value="{{ $campoValor }}">
+                @endforeach
+
                 @include('catalogos.partials.simple-form-fields', [
                     'item' => $item,
                     'mostrarGuias' => ! $esEdicion,

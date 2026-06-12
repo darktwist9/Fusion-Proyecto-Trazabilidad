@@ -82,19 +82,31 @@
                                 required value="{{ $lote->superficie }}">
                         </div>
 
-                        @include('partials.selector-catalogo', [
-                            'id' => 'lote_edit_cultivo',
-                            'name' => 'cultivoid',
-                            'label' => 'Cultivo',
-                            'icon' => 'fa-seedling',
-                            'value' => $lote->cultivoid ?? '',
-                            'labelSelected' => $cultivoLabel ?? '',
-                            'endpoint' => route('catalogo-selector.cultivos'),
-                            'allowEmpty' => true,
-                            'emptyLabel' => '— Sin cultivo —',
-                            'title' => 'Seleccionar cultivo',
-                            'searchPlaceholder' => 'Nombre del cultivo…',
-                        ])
+                        <div class="form-group">
+                            <label><i class="fas fa-seedling mr-1"></i> Cultivo</label>
+                            <div class="d-flex flex-wrap align-items-start" style="gap: 6px;">
+                                @include('partials.selector-catalogo', [
+                                    'id' => 'lote_edit_cultivo',
+                                    'name' => 'cultivoid',
+                                    'value' => $lote->cultivoid ?? '',
+                                    'labelSelected' => $cultivoLabel ?? '',
+                                    'endpoint' => route('catalogo-selector.cultivos'),
+                                    'allowEmpty' => true,
+                                    'emptyLabel' => '— Sin cultivo —',
+                                    'title' => 'Seleccionar cultivo',
+                                    'searchPlaceholder' => 'Nombre o detalle del cultivo…',
+                                    'searchLabel' => 'Buscar cultivo',
+                                    'modalIcon' => 'fa-seedling',
+                                    'rowIcon' => 'fa-seedling',
+                                    'inputGroup' => true,
+                                ])
+                                <a href="{{ route('cultivos.create', ['retorno' => 'lote', 'selector' => 'lote_edit_cultivo']) }}"
+                                   target="_blank" rel="noopener"
+                                   class="btn btn-outline-success" title="Crear cultivo en nueva pestaña">
+                                    <i class="fas fa-plus"></i>
+                                </a>
+                            </div>
+                        </div>
 
                         <div class="form-group">
                             <label><i class="fas fa-id-badge mr-1"></i> Código de trazabilidad</label>

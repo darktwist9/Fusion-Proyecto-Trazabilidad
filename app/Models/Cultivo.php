@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\CultivoCatalogo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -13,9 +14,24 @@ class Cultivo extends Model
     protected $primaryKey = 'cultivoid';
     public $timestamps = false;
 
+    public function getRouteKeyName(): string
+    {
+        return 'cultivoid';
+    }
+
     protected $fillable = [
         'nombre',
+        'detalle',
     ];
+
+    public function detalleVisible(): ?string
+    {
+        if (filled($this->detalle)) {
+            return $this->detalle;
+        }
+
+        return CultivoCatalogo::detallePorNombre($this->nombre);
+    }
 
     protected $hidden = [
         'lotes',

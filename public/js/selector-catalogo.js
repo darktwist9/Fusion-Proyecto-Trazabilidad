@@ -133,6 +133,18 @@
             this.modalEl.querySelector('#selectorCatalogoBuscar').value = '';
             this.modalEl.querySelector('#selectorCatalogoBuscar').placeholder = cfg.searchPlaceholder || 'Escriba para buscar…';
 
+            const headerIcon = this.modalEl.querySelector('#selectorCatalogoHeaderIcon');
+            if (headerIcon) {
+                headerIcon.className = 'fas ' + (cfg.modalIcon || 'fa-search');
+            }
+
+            const buscarLabel = this.modalEl.querySelector('#selectorCatalogoBuscarLabel');
+            if (buscarLabel) {
+                const labelText = cfg.searchLabel || 'Buscar';
+                const labelIcon = cfg.modalIcon || 'fa-search';
+                buscarLabel.innerHTML = '<i class="fas ' + labelIcon + ' mr-1"></i> ' + this.escape(labelText);
+            }
+
             const filterWrap = this.modalEl.querySelector('#selectorCatalogoFiltroWrap');
             const filterSelect = this.modalEl.querySelector('#selectorCatalogoFiltro');
             if (cfg.filter && cfg.filter.options) {
@@ -295,7 +307,7 @@
 
             const lista = this.modalEl.querySelector('#selectorCatalogoLista');
             const meta = this.modalEl.querySelector('#selectorCatalogoMeta');
-            lista.innerHTML = '<tr><td colspan="2" class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin mr-1"></i> Cargando…</td></tr>';
+            lista.innerHTML = '<tr><td colspan="2" class="sel-modal-empty"><i class="fas fa-spinner fa-spin d-block mb-2"></i>Cargando…</td></tr>';
 
             const params = new URLSearchParams({
                 page: String(this.page),
@@ -349,8 +361,11 @@
 
         renderList(items) {
             const lista = this.modalEl.querySelector('#selectorCatalogoLista');
+            const cfg = this.instances[this.activeId] || {};
+            const rowIcon = cfg.rowIcon || 'fa-leaf';
+
             if (!items.length) {
-                lista.innerHTML = '<tr><td colspan="2" class="text-center text-muted py-4">Sin resultados. Pruebe otro término o filtro.</td></tr>';
+                lista.innerHTML = '<tr><td colspan="2" class="sel-modal-empty"><i class="fas fa-search d-block mb-2"></i>Sin resultados. Pruebe otro término o filtro.</td></tr>';
                 return;
             }
 
@@ -360,8 +375,11 @@
                     data-item-label="${this.escape(item.label)}"
                     data-item-extra="${this.escape(JSON.stringify(item.extra || {}))}"
                     role="button">
-                    <td><strong>${this.escape(item.label)}</strong></td>
-                    <td class="text-muted small">${item.meta ? this.escape(item.meta) : '—'}</td>
+                    <td class="sel-col-nombre">
+                        <span class="sel-row-icon"><i class="fas ${rowIcon}"></i></span>
+                        ${this.escape(item.label)}
+                    </td>
+                    <td class="sel-col-meta">${item.meta ? this.escape(item.meta) : '—'}</td>
                 </tr>
             `).join('');
         },

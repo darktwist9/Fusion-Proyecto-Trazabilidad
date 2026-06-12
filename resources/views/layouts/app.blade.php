@@ -1009,7 +1009,7 @@
                     $puedeAlmacenPlanta = $isAdmin || $esPlantaOperativo;
                     $almAgrOpen = request()->routeIs('almacen-agricola.*');
                     $almPlaOpen = request()->routeIs('almacen-planta.*');
-                    $prodAgrOpen = request()->routeIs('producciones.*', 'climas.*');
+                    $prodAgrOpen = request()->routeIs('cultivos.*', 'producciones.*', 'climas.*');
                     if (! ($esJefeAgr && ! $isAdmin)) {
                         $prodAgrOpen = $prodAgrOpen || request()->routeIs('agricola.pedidos.*');
                     }
@@ -1088,6 +1088,7 @@
                     </a>
                     <ul class="ag-subnav {{ $prodAgrOpen ? 'open' : '' }}" id="sub-prod-agr">
                         @unless(auth()->user()?->hasRole('transportista'))
+                        <li class="ag-sub-li"><a href="{{ route('cultivos.index') }}" class="ag-sub-a {{ request()->routeIs('cultivos.*') ? 'active' : '' }}">Cultivos</a></li>
                         <li class="ag-sub-li"><a href="{{ route('producciones.index') }}" class="ag-sub-a {{ request()->routeIs('producciones.*') ? 'active' : '' }}">Cosechas</a></li>
                         @endunless
                         @can('pedidos.view')
