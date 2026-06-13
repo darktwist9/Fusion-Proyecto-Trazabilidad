@@ -6,7 +6,14 @@
     $cantidadInputId = $cantidadInputId ?? 'cantidad';
     $unidadSelectId = $unidadSelectId ?? 'unidadmedidaid';
     $productoHint = $productoHint ?? '';
+    $almacenesCatalogo = $almacenesCatalogo ?? [];
+    $modalId = 'modalAlmacenes-' . $sectionId;
+    $mapaId = 'mapaAlmacenes-' . $sectionId;
 @endphp
+@if(!empty($almacenesCatalogo))
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+@endif
 <script>
 (function ($) {
     const sectionId = @json($sectionId);
@@ -16,8 +23,13 @@
     const cantidadInputId = @json($cantidadInputId);
     const unidadSelectId = @json($unidadSelectId);
     const productoHint = @json($productoHint);
+    const almacenesCatalogo = @json($almacenesCatalogo);
+    const modalId = @json($modalId);
+    const mapaId = @json($mapaId);
     const almacenOptionsId = '#almacenOptions-' + sectionId;
     const almacenSeleccionadoId = '#almacen-seleccionado-' + sectionId;
+    const seleccionExternaId = '#almacen-seleccion-externa-' + sectionId;
+    const seleccionExternaNombreId = '#almacen-seleccion-externa-nombre-' + sectionId;
 
     const factores = {
         'kg': 1, 'kilogramo': 1, 'kilogramos': 1,
@@ -25,6 +37,13 @@
         't': 1000, 'ton': 1000, 'tonelada': 1000, 'toneladas': 1000,
         'qq': 46, 'quintal': 46, 'quintales': 46,
         'lb': 0.453592, 'libra': 0.453592,
+    };
+
+    const mapaState = {
+        map: null,
+        capa: null,
+        marcadores: [],
+        inicializado: false,
     };
 
     function convertirAKg(cantidad, unidad) {
@@ -38,6 +57,79 @@
 
     function cardsEnSeccion() {
         return $('#' + sectionId + ' .almacen-card');
+    }
+
+    function almacenPorId(id) {
+        return (almacenesCatalogo || []).find(function (a) {
+            return String(a.id) === String(id);
+        }) || null;
+    }
+
+    function cardPorId(id) {
+        return cardsEnSeccion().filter(function () {
+            return String($(this).data('id')) === String(id);
+        });
+    }
+
+    function iconoTipo(tipo) {
+        const t = String(tipo || '').toLowerCase();
+        if (t.includes('silo')) return 'fa-database';
+        if (t.includes('bodega')) return 'fa-warehouse';
+        if (t.includes('fría') || t.includes('frio')) return 'fa-snowflake';
+        return 'fa-box';
+    }
+
+    function actualizarSeleccionExterna(id, nombre) {
+        const card = cardPorId(id);
+        if (card.length) {
+            $(seleccionExternaId).addClass('d-none');
+            return;
+        }
+        if (id) {
+            $(seleccionExternaNombreId).text(nombre || '');
+            $(seleccionExternaId).removeClass('d-none');
+        } else {
+            $(seleccionExternaId).addClass('d-none');
+        }
+    }
+
+    function aplicarSeleccion(id, nombre, disponible, card) {
+        cardsEnSeccion().removeClass('selected').css({ background: 'white', borderColor: '#dee2e6' });
+        cardsEnSeccion().find('.fa-check-circle').hide();
+
+        if (card && card.length) {
+            card.addClass('selected');
+            card.find('.fa-check-circle').show();
+        }
+
+        $('#' + hiddenInputId).val(id);
+        $(almacenSeleccionadoId).html('<i class="fas fa-warehouse mr-1"></i> <strong>Almacén:</strong> ' + (nombre || ''));
+        actualizarSeleccionExterna(id, nombre);
+
+        const cantidad = cantidadActual();
+        const cardRef = card && card.length ? card : null;
+        if (cantidad > 0 && cardRef) {
+            verificarCapacidad(cantidad, disponible, cardRef);
+        } else if (cantidad > 0 && disponible !== undefined) {
+            verificarCapacidadExterna(cantidad, disponible, id);
+        } else {
+            $('#alertaCapacidad-' + sectionId).remove();
+        }
+    }
+
+    function seleccionarAlmacenPorId(id, cerrarModal) {
+        const item = almacenPorId(id);
+        if (!item) return;
+
+        const card = cardPorId(id);
+        aplicarSeleccion(id, item.nombre, item.disponible, card.length ? card : null);
+
+        if (cerrarModal && $('#' + modalId).length) {
+            $('#' + modalId).modal('hide');
+        }
+
+        resaltarModalLista(id);
+        resaltarMarcadoresMapa(id);
     }
 
     function recomendarAlmacen(texto) {
@@ -62,8 +154,33 @@
         }
         if (keywords.length === 0) keywords = [texto];
 
-        let mejorMatch = null;
+        let mejor = null;
         let maxScore = 0;
+
+        const candidatos = (almacenesCatalogo.length ? almacenesCatalogo : cardsEnSeccion().map(function () {
+            return {
+                id: $(this).data('id'),
+                nombre: $(this).data('nombre'),
+                tags: String($(this).data('tags') || ''),
+                disponible: $(this).data('disponible'),
+            };
+        }).get());
+
+        candidatos.forEach(function (item) {
+            const tags = String(item.tags || '');
+            let score = 0;
+            keywords.forEach(function (word) {
+                if (tags.includes(word)) score += 2;
+            });
+            if (foundKey && tags.includes(foundKey)) score += 10;
+            if (tags.includes(texto)) score += 5;
+
+            if (score > maxScore) {
+                maxScore = score;
+                mejor = item;
+            }
+        });
+
         cardsEnSeccion().each(function () {
             const tags = String($(this).data('tags') || '');
             let score = 0;
@@ -79,21 +196,17 @@
                 } else {
                     $(this).css('border-color', '#17a2b8').css('background', '#f0fcff');
                 }
-                if (score > maxScore) {
-                    maxScore = score;
-                    mejorMatch = $(this);
-                }
             } else {
                 $(this).css('border-color', '#dee2e6').css('background', 'white');
             }
         });
 
-        if (mejorMatch && !$('#' + hiddenInputId).val()) {
-            mejorMatch.trigger('click');
+        if (mejor && !$('#' + hiddenInputId).val()) {
+            seleccionarAlmacenPorId(mejor.id, false);
             $(almacenOptionsId + ' .alert-suggestion').remove();
             $(almacenOptionsId).prepend(
                 '<div class="alert alert-info alert-dismissible fade show p-2 small mb-2 alert-suggestion" role="alert">' +
-                '<i class="fas fa-lightbulb mr-1"></i> Sugerencia: <strong>' + mejorMatch.data('nombre') + '</strong>' +
+                '<i class="fas fa-lightbulb mr-1"></i> Sugerencia: <strong>' + mejor.nombre + '</strong>' +
                 ' (adecuado para ' + texto + ')' +
                 '<button type="button" class="close p-2" data-dismiss="alert"><span>&times;</span></button></div>'
             );
@@ -138,12 +251,197 @@
         }
     }
 
+    function verificarCapacidadExterna(cantidad, disponible, id) {
+        const item = almacenPorId(id);
+        if (!item) return;
+
+        const umProduccion = unidadActual();
+        const umAlmacen = item.um || 'kg';
+        const cantidadKg = convertirAKg(cantidad, umProduccion);
+        const disponibleKg = convertirAKg(disponible, umAlmacen);
+
+        if (cantidad > 0 && cantidadKg > disponibleKg) {
+            if ($('#alertaCapacidad-' + sectionId).length === 0) {
+                $(almacenOptionsId).prepend(
+                    '<div id="alertaCapacidad-' + sectionId + '" class="alert alert-danger p-2 small mb-2">' +
+                    '⚠️ Excede capacidad: ' + cantidad + ' ' + umProduccion + ' &gt; disp. ' +
+                    disponible + ' ' + umAlmacen + '</div>'
+                );
+            }
+        } else {
+            $('#alertaCapacidad-' + sectionId).remove();
+        }
+    }
+
+    function renderModalLista(items) {
+        const cont = $('#' + modalId + '-lista-items');
+        const sinRes = $('#' + modalId + '-sin-resultados');
+        const resumen = $('#' + modalId + '-resultados');
+        const seleccionado = $('#' + hiddenInputId).val();
+
+        cont.empty();
+        if (!items.length) {
+            sinRes.removeClass('d-none');
+            resumen.text('0 almacenes encontrados');
+            return;
+        }
+
+        sinRes.addClass('d-none');
+        resumen.text(items.length + ' almacén' + (items.length === 1 ? '' : 'es') + ' encontrado' + (items.length === 1 ? '' : 's'));
+
+        items.forEach(function (item) {
+            const sel = String(seleccionado) === String(item.id) ? ' is-selected' : '';
+            const html =
+                '<div class="almacen-modal-item' + sel + '" data-id="' + item.id + '">' +
+                    '<div class="almacen-modal-icon"><i class="fas ' + iconoTipo(item.tipo) + '"></i></div>' +
+                    '<div class="almacen-modal-body">' +
+                        '<div class="almacen-modal-nombre">' + item.nombre + '</div>' +
+                        '<div class="almacen-modal-meta">' +
+                            (item.tipo || 'General') +
+                            (item.ubicacion ? ' • ' + item.ubicacion : '') +
+                        '</div>' +
+                        '<div class="small mt-1">' +
+                            '<span class="text-success font-weight-bold">' + Number(item.disponible).toLocaleString('es-BO') + '</span>' +
+                            '<span class="text-muted"> / ' + Number(item.capacidad).toLocaleString('es-BO') + ' ' + (item.um || 'kg') + '</span>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div><i class="fas fa-chevron-right text-muted"></i></div>' +
+                '</div>';
+            cont.append(html);
+        });
+    }
+
+    function filtrarCatalogo() {
+        const nombre = ($('#' + modalId + '-filtro-nombre').val() || '').toLowerCase().trim();
+        const capMin = parseFloat($('#' + modalId + '-filtro-cap-min').val());
+        const capMax = parseFloat($('#' + modalId + '-filtro-cap-max').val());
+
+        return (almacenesCatalogo || []).filter(function (item) {
+            const texto = (item.nombre + ' ' + (item.tipo || '') + ' ' + (item.ubicacion || '') + ' ' + (item.tags || '')).toLowerCase();
+            if (nombre && !texto.includes(nombre)) return false;
+
+            const dispKg = convertirAKg(parseFloat(item.disponible) || 0, item.um || 'kg');
+            if (!isNaN(capMin) && dispKg < capMin) return false;
+            if (!isNaN(capMax) && dispKg > capMax) return false;
+
+            return true;
+        });
+    }
+
+    function aplicarFiltrosModal() {
+        renderModalLista(filtrarCatalogo());
+    }
+
+    function resaltarModalLista(id) {
+        $('#' + modalId + '-lista-items .almacen-modal-item').removeClass('is-selected');
+        $('#' + modalId + '-lista-items .almacen-modal-item').filter(function () {
+            return String($(this).data('id')) === String(id);
+        }).addClass('is-selected');
+    }
+
+    function iconAlmacenMapa(seleccionado) {
+        const sel = seleccionado ? ' is-selected' : '';
+        return L.divIcon({
+            html: '<div class="almacen-mapa-pin' + sel + '"><i class="fas fa-warehouse"></i></div>',
+            className: 'almacen-mapa-marker',
+            iconSize: [32, 32],
+            iconAnchor: [16, 16],
+        });
+    }
+
+    function flashMapa(texto) {
+        const el = document.getElementById(mapaId + '-flash');
+        if (!el) return;
+        el.textContent = texto;
+        el.style.display = 'block';
+        clearTimeout(flashMapa._t);
+        flashMapa._t = setTimeout(function () { el.style.display = 'none'; }, 2200);
+    }
+
+    function resaltarMarcadoresMapa(idSeleccionado) {
+        if (!mapaState.capa) return;
+        mapaState.capa.eachLayer(function (layer) {
+            if (!layer._almacenId) return;
+            const sel = String(layer._almacenId) === String(idSeleccionado);
+            layer.setIcon(iconAlmacenMapa(sel));
+            layer.setZIndexOffset(sel ? 200 : 0);
+        });
+    }
+
+    function initMapaModal() {
+        if (mapaState.inicializado || !document.getElementById(mapaId) || typeof L === 'undefined') {
+            if (mapaState.map) mapaState.map.invalidateSize();
+            return;
+        }
+
+        const items = (almacenesCatalogo || []).filter(function (a) {
+            return a.lat != null && a.lng != null;
+        });
+
+        mapaState.map = L.map(mapaId, { scrollWheelZoom: true });
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap',
+        }).addTo(mapaState.map);
+
+        mapaState.capa = L.layerGroup().addTo(mapaState.map);
+        const bounds = [];
+        const seleccionado = $('#' + hiddenInputId).val();
+
+        items.forEach(function (item) {
+            const lat = parseFloat(item.lat);
+            const lng = parseFloat(item.lng);
+            if (isNaN(lat) || isNaN(lng)) return;
+
+            const sel = String(seleccionado) === String(item.id);
+            const marker = L.marker([lat, lng], {
+                icon: iconAlmacenMapa(sel),
+                zIndexOffset: sel ? 200 : 0,
+            })
+                .bindTooltip(item.nombre, {
+                    className: 'almacen-mapa-tooltip',
+                    direction: 'top',
+                    offset: [0, -14],
+                })
+                .addTo(mapaState.capa);
+
+            marker._almacenId = item.id;
+            marker.on('mouseover', function () { this.openTooltip(); });
+            marker.on('click', function () {
+                seleccionarAlmacenPorId(item.id, true);
+                flashMapa('Seleccionado: ' + item.nombre);
+            });
+            bounds.push([lat, lng]);
+        });
+
+        if (bounds.length) {
+            try {
+                mapaState.map.fitBounds(L.latLngBounds(bounds).pad(0.12));
+            } catch (e) {
+                mapaState.map.setView(bounds[0], 12);
+            }
+        } else {
+            mapaState.map.setView([-17.7833, -63.1821], 11);
+        }
+
+        mapaState.inicializado = true;
+    }
+
     window.AlmacenEnvio = window.AlmacenEnvio || {};
     window.AlmacenEnvio.recomendar = recomendarAlmacen;
+    window.AlmacenEnvio.seleccionar = function (id) {
+        seleccionarAlmacenPorId(id, false);
+    };
 
     $(function () {
         if (cardsEnSeccion().length === 1 && !$('#' + hiddenInputId).val()) {
             cardsEnSeccion().first().trigger('click');
+        }
+
+        const seleccionInicial = $('#' + hiddenInputId).val();
+        if (seleccionInicial) {
+            const item = almacenPorId(seleccionInicial);
+            if (item) actualizarSeleccionExterna(seleccionInicial, item.nombre);
         }
 
         if (productoHint) {
@@ -161,30 +459,19 @@
         }
 
         cardsEnSeccion().on('click', function () {
-            const id = $(this).data('id');
-            const nombre = $(this).data('nombre');
-            const disponible = $(this).data('disponible');
-
-            cardsEnSeccion().removeClass('selected').css({ background: 'white', borderColor: '#dee2e6' });
-            cardsEnSeccion().find('.fa-check-circle').hide();
-
-            $(this).addClass('selected');
-            $(this).find('.fa-check-circle').show();
-            $('#' + hiddenInputId).val(id);
-            $(almacenSeleccionadoId).html('<i class="fas fa-warehouse mr-1"></i> <strong>Almacén:</strong> ' + nombre);
-
-            const cantidad = cantidadActual();
-            if (cantidad > 0) {
-                verificarCapacidad(cantidad, disponible, $(this));
-            }
+            seleccionarAlmacenPorId($(this).data('id'), false);
         });
 
         if (cantidadFija === null) {
             $('#' + cantidadInputId).on('change keyup', function () {
                 const cantidad = cantidadActual();
+                const id = $('#' + hiddenInputId).val();
                 const card = cardsEnSeccion().filter('.selected');
                 if (card.length) {
                     verificarCapacidad(cantidad, card.data('disponible'), card);
+                } else if (id) {
+                    const item = almacenPorId(id);
+                    if (item) verificarCapacidadExterna(cantidad, item.disponible, id);
                 }
             });
         } else {
@@ -192,13 +479,28 @@
             const cantidad = cantidadActual();
             if (card.length && cantidad > 0) {
                 verificarCapacidad(cantidad, card.data('disponible'), card);
-            } else if (cantidad > 0 && cardsEnSeccion().length) {
-                cardsEnSeccion().each(function () {
-                    if ($(this).hasClass('selected')) {
-                        verificarCapacidad(cantidad, $(this).data('disponible'), $(this));
-                    }
-                });
             }
+        }
+
+        if (almacenesCatalogo.length && $('#' + modalId).length) {
+            $('#' + modalId).on('shown.bs.modal', function () {
+                aplicarFiltrosModal();
+            });
+
+            $('#' + modalId + '-filtro-nombre, #' + modalId + '-filtro-cap-min, #' + modalId + '-filtro-cap-max')
+                .on('input change', aplicarFiltrosModal);
+
+            $(document).on('click', '#' + modalId + '-lista-items .almacen-modal-item', function () {
+                seleccionarAlmacenPorId($(this).data('id'), true);
+            });
+
+            $('a[href="#' + modalId + '-mapa"]').on('shown.bs.tab', function () {
+                window.setTimeout(initMapaModal, 120);
+            });
+
+            $(document).on('click', '.btn-cambiar-almacen-modal[data-section="' + sectionId + '"]', function () {
+                $('#' + modalId).modal('show');
+            });
         }
     });
 })(jQuery);

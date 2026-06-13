@@ -190,7 +190,9 @@ class AlmacenMovimientoController extends Controller
 
         $user = $request->user();
         $almacenes = AlmacenAmbito::scope(Almacen::query(), $ctx['ambito'])->orderBy('nombre');
-        $insumos = Insumo::query()->with('unidadMedida')->orderBy('nombre');
+        $insumos = InsumoCatalogo::aplicarFiltroOperativo(
+            Insumo::query()->with('unidadMedida')
+        )->orderBy('nombre');
 
         $insumosList = $insumos->get();
         $guias = config('almacen_movimientos', []);

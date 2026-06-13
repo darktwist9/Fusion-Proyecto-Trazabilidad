@@ -68,6 +68,13 @@
     }
     .guia-campo strong { color: #2c5530; }
     .almacen-section { margin-top: 20px; }
+    .cantidad-cosecha-row { align-items: flex-end; }
+    .cantidad-cosecha-row .col-md-4 label {
+        font-size: .9rem;
+        font-weight: 600;
+        color: #334155;
+        margin-bottom: .4rem;
+    }
 </style>
 @endpush
 
@@ -80,17 +87,7 @@
                 <h3 class="card-title mb-0"><i class="fas fa-tractor mr-2"></i>Registrar Cosecha</h3>
             </div>
 
-            @if($errors->any())
-                <div class="alert alert-danger m-3">
-                    <ul class="mb-0">
-                        @foreach($errors->all() as $error)
-                            <li>{{ $error }}</li>
-                        @endforeach
-                    </ul>
-                </div>
-            @endif
-
-            <form action="{{ route('producciones.store') }}" method="POST">
+            <form action="{{ route('producciones.store') }}" method="POST" enctype="multipart/form-data">
                 @csrf
                 @if(!empty($returnUrl))
                     <input type="hidden" name="return" value="{{ $returnUrl }}">
@@ -135,24 +132,22 @@
                     </div>
 
                     {{-- Cantidad --}}
-                    <div class="row">
-                        <div class="col-md-8">
-                            <div class="form-group">
-                                <label><i class="fas fa-balance-scale mr-1 text-success"></i> Cantidad cosechada <span class="text-danger">*</span></label>
-                                <div class="guia-campo mb-2">
-                                    <strong>Peso o volumen</strong> obtenido en esta cosecha. El sistema convierte automáticamente a kilogramos para inventario y almacén.
-                                </div>
+                    <div class="form-group">
+                        <label><i class="fas fa-balance-scale mr-1 text-success"></i> Cantidad cosechada <span class="text-danger">*</span></label>
+                        <div class="guia-campo mb-2">
+                            <strong>Peso o volumen</strong> obtenido en esta cosecha. El sistema convierte automáticamente a kilogramos para inventario y almacén.
+                        </div>
+                        <div class="row cantidad-cosecha-row">
+                            <div class="col-md-8">
                                 <input type="number" step="0.01" name="cantidad" id="cantidad"
                                        class="form-control" min="0.01" required value="{{ old('cantidad') }}"
                                        placeholder="Ej: 500">
                             </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label>Unidad <span class="text-danger">*</span></label>
+                            <div class="col-md-4">
+                                <label class="d-block">Unidad <span class="text-danger">*</span></label>
                                 <select name="unidadmedidaid" id="unidadmedidaid" class="form-control" required>
                                     @foreach($unidades as $u)
-                                        <option value="{{ $u->unidadmedidaid }}" 
+                                        <option value="{{ $u->unidadmedidaid }}"
                                                 data-abrev="{{ $u->abreviatura }}"
                                                 {{ $u->abreviatura == 'kg' ? 'selected' : '' }}>
                                             {{ $u->abreviatura }} ({{ $u->nombre }})
@@ -163,86 +158,34 @@
                         </div>
                     </div>
 
-                    {{-- Almacén obligatorio --}}
-                    <div class="almacen-section active" id="almacenSection">
-                        <h6 class="mb-2"><i class="fas fa-warehouse mr-2"></i>Enviar a almacén <span class="text-danger">*</span></h6>
-                        <div class="guia-campo mb-3">
-                            <strong>Obligatorio.</strong> Toda cosecha debe ingresar al inventario del almacén elegido.
-                            El sistema valida la capacidad disponible y puede sugerir un almacén según el cultivo.
+                    @include('partials.almacen-envio-selector', [
+                        'almacenes' => $almacenes,
+                        'almacenesTodos' => $almacenesTodos ?? collect(),
+                        'sectionId' => 'almacenSection',
+                        'hiddenInputId' => 'almacenid',
+                        'selectedAlmacenId' => old('almacenid'),
+                    ])
+                    <div class="alert alert-light border small mt-2 mb-0">
+                        <i class="fas fa-certificate text-success mr-1"></i>
+                        El envío al almacén requiere que el lote esté <strong>certificado</strong> en Certificaciones.
+                        Puede registrar solo la cosecha ahora y almacenar después de certificar.
+                    </div>
+
+                    {{-- Evidencia fotográfica --}}
+                    <div class="form-group mt-4">
+                        <label><i class="fas fa-camera mr-1 text-success"></i> Foto de la cosecha <span class="text-danger">*</span></label>
+                        <div class="guia-campo mb-2">
+                            <strong>Obligatorio.</strong> Suba una imagen que demuestre la cosecha realizada (producto cosechado, campo, etc.).
                         </div>
-                        <p class="small text-muted mb-2" id="almacen-seleccionado">
-                            <i class="fas fa-warehouse mr-1"></i> <strong>Almacén:</strong> ninguno seleccionado
-                        </p>
-
-                        <div id="almacenOptions">
-                            <p class="text-muted small mb-3">
-                                <i class="fas fa-info-circle mr-1"></i>
-                                Seleccione el almacén o silo donde guardar la producción
-                            </p>
-
-                            <div class="row" id="almacenesContainer">
-                                @forelse($almacenes as $almacen)
-                                    @php
-                                        $usado = $almacen->almacenamientos->whereNull('fechasalida')->sum('cantidad');
-                                        $disponible = $almacen->capacidad - $usado;
-                                        $porcentaje = $almacen->capacidad > 0 ? ($usado / $almacen->capacidad) * 100 : 0;
-                                        $fillClass = $porcentaje < 50 ? 'low' : ($porcentaje < 80 ? 'medium' : 'high');
-                                    @endphp
-                                    <div class="col-md-6 mb-2">
-                                        <div class="almacen-card" 
-                                             data-id="{{ $almacen->almacenid }}" 
-                                             data-disponible="{{ $disponible }}" 
-                                             data-nombre="{{ $almacen->nombre }}" 
-                                             data-um-almacen="{{ $almacen->unidadMedida->abreviatura }}"
-                                             data-tipo="{{ strtolower($almacen->tipoAlmacen->nombre ?? 'general') }}"
-                                             data-tags="{{ strtolower($almacen->nombre . ' ' . ($almacen->tipoAlmacen->nombre ?? '')) }}">
-                                            <div class="d-flex align-items-start">
-                                                <div class="almacen-icon mr-2 text-center">
-                                                    @if(str_contains(strtolower($almacen->tipoAlmacen->nombre ?? ''), 'silo'))
-                                                        <i class="fas fa-database"></i>
-                                                    @elseif(str_contains(strtolower($almacen->tipoAlmacen->nombre ?? ''), 'bodega'))
-                                                        <i class="fas fa-warehouse"></i>
-                                                    @elseif(str_contains(strtolower($almacen->tipoAlmacen->nombre ?? ''), 'fría') || str_contains(strtolower($almacen->tipoAlmacen->nombre ?? ''), 'frio'))
-                                                        <i class="fas fa-snowflake"></i>
-                                                    @else
-                                                        <i class="fas fa-box"></i>
-                                                    @endif
-                                                </div>
-                                                <div class="flex-grow-1">
-                                                    <div class="almacen-nombre">{{ $almacen->nombre }}</div>
-                                                    <div class="almacen-tipo">
-                                                        {{ $almacen->tipoAlmacen->nombre ?? 'General' }}
-                                                        @if($almacen->ubicacion)
-                                                            • {{ $almacen->ubicacion }}
-                                                        @endif
-                                                    </div>
-                                                    <div class="small mt-1">
-                                                        <span class="text-success font-weight-bold">{{ number_format($disponible, 0) }}</span>
-                                                        <span class="text-muted">/ {{ number_format($almacen->capacidad, 0) }} {{ $almacen->unidadMedida->abreviatura ?? 'kg' }}</span>
-                                                    </div>
-                                                    <div class="capacidad-bar">
-                                                        <div class="fill {{ $fillClass }}" style="width: {{ min($porcentaje, 100) }}%"></div>
-                                                    </div>
-                                                </div>
-                                                <div class="ml-2">
-                                                    <i class="fas fa-check-circle text-success fa-lg" style="display: none;"></i>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                @empty
-                                    <div class="col-12">
-                                        <div class="alert alert-info mb-0">
-                                            <i class="fas fa-info-circle mr-2"></i>
-                                            No hay almacenes registrados. 
-                                            <a href="{{ route('almacen-agricola.create') }}">Crear uno</a>
-                                        </div>
-                                    </div>
-                                @endforelse
-                            </div>
-
-                            <input type="hidden" name="almacenid" id="almacenid" value="">
-                        </div>
+                        @include('partials.upload-evidencia-foto', [
+                            'inputId' => 'cosechaEvidenciaFoto',
+                            'inputName' => 'evidencia_foto',
+                            'btnLabel' => 'Elegir imagen',
+                            'required' => true,
+                        ])
+                        @error('evidencia_foto')
+                            <small class="text-danger d-block mt-1">{{ $message }}</small>
+                        @enderror
                     </div>
 
                     {{-- Observaciones --}}
@@ -275,147 +218,24 @@
 @endsection
 
 @push('scripts')
+@include('partials.almacen-envio-scripts', [
+    'sectionId' => 'almacenSection',
+    'hiddenInputId' => 'almacenid',
+    'formSelector' => 'form[action*="producciones"]',
+    'almacenesCatalogo' => $almacenesCatalogo ?? [],
+])
 <script>
-    function convertirAKg(cantidad, unidad) {
-    unidad = unidad.toLowerCase().trim();
-
-    const factores = {
-        'kg': 1,
-        'kilogramo': 1,
-        'kilogramos': 1,
-
-        'g': 0.001,
-        'gramo': 0.001,
-        'gramos': 0.001,
-
-        't': 1000,
-        'tn': 1000,
-        'ton': 1000,
-        'tonelada': 1000,
-        'toneladas': 1000,
-
-        'qq': 46,
-        'quintal': 46,
-        'quintales': 46,
-    };
-
-    return cantidad * (factores[unidad] || 1);
-}
-
     $(document).ready(function() {
-
         const wrapLoteProd = document.getElementById('selector_wrap_produccion_lote');
-
-        if ($('.almacen-card').length === 1) {
-            $('.almacen-card').first().trigger('click');
-        }
-        
-        // Función de recomendación inteligente
-        function recomendarAlmacen(cultivo) {
-            if (!cultivo) return;
-            cultivo = cultivo.toLowerCase();
-
-            // Palabras clave de mapeo (simple)
-            const mapeo = {
-                'maiz': ['silo', 'grano'],
-                'maíz': ['silo', 'grano'],
-                'soya': ['silo', 'grano'],
-                'trigo': ['silo', 'grano'],
-                'arroz': ['silo', 'grano'],
-                'papa': ['bodega', 'frio', 'tuberculo'],
-                'caña': ['bodega', 'zafra'],
-                'fruta': ['frio', 'refrigerado'],
-                'cítrico': ['bodega'],
-            };
-
-            // Buscar keywords genericas y la clave específica encontrada
-            let keywords = [];
-            let foundKey = null;
-
-            for (const key in mapeo) {
-                if (cultivo.includes(key)) {
-                    keywords = mapeo[key];
-                    foundKey = key; // Guardamos "caña", "papa", etc.
-                    break;
-                }
-            }
-
-            // Si no hay keywords específicas, usar el nombre del cultivo como fallback
-            if (keywords.length === 0) {
-                keywords = [cultivo];
-            }
-
-            // Filtrar almacenes
-            let mejorMatch = null;
-            let maxScore = 0;
-            
-            $('.almacen-card').each(function() {
-                const tags = $(this).data('tags'); // ej: "bodega caña zona sur"
-                let score = 0;
-
-                // 1. Score por coincidencia de palabras clave genéricas (Bodega, Silo, etc.)
-                keywords.forEach(word => {
-                    if (tags.includes(word)) score += 2;
-                });
-                
-                // 2. Score masivo por coincidencia de la clave específica (ej: "caña" en "Bodega Caña")
-                if (foundKey && tags.includes(foundKey)) {
-                    score += 10;
-                }
-                
-                // 3. Score por coincidencia exacta del cultivo completo ("caña de azúcar")
-                if (tags.includes(cultivo)) score += 5;
-
-                // Debug para ver qué está pasando (solo visible en consola)
-                // console.log(`Almacén: ${$(this).data('nombre')} | Score: ${score}`);
-
-                if (score > 0) {
-                    // Resaltar visualmente
-                    if (score >= 10) {
-                        // Match fuerte
-                        $(this).css('border-color', '#2c5530').css('background', '#d4edda'); 
-                    } else {
-                        // Match débil (posiblemente solo por tipo 'bodega')
-                        $(this).css('border-color', '#17a2b8').css('background', '#f0fcff');
-                    }
-                    
-                    // Lógica para elegir el MEJOR, no el primero
-                    if (score > maxScore) {
-                        maxScore = score;
-                        mejorMatch = $(this);
-                    }
-                } else {
-                    $(this).css('border-color', '#dee2e6').css('background', 'white'); // Restaurar
-                }
-            });
-
-            // Si encontramos un match y NO hay nada seleccionado aun...
-            if (mejorMatch && !$('#almacenid').val()) {
-                mejorMatch.trigger('click');
-                
-                // Mostrar notificación toast o pequeño mensaje
-                const nombre = mejorMatch.data('nombre');
-                
-                // Limpiar alertas anteriores
-                $('.alert-suggestion').remove();
-
-                $('#almacenOptions').prepend(`
-                    <div class="alert alert-info alert-dismissible fade show p-2 small mb-2 alert-suggestion" role="alert">
-                        <i class="fas fa-lightbulb mr-1"></i> Sugerencia: <strong>${nombre}</strong> (adecuado para ${cultivo})
-                        <button type="button" class="close p-2" data-dismiss="alert" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
-                    </div>
-                `);
-            }
-        }
 
         function onLoteProduccionSeleccionado(extra) {
             if (extra && (extra.cultivo || extra.responsable)) {
                 $('#infoCultivo').text(extra.cultivo || '—');
                 $('#infoResponsable').text(extra.responsable || '—');
                 $('#loteInfo').slideDown();
-                recomendarAlmacen(extra.cultivo || '');
+                if (window.AlmacenEnvio && typeof window.AlmacenEnvio.recomendar === 'function') {
+                    window.AlmacenEnvio.recomendar(extra.cultivo || '');
+                }
             } else {
                 $('#loteInfo').slideUp();
             }
@@ -434,73 +254,6 @@
             });
             @endif
         @endif
-
-        $('form').filter(function () {
-            return $(this).attr('action') && $(this).attr('action').indexOf('producciones') !== -1;
-        }).on('submit', function (e) {
-            if (!$('#almacenid').val()) {
-                e.preventDefault();
-                alert('Debe seleccionar un almacén para registrar la cosecha.');
-                $('#almacenSection')[0]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-        });
-
-        // Seleccionar almacén
-        $('.almacen-card').on('click', function() {
-            const id = $(this).data('id');
-            const nombre = $(this).data('nombre');
-            const disponible = $(this).data('disponible');
-
-            // Limpiar estilos previos
-            $('.almacen-card').removeClass('selected').css('background', 'white').css('border-color', '#dee2e6');; 
-            $('.almacen-card .fa-check-circle').hide();
-
-            // Seleccionar este
-            $(this).addClass('selected');
-            $(this).find('.fa-check-circle').show();
-
-            $('#almacenid').val(id);
-            $('#almacen-seleccionado').html('<i class="fas fa-warehouse mr-1"></i> <strong>Almacén:</strong> ' + nombre);
-
-            // Verificar capacidad
-            const cantidad = parseFloat($('#cantidad').val()) || 0;
-            if (cantidad > 0) {
-                verificarCapacidad(cantidad, disponible, $(this));
-            }
-        });
-
-        // Verificar al cambiar cantidad
-        $('#cantidad').on('change keyup', function() {
-            const cantidad = parseFloat($(this).val()) || 0;
-            const almacenCard = $('.almacen-card.selected');
-            if (almacenCard.length) {
-                const disponible = almacenCard.data('disponible');
-                verificarCapacidad(cantidad, disponible, almacenCard);
-            }
-        });
-
-        function verificarCapacidad(cantidad, disponible, card) {
-            const umProduccion = $('#unidadmedidaid option:selected').data('abrev');
-            const umAlmacen = card.data('um-almacen');
-
-            const cantidadKg = convertirAKg(cantidad, umProduccion);
-            const disponibleKg = convertirAKg(disponible, umAlmacen);
-
-            if (cantidadKg > disponibleKg) {
-                // Usar toast o borde rojo en lugar de alert invasivo
-                card.css('border-color', '#dc3545');
-                if ($('#alertaCapacidad').length === 0) {
-                     $('#almacenOptions').prepend(`
-                        <div id="alertaCapacidad" class="alert alert-danger p-2 small mb-2">
-                             ⚠️ Excede capacidad: ${cantidad} ${umProduccion} > disp. ${disponible} ${umAlmacen}
-                        </div>
-                    `);
-                }
-            } else {
-                card.css('border-color', '#28a745');
-                $('#alertaCapacidad').remove();
-            }
-        }
 
         // SMART UNIT CONVERSION v2 (Normalized Logic)
         function checkSmartConversion() {

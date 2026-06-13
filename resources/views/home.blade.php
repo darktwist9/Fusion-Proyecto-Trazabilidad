@@ -21,7 +21,7 @@
 .admin-metric--lotes { background: linear-gradient(135deg, #15803d, #22c55e); }
 .admin-metric--prod { background: linear-gradient(135deg, #0369a1, #0ea5e9); }
 .admin-metric--inv { background: linear-gradient(135deg, #c2410c, #f59e0b); }
-.admin-metric--ventas { background: linear-gradient(135deg, #7c3aed, #8b5cf6); }
+.admin-metric--transporte { background: linear-gradient(135deg, #0f766e, #14b8a6); }
 .admin-chart-card { border: 0; border-radius: 16px; box-shadow: 0 8px 28px rgba(15,23,42,.08); margin-bottom: 1.25rem; }
 .admin-chart-card .card-header { background: #fafbfc; border-bottom: 1px solid #e8edf2; padding: .9rem 1.25rem; }
 .admin-chart-card .card-title { font-size: .95rem; font-weight: 700; margin: 0; color: #1e293b; }
@@ -113,19 +113,11 @@
                 <div class="role-metric__val">{{ $stats['insumos_stock_bajo'] ?? 0 }}</div>
                 <p class="role-metric__lbl">Alertas inventario</p>
             </a>
-            @can('ventas.view')
-            <a href="{{ route('ventas.index') }}" class="role-metric admin-metric--ventas text-white text-decoration-none">
-                <i class="fas fa-dollar-sign role-metric__icon"></i>
-                <div class="role-metric__val">Bs.{{ number_format($stats['ventas_mes'] ?? 0, 0) }}</div>
-                <p class="role-metric__lbl">Ventas ({{ $filtros->etiquetaPeriodo() }})</p>
+            <a href="{{ route('logistica.asignaciones.listado') }}" class="role-metric admin-metric--transporte text-white text-decoration-none">
+                <i class="fas fa-truck role-metric__icon"></i>
+                <div class="role-metric__val">Bs.{{ number_format($stats['transporte_costo_mes'] ?? 0, 0) }}</div>
+                <p class="role-metric__lbl">Costo transporte ({{ $filtros->etiquetaPeriodo() }})</p>
             </a>
-            @else
-            <div class="role-metric admin-metric--ventas">
-                <i class="fas fa-dollar-sign role-metric__icon"></i>
-                <div class="role-metric__val">Bs.{{ number_format($stats['ventas_mes'] ?? 0, 0) }}</div>
-                <p class="role-metric__lbl">Ventas ({{ $filtros->etiquetaPeriodo() }})</p>
-            </div>
-            @endcan
         </div>
 
         <div class="row">

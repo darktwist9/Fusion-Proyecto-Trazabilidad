@@ -51,52 +51,56 @@ class CertificacionIndexService
         ];
     }
 
-    /** @return array{pendientes: Collection, certificados: Collection, stats: array<string, int>, ambito: string} */
+    /** @return array{pendientes: Collection, evaluaciones: Collection, stats: array<string, int>, ambito: string} */
     public function datosCampo(): array
     {
-        $estadosCertificables = EstadoLoteCatalogo::idsPorSlugs([
-            'listo_para_cosecha',
-            'cosechado',
-            'finalizado',
-        ]);
+        $estadoCosechado = EstadoLoteCatalogo::idsPorSlugs(['cosechado']);
 
         $query = Lote::query()
-            ->with(['cultivo', 'estadoTipo', 'usuario'])
+            ->with(['cultivo', 'estadoTipo', 'usuario', 'producciones'])
+            ->whereHas('producciones')
             ->orderByDesc('loteid');
 
-        if ($estadosCertificables !== []) {
-            $query->whereIn('estadolotetipoid', $estadosCertificables);
+        if ($estadoCosechado !== []) {
+            $query->whereIn('estadolotetipoid', $estadoCosechado);
         }
 
-        $lotesElegibles = $query->get();
+        $lotesCosechados = $query->get();
 
-        $idsCertificados = CertificacionLote::query()
+        $idsEvaluados = CertificacionLote::query()
             ->pluck('loteid')
             ->unique()
             ->all();
 
-        $pendientes = $lotesElegibles
-            ->filter(fn (Lote $l) => ! in_array($l->loteid, $idsCertificados, true))
+        $pendientes = $lotesCosechados
+            ->filter(fn (Lote $l) => ! in_array($l->loteid, $idsEvaluados, true))
             ->values();
 
-        $certificados = CertificacionLote::query()
+        $evaluaciones = CertificacionLote::query()
             ->with(['lote.cultivo', 'usuario'])
             ->orderByDesc('fecha_certificacion')
             ->limit(20)
             ->get();
 
         $totalCertificados = CertificacionLote::query()
+            ->where('resultado', CertificacionLote::RAZON_CERTIFICADO)
+            ->distinct('loteid')
+            ->count('loteid');
+
+        $totalNoConformes = CertificacionLote::query()
+            ->where('resultado', CertificacionLote::RAZON_NO_CONFORME)
             ->distinct('loteid')
             ->count('loteid');
 
         return [
             'ambito' => 'campo',
             'pendientes' => $pendientes,
-            'certificados' => $certificados,
+            'evaluaciones' => $evaluaciones,
             'stats' => [
                 'pendientes' => $pendientes->count(),
                 'certificados' => $totalCertificados,
-                'total_lotes' => $lotesElegibles->count(),
+                'no_conformes' => $totalNoConformes,
+                'total_lotes' => $lotesCosechados->count(),
             ],
         ];
     }

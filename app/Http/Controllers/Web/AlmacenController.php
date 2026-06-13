@@ -367,7 +367,7 @@ class AlmacenController extends Controller
 
             'ubicacion' => 'nullable|string|max:200',
 
-            'capacidad' => 'nullable|numeric|min:0',
+            'capacidad' => 'required|numeric|min:0.01',
 
         ];
 
@@ -466,8 +466,9 @@ class AlmacenController extends Controller
     {
         $items = collect();
 
-        $insumos = Insumo::query()
-            ->with(['tipo', 'unidadMedida'])
+        $insumos = InsumoCatalogo::aplicarFiltroOperativo(
+            Insumo::query()->with(['tipo', 'unidadMedida'])
+        )
             ->where('almacenid', $almacen->almacenid)
             ->orderBy('nombre')
             ->get();
@@ -525,12 +526,7 @@ class AlmacenController extends Controller
         $productosPlanta = AlmacenajeLoteProduccion::query()
             ->with(['loteProduccionPedido.unidadMedida', 'loteProduccionPedido.materiasPrimas.insumo.unidadMedida'])
             ->whereNull('fecha_retiro')
-            ->where(function ($q) use ($almacen) {
-                $q->where('almacenid', $almacen->almacenid)
-                    ->orWhere(function ($q2) use ($almacen) {
-                        $q2->whereNull('almacenid')->where('ubicacion', $almacen->nombre);
-                    });
-            })
+            ->where('almacenid', $almacen->almacenid)
             ->orderByDesc('fecha_almacenaje')
             ->get();
 

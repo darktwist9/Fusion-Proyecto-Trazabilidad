@@ -9,23 +9,128 @@
     <li class="breadcrumb-item active">Vehículos</li>
 @endsection
 
+@php
+    $estadoSvc = app(\App\Services\VehiculoFlotaEstadoService::class);
+    $mapaEnRuta = $mapaEnRuta ?? $estadoSvc->mapaEnRuta();
+    $filtroActivo = request('estado', '');
+@endphp
+
 @push('styles')
 @include('partials.modulo-envios-styles')
+<style>
+.page-flota-veh .flota-kpis { margin-bottom: 1rem; }
+.page-flota-veh .flota-kpi {
+    border-radius: 10px;
+    padding: .85rem 1rem;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 78px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.08);
+    text-decoration: none;
+    transition: transform .15s ease, box-shadow .15s ease;
+}
+.page-flota-veh .flota-kpi:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,.12); color: #fff; text-decoration: none; }
+.page-flota-veh .flota-kpi.is-active { outline: 3px solid rgba(255,255,255,.75); outline-offset: -3px; }
+.page-flota-veh .flota-kpi h3 { margin: 0; font-size: 1.65rem; font-weight: 800; line-height: 1; }
+.page-flota-veh .flota-kpi p { margin: 0; font-size: .8rem; opacity: .92; }
+.page-flota-veh .flota-kpi i { font-size: 2rem; opacity: .35; }
+.page-flota-veh .flota-kpi--total { background: linear-gradient(135deg, #fd7e14, #e67e22); }
+.page-flota-veh .flota-kpi--operativo { background: linear-gradient(135deg, #2c5530, #4a7c59); }
+.page-flota-veh .flota-kpi--mant { background: linear-gradient(135deg, #f39c12, #e0a800); color: #1a252f; }
+.page-flota-veh .flota-kpi--ruta { background: linear-gradient(135deg, #007bff, #17a2b8); }
+
+.page-flota-veh .veh-flota-table thead th {
+    background: #f4f6f8;
+    border-bottom: 2px solid #e2e8f0;
+    font-size: .7rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: #64748b;
+    font-weight: 700;
+    white-space: nowrap;
+    padding: .75rem .85rem;
+}
+.page-flota-veh .veh-flota-table tbody td {
+    vertical-align: middle;
+    padding: .9rem .85rem;
+    border-top: 1px solid #f1f5f9;
+    font-size: .875rem;
+}
+.page-flota-veh .veh-flota-table tbody tr:hover { background: #f8fafc; }
+.page-flota-veh .veh-placa {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    font-weight: 800;
+    letter-spacing: .03em;
+    color: #1e293b;
+}
+.page-flota-veh .veh-placa__icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: #eef2f7;
+    color: #475569;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .9rem;
+}
+.page-flota-veh .veh-marca { font-weight: 600; color: #334155; }
+.page-flota-veh .veh-sub { font-size: .78rem; color: #94a3b8; }
+.page-flota-veh .veh-cap-chip {
+    display: inline-block;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: .15rem .45rem;
+    font-size: .75rem;
+    color: #475569;
+    margin: 1px 2px 1px 0;
+}
+.page-flota-veh .veh-estado--ruta::before { background: #17a2b8; animation: veh-estado-pulse 1.4s ease-in-out infinite; }
+.page-flota-veh .veh-tamano {
+    font-size: .78rem;
+    font-weight: 600;
+    color: #64748b;
+}
+.page-flota-veh .crud-acciones--inline { gap: 5px; }
+.page-flota-veh .crud-acciones--inline .btn { padding: .28rem .5rem; }
+.page-flota-veh .veh-col-acciones { width: 118px; white-space: nowrap; }
+.page-flota-veh .catalogo-toggle { font-size: .85rem; }
+</style>
 @endpush
 
 @section('content')
-<div class="modulo-env page-env-vehiculos">
+<div class="modulo-env page-flota-veh page-env-vehiculos">
     @include('envios.partials.alertas')
 
-    <div class="row mb-2">
-        <div class="col-md-4">
-            <div class="small-box small-box-orange">
-                <div class="inner">
-                    <h3>{{ $stats['total'] ?? 0 }}</h3>
-                    <p>Vehículos en flota</p>
-                </div>
-                <div class="icon"><i class="fas fa-truck"></i></div>
-            </div>
+    <div class="row flota-kpis">
+        <div class="col-lg-3 col-6 mb-2">
+            <a href="{{ route('envios.vehiculos') }}" class="flota-kpi flota-kpi--total w-100 {{ $filtroActivo === '' ? 'is-active' : '' }}">
+                <div><h3>{{ $stats['total'] ?? 0 }}</h3><p>Total en flota</p></div>
+                <i class="fas fa-truck"></i>
+            </a>
+        </div>
+        <div class="col-lg-3 col-6 mb-2">
+            <a href="{{ route('envios.vehiculos', ['estado' => 'operativo']) }}" class="flota-kpi flota-kpi--operativo w-100 {{ $filtroActivo === 'operativo' ? 'is-active' : '' }}">
+                <div><h3>{{ $stats['operativo'] ?? 0 }}</h3><p>Operativos</p></div>
+                <i class="fas fa-check-circle"></i>
+            </a>
+        </div>
+        <div class="col-lg-3 col-6 mb-2">
+            <a href="{{ route('envios.vehiculos', ['estado' => 'mantenimiento']) }}" class="flota-kpi flota-kpi--mant w-100 {{ $filtroActivo === 'mantenimiento' ? 'is-active' : '' }}">
+                <div><h3>{{ $stats['mantenimiento'] ?? 0 }}</h3><p>En mantenimiento</p></div>
+                <i class="fas fa-wrench"></i>
+            </a>
+        </div>
+        <div class="col-lg-3 col-6 mb-2">
+            <a href="{{ route('envios.vehiculos', ['estado' => 'en_ruta']) }}" class="flota-kpi flota-kpi--ruta w-100 {{ $filtroActivo === 'en_ruta' ? 'is-active' : '' }}">
+                <div><h3>{{ $stats['en_ruta'] ?? 0 }}</h3><p>En ruta ahora</p></div>
+                <i class="fas fa-route"></i>
+            </a>
         </div>
     </div>
 
@@ -65,8 +170,8 @@
                         <label class="small text-muted mb-1">Estado</label>
                         <select name="estado" class="form-control form-control-sm">
                             <option value="">Todos</option>
-                            @foreach($estadosFiltro ?? [] as $estado)
-                                <option value="{{ $estado }}" @selected(request('estado') === $estado)>{{ $estado }}</option>
+                            @foreach($estadosFiltro ?? [] as $valor => $etiqueta)
+                                <option value="{{ $valor }}" @selected(request('estado') === $valor)>{{ $etiqueta }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -77,43 +182,64 @@
             </form>
         </div>
 
-        <div class="card-body table-responsive p-0">
-            <table class="table table-modulo table-hover mb-0">
+        <div class="table-responsive">
+            <table class="table veh-flota-table table-hover mb-0">
                 <thead>
                     <tr>
-                        <th>Placa</th>
+                        <th>Vehículo</th>
                         <th>Categoría</th>
-                        <th>Marca / modelo</th>
-                        <th>Tipo</th>
+                        <th>Tipo / tamaño</th>
                         <th>Estado</th>
                         <th>Capacidad</th>
-                        <th style="width:130px" class="text-center">Acciones</th>
+                        <th class="text-center veh-col-acciones">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($vehiculos as $v)
                     @php
-                        $tipo = $v->tipoVehiculo?->nombre ?? '—';
-                        $estado = $v->estadoVehiculo?->nombre ?? ($v->activo ? 'Activo' : 'Inactivo');
-                        $estadoLower = strtolower($estado);
-                        $badgeEstado = str_contains($estadoLower, 'manten')
-                            ? 'badge-warning text-dark'
-                            : (str_contains($estadoLower, 'activ') ? 'badge-success' : 'badge-secondary');
-                        $cap = $v->tipoVehiculo?->capacidad_kg;
+                        $capSvc = app(\App\Services\TransporteCapacidadService::class);
+                        $cap = $capSvc->capacidadEfectiva($v);
+                        $ambitoV = $v->ambito_flota ?? \App\Support\TransportistaFlotaCatalogo::AGRICOLA;
+                        $marcaModelo = trim(($v->marca ?? '').' '.($v->modelo ?? ''));
                     @endphp
-                    @php $ambitoV = $v->ambito_flota ?? \App\Support\TransportistaFlotaCatalogo::AGRICOLA; @endphp
                     <tr>
-                        <td><span class="badge badge-dark font-weight-bold">{{ $v->placa }}</span></td>
+                        <td>
+                            <a href="{{ route('envios.vehiculos.show', $v) }}" class="veh-placa text-decoration-none">
+                                <span class="veh-placa__icon"><i class="fas fa-truck"></i></span>
+                                <span>
+                                    {{ $v->placa }}
+                                    @if($marcaModelo)
+                                    <span class="d-block veh-sub">{{ $marcaModelo }}@if($v->anio) · {{ $v->anio }}@endif</span>
+                                    @endif
+                                </span>
+                            </a>
+                        </td>
                         <td>
                             <span class="badge {{ \App\Support\TransportistaFlotaCatalogo::badgeClase($ambitoV) }} badge-estado">
                                 {{ \App\Support\TransportistaFlotaCatalogo::categoriaCorta($ambitoV) }}
                             </span>
                         </td>
-                        <td>{{ trim(($v->marca ?? '').' '.($v->modelo ?? '')) ?: '—' }}</td>
-                        <td>{{ $tipo }}</td>
-                        <td><span class="badge badge-estado {{ $badgeEstado }}">{{ $estado }}</span></td>
-                        <td>{{ $cap ? number_format((float) $cap, 0).' kg' : '—' }}</td>
-                        <td class="text-center">
+                        <td>
+                            <span class="veh-marca d-block">{{ $v->tipoVehiculo?->nombre ?? '—' }}</span>
+                            @if($v->tipoVehiculo?->tamano)
+                            <span class="veh-tamano">{{ \App\Support\VehiculoTamanoCatalogo::etiqueta($v->tipoVehiculo->tamano) }}</span>
+                            @endif
+                        </td>
+                        <td>
+                            <span class="{{ $estadoSvc->badgeClaseVisual($v, $mapaEnRuta) }}">
+                                {{ $estadoSvc->etiquetaVisual($v, $mapaEnRuta) }}
+                            </span>
+                        </td>
+                        <td>
+                            @if($cap['kg'] > 0 || $cap['m3'] > 0)
+                                @if($cap['kg'] > 0)<span class="veh-cap-chip">{{ number_format($cap['kg'], 0) }} kg</span>@endif
+                                @if($cap['m3'] > 0)<span class="veh-cap-chip">{{ number_format($cap['m3'], 1) }} m³</span>@endif
+                                @if($cap['licencia_requerida'])<span class="veh-cap-chip">Lic. {{ $cap['licencia_requerida'] }}</span>@endif
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td>
+                        <td class="text-center veh-col-acciones">
                             @include('envios.partials.crud-acciones', [
                                 'showRoute' => route('envios.vehiculos.show', $v),
                                 'editRoute' => route('envios.vehiculos.edit', $v),
@@ -127,8 +253,9 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-4">
-                            No hay vehículos registrados.
+                        <td colspan="6" class="text-center text-muted py-5">
+                            <i class="fas fa-truck fa-2x mb-2 text-light d-block"></i>
+                            No hay vehículos que coincidan.
                             <a href="{{ route('envios.vehiculos.create') }}" class="d-block mt-2">Registrar vehículo</a>
                         </td>
                     </tr>
@@ -137,8 +264,19 @@
             </table>
         </div>
         @if($vehiculos->hasPages())
-            <div class="card-footer">{{ $vehiculos->links() }}</div>
+            <div class="card-footer bg-white">{{ $vehiculos->links() }}</div>
         @endif
     </div>
+
+    @if(($tiposCatalogo ?? collect())->isNotEmpty())
+    <div class="mt-2 text-right">
+        <button class="btn btn-link btn-sm catalogo-toggle text-muted p-0" type="button" data-toggle="collapse" data-target="#catalogoTiposVeh" aria-expanded="false">
+            <i class="fas fa-book mr-1"></i> Ver catálogo de tipos y tamaños
+        </button>
+    </div>
+    <div class="collapse" id="catalogoTiposVeh">
+        @include('envios.partials.tipos-vehiculo-catalogo', ['tipos' => $tiposCatalogo])
+    </div>
+    @endif
 </div>
 @endsection

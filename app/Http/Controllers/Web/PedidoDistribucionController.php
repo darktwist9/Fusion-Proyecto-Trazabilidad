@@ -80,12 +80,18 @@ class PedidoDistribucionController extends Controller
 
         AlmacenAmbito::asegurarAmbitosEnRegistros();
 
+        $esMinorista = UsuarioRol::esMinorista($user);
+        $esAdmin = UsuarioRol::esAdminGlobal($user);
+
         $puntosMinorista = PuntoVentaAccess::scopePuntosDelUsuario(
             PuntoVenta::query()->where('activo', true)->with('minorista')->orderBy('nombre'),
             $user
         )->get();
 
         $oldPunto = old('puntoventaid') ? PuntoVenta::with('minorista')->find(old('puntoventaid')) : null;
+        if ($oldPunto === null && $esMinorista && $puntosMinorista->count() === 1) {
+            $oldPunto = $puntosMinorista->first();
+        }
         $oldAlmacen = old('almacen_planta_origenid') ? Almacen::find(old('almacen_planta_origenid')) : null;
         $oldInsumo = old('insumoid') ? Insumo::with('unidadMedida', 'almacen')->find(old('insumoid')) : null;
 
@@ -95,17 +101,24 @@ class PedidoDistribucionController extends Controller
             ->orderBy('nombre')
             ->get(['usuarioid', 'nombre', 'apellido']);
 
-        $esMinorista = UsuarioRol::esMinorista($user);
-        $esAdmin = UsuarioRol::esAdminGlobal($user);
+        $puntosVentaMapa = $puntosMinorista->map(fn (PuntoVenta $pv) => [
+            'id' => $pv->puntoventaid,
+            'label' => $pv->nombre,
+            'lat' => $pv->latitud,
+            'lng' => $pv->longitud,
+            'resumen' => $pv->resumenUbicacion(),
+            'direccion' => $pv->direccionParaMostrar(),
+        ])->values()->all();
 
         return view('punto_venta.pedidos.create', [
             'numeroSolicitud' => PedidoDistribucionCatalogo::generarNumeroSolicitud(),
             'puntosMinorista' => $puntosMinorista,
+            'puntosVentaMapa' => $puntosVentaMapa,
             'esMinorista' => $esMinorista,
             'esAdmin' => $esAdmin,
-            'oldPuntoLabel' => $oldPunto
-                ? $oldPunto->nombre.' — '.trim($oldPunto->minorista?->nombre.' '.$oldPunto->minorista?->apellido)
-                : '',
+            'oldPuntoLabel' => $oldPunto?->nombre ?? '',
+            'oldPuntoResumen' => $oldPunto?->resumenUbicacion() ?? '',
+            'oldPuntoId' => $oldPunto?->puntoventaid,
             'oldAlmacenLabel' => $oldAlmacen?->nombre ?? '',
             'oldProductoLabel' => $oldInsumo
                 ? $oldInsumo->nombre.' · Stock '.number_format((float) $oldInsumo->stock, 2).' '.($oldInsumo->unidadMedida?->abreviatura ?? '')
@@ -148,7 +161,7 @@ class PedidoDistribucionController extends Controller
                 'almacen_planta_origenid' => $data['almacen_planta_origenid'] ?? $insumo->almacenid,
                 'estado' => PedidoDistribucionCatalogo::ESTADO_PENDIENTE,
                 'fechapedido' => now(),
-                'fecha_entrega_deseada' => $data['fecha_entrega_deseada'] ?? null,
+                'fecha_entrega_deseada' => $data['fecha_entrega_deseada'] ?? now()->toDateString(),
                 'observaciones' => $data['observaciones'] ?? null,
                 'creado_por_usuarioid' => $request->user()->usuarioid,
             ]);

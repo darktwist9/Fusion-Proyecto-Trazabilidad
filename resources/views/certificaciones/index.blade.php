@@ -4,71 +4,99 @@
 @section('page_title', 'Certificaciones')
 
 @section('content')
-@php
-    $esPlanta = ($ambito ?? 'planta') === 'planta';
-@endphp
 <style>
+    .cert-page-hero {
+        background: linear-gradient(135deg, #14532d 0%, #166534 45%, #22c55e 100%);
+        border-radius: 16px;
+        color: #fff;
+        padding: 1.35rem 1.5rem;
+        margin-bottom: 1.25rem;
+        box-shadow: 0 6px 24px rgba(20, 83, 45, .18);
+    }
+    .cert-page-hero h2 {
+        font-size: 1.35rem;
+        font-weight: 800;
+        margin: 0 0 .35rem;
+    }
+    .cert-page-hero p {
+        margin: 0;
+        font-size: .9rem;
+        opacity: .92;
+        max-width: 42rem;
+    }
     .cert-kpi {
-        border-radius: 12px;
+        border-radius: 14px;
         border: none;
         color: #fff;
-        min-height: 100px;
+        min-height: 108px;
+        box-shadow: 0 4px 16px rgba(15, 23, 42, .08);
     }
-    .cert-kpi .kpi-value { font-size: 2rem; font-weight: 700; line-height: 1; }
+    .cert-kpi .card-body { padding: 1.1rem 1.25rem; }
+    .cert-kpi .kpi-value { font-size: 2.1rem; font-weight: 800; line-height: 1; }
+    .cert-kpi .kpi-label { font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; opacity: .85; }
     .lote-card {
         border-radius: 12px;
-        border: 1px solid #e9ecef;
+        border: 1px solid #e2e8f0;
         transition: box-shadow .2s ease, border-color .2s ease;
     }
-    .lote-card:hover { box-shadow: 0 6px 18px rgba(0,0,0,.08); border-color: #28a745; }
-    .lote-card.selected { border-color: #28a745; background: #f6fff8; }
+    .lote-card:hover { box-shadow: 0 6px 18px rgba(0,0,0,.06); border-color: #86efac; }
+    .lote-card.selected { border-color: #16a34a; background: #f0fdf4; }
     .cert-badge {
         font-family: ui-monospace, monospace;
         letter-spacing: .03em;
+        font-size: .78rem;
     }
     .cert-timeline { max-height: 520px; overflow-y: auto; }
-    .cert-item { transition: background-color .15s ease; }
-    .cert-item:hover { background-color: #f8f9fa; }
-    .cert-ambito-tabs .btn { font-weight: 600; }
+    .cert-item {
+        transition: background-color .15s ease;
+        cursor: pointer;
+    }
+    .cert-item:hover { background-color: #f8fafc; }
+    .cert-toolbar .btn {
+        padding: .45rem .9rem;
+        font-weight: 600;
+        border-radius: 10px;
+    }
+    .cert-info-strip {
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        border-radius: 12px;
+        padding: .85rem 1rem;
+        font-size: .88rem;
+        color: #166534;
+        margin-bottom: 1.25rem;
+    }
 </style>
 
 <div class="container-fluid">
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 cert-ambito-tabs">
-        <div class="btn-group btn-group-sm" role="group">
-            <a href="{{ route('certificaciones.index', ['ambito' => 'planta']) }}"
-               class="btn {{ $esPlanta ? 'btn-success' : 'btn-outline-success' }}">
-                <i class="fas fa-industry mr-1"></i>Lotes de planta
-            </a>
-            <a href="{{ route('certificaciones.index', ['ambito' => 'campo']) }}"
-               class="btn {{ ! $esPlanta ? 'btn-success' : 'btn-outline-success' }}">
-                <i class="fas fa-seedling mr-1"></i>Lotes de campo
-            </a>
-        </div>
-        <small class="text-muted">
-            {{ $esPlanta ? 'Industrialización en planta' : 'Parcelas agrícolas cosechadas' }}
-        </small>
+    <div class="cert-page-hero">
+        <h2><i class="fas fa-certificate mr-2"></i>Certificaciones de lotes de campo</h2>
+        <p>
+            Evalúe lotes <strong>cosechados</strong> como Certificado o No conforme.
+            Solo los certificados pueden enviarse al almacén. Use No conforme ante daños, plagas o calidad deficiente.
+        </p>
     </div>
 
     <div class="row mb-4">
-        <div class="col-md-4 mb-3">
+        <div class="col-md-3 mb-3">
             <div class="card cert-kpi bg-warning">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <div class="text-uppercase small opacity-75">Pendientes</div>
+                            <div class="kpi-label">Pendientes</div>
                             <div class="kpi-value">{{ $stats['pendientes'] }}</div>
                         </div>
-                        <i class="fas {{ $esPlanta ? 'fa-flask' : 'fa-seedling' }} fa-2x opacity-50"></i>
+                        <i class="fas fa-seedling fa-2x opacity-50"></i>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-4 mb-3">
+        <div class="col-md-3 mb-3">
             <div class="card cert-kpi bg-success">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <div class="text-uppercase small opacity-75">Certificados</div>
+                            <div class="kpi-label">Certificados</div>
                             <div class="kpi-value">{{ $stats['certificados'] }}</div>
                         </div>
                         <i class="fas fa-certificate fa-2x opacity-50"></i>
@@ -76,12 +104,25 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-4 mb-3">
+        <div class="col-md-3 mb-3">
+            <div class="card cert-kpi bg-danger">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="kpi-label">No conformes</div>
+                            <div class="kpi-value">{{ $stats['no_conformes'] ?? 0 }}</div>
+                        </div>
+                        <i class="fas fa-times-circle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
             <div class="card cert-kpi bg-info">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <div class="text-uppercase small opacity-75">{{ $esPlanta ? 'Lotes de planta' : 'Lotes elegibles' }}</div>
+                            <div class="kpi-label">Cosechados</div>
                             <div class="kpi-value">{{ $stats['total_lotes'] }}</div>
                         </div>
                         <i class="fas fa-layer-group fa-2x opacity-50"></i>
@@ -91,16 +132,9 @@
         </div>
     </div>
 
-    <div class="alert alert-light border mb-4">
-        <i class="fas fa-info-circle text-info mr-2"></i>
-        @if($esPlanta)
-            Los contadores reflejan solo <strong>lotes de producción en planta</strong>.
-            Aparecen como pendientes cuando terminaron la transformación y aún no tienen evaluación final.
-            La certificación se registra en <strong>Procesamiento de Lote</strong> (Certificado o No conforme).
-        @else
-            Lotes de <strong>campo</strong> en estado cosechado o listo para cosecha, sin certificado emitido.
-            Puedes certificar uno a uno o usar selección múltiple.
-        @endif
+    <div class="cert-info-strip">
+        <i class="fas fa-info-circle mr-2"></i>
+        Lotes <strong>cosechados</strong> sin evaluación. Certifique los aptos o marque <strong>No conforme</strong> si hay daños, plagas o problemas de calidad — esos lotes no podrán ingresar al almacén.
     </div>
 
     <div class="row">
@@ -111,71 +145,47 @@
                     icono="fa-clipboard-check"
                     :registros="$lotesPendientes->count()"
                 >
-                    @if(! $esPlanta)
                     <x-slot:tools>
-                        @can('certificaciones.create')
-                            @if($lotesPendientes->isNotEmpty())
-                                <button type="button" class="btn btn-outline-secondary btn-sm ml-1" id="btnSeleccionarTodos">
-                                    <i class="far fa-check-square mr-1"></i>Seleccionar todos
-                                </button>
-                                <button type="button" class="btn btn-success btn-sm ml-1" id="btnCertificarSeleccion" disabled>
-                                    <i class="fas fa-certificate mr-1"></i>Certificar selección
-                                </button>
-                            @endif
-                        @endcan
+                        <div class="cert-toolbar d-flex flex-wrap">
+                            @can('certificaciones.create')
+                                @if($lotesPendientes->isNotEmpty())
+                                    <button type="button" class="btn btn-outline-secondary btn-sm mr-1 mb-1" id="btnSeleccionarTodos">
+                                        <i class="far fa-check-square mr-1"></i>Seleccionar todos
+                                    </button>
+                                    <button type="button" class="btn btn-success btn-sm mb-1" id="btnCertificarSeleccion" disabled>
+                                        <i class="fas fa-certificate mr-1"></i>Certificar selección
+                                    </button>
+                                @endif
+                            @endcan
+                        </div>
                     </x-slot:tools>
-                    @endif
                 </x-modulo-index-header>
                 <div class="card-body">
-                    @if(! $esPlanta)
-                        @can('certificaciones.create')
-                            @if($lotesPendientes->isNotEmpty())
-                                <form action="{{ route('certificaciones.store-bulk') }}" method="POST" id="formCertMasivo" class="mb-3 p-3 bg-light rounded">
-                                    @csrf
-                                    <input type="hidden" name="modo" value="todos">
-                                    <div class="d-flex flex-wrap align-items-end gap-2">
-                                        <div class="flex-grow-1 mr-2 mb-2">
-                                            <label class="small text-muted mb-1">Observación para certificación masiva (opcional)</label>
-                                            <input type="text" name="observaciones" class="form-control form-control-sm" placeholder="Ej. Certificación de calidad — lote apto para venta local">
-                                        </div>
-                                        <button type="submit" class="btn btn-success mb-2" onclick="return confirm('¿Certificar todos los lotes pendientes?');">
-                                            <i class="fas fa-bolt mr-1"></i>Certificar todos ({{ $lotesPendientes->count() }})
-                                        </button>
+                    @can('certificaciones.create')
+                        @if($lotesPendientes->isNotEmpty())
+                            <form action="{{ route('certificaciones.store-bulk') }}" method="POST" id="formCertMasivo" class="mb-3 p-3 bg-light rounded">
+                                @csrf
+                                <input type="hidden" name="modo" value="todos">
+                                <div class="d-flex flex-wrap align-items-end">
+                                    <div class="flex-grow-1 mr-2 mb-2" style="min-width:200px;">
+                                        <label class="small text-muted mb-1">Observación para certificación masiva (opcional)</label>
+                                        <input type="text" name="observaciones" class="form-control form-control-sm" placeholder="Ej. Certificación de calidad — lote apto para venta local">
                                     </div>
-                                </form>
+                                    <button type="submit" class="btn btn-success mb-2 px-3 py-2" onclick="return confirm('¿Certificar todos los lotes pendientes?');">
+                                        <i class="fas fa-bolt mr-1"></i>Certificar todos ({{ $lotesPendientes->count() }})
+                                    </button>
+                                </div>
+                            </form>
 
-                                <form action="{{ route('certificaciones.store-bulk') }}" method="POST" id="formCertSeleccion">
-                                    @csrf
-                                    <input type="hidden" name="modo" value="seleccion">
-                                    <input type="hidden" name="observaciones" id="obsSeleccionHidden" value="">
-                                </form>
-                            @endif
-                        @endcan
-                    @endif
+                            <form action="{{ route('certificaciones.store-bulk') }}" method="POST" id="formCertSeleccion">
+                                @csrf
+                                <input type="hidden" name="modo" value="seleccion">
+                                <input type="hidden" name="observaciones" id="obsSeleccionHidden" value="">
+                            </form>
+                        @endif
+                    @endcan
 
                     @forelse($lotesPendientes as $lote)
-                        @if($esPlanta)
-                        <div class="lote-card p-3 mb-3">
-                            <div class="d-flex justify-content-between flex-wrap align-items-start">
-                                <div>
-                                    <h5 class="mb-1">{{ $lote->nombre }}</h5>
-                                    <div class="small text-muted mb-2">
-                                        <code>{{ $lote->codigo_lote }}</code>
-                                        @if($lote->producto)
-                                            <span class="mx-1">·</span>{{ $lote->producto }}
-                                        @endif
-                                        @if($lote->plantillaTransformacion)
-                                            <span class="mx-1">·</span>{{ $lote->plantillaTransformacion->nombre }}
-                                        @endif
-                                    </div>
-                                    <span class="badge badge-info">Transformación completa</span>
-                                </div>
-                                <a href="{{ route('procesamiento.show', $lote) }}#certificacion" class="btn btn-sm btn-outline-success font-weight-bold">
-                                    <i class="fas fa-stamp mr-1"></i>Certificar
-                                </a>
-                            </div>
-                        </div>
-                        @else
                         <div class="lote-card p-3 mb-3" data-lote-id="{{ $lote->loteid }}">
                             <div class="d-flex align-items-start">
                                 @can('certificaciones.create')
@@ -190,20 +200,36 @@
                                         <span class="badge badge-secondary">#{{ $lote->loteid }}</span>
                                     </div>
                                     <div class="small text-muted mb-2">
-                                        <i class="fas fa-leaf text-success mr-1"></i>{{ $lote->cultivo->nombre ?? 'Sin cultivo' }}
+                                        <i class="fas fa-leaf text-success mr-1"></i>{{ $lote->cultivo_etiqueta ?? 'Sin semilla' }}
                                         <span class="mx-2">·</span>
                                         <i class="fas fa-flag mr-1"></i>{{ $lote->estadoTipo->nombre ?? 'Sin estado' }}
                                     </div>
                                     @can('certificaciones.create')
-                                        <form action="{{ route('certificaciones.store') }}" method="POST" class="form-row align-items-center">
+                                        <form action="{{ route('certificaciones.store') }}" method="POST" class="mb-2">
                                             @csrf
                                             <input type="hidden" name="loteid" value="{{ $lote->loteid }}">
+                                            <input type="hidden" name="resultado" value="Certificado">
+                                            <div class="form-row align-items-center">
+                                                <div class="col-sm-8 mb-2 mb-sm-0">
+                                                    <input type="text" name="observaciones" class="form-control form-control-sm" placeholder="Observación (opcional)">
+                                                </div>
+                                                <div class="col-sm-4">
+                                                    <button class="btn btn-sm btn-success btn-block px-3 py-2" type="submit">
+                                                        <i class="fas fa-stamp mr-1"></i>Certificar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </form>
+                                        <form action="{{ route('certificaciones.store') }}" method="POST" class="form-row align-items-center" onsubmit="return confirm('¿Marcar este lote como No conforme? No podrá enviarse al almacén.');">
+                                            @csrf
+                                            <input type="hidden" name="loteid" value="{{ $lote->loteid }}">
+                                            <input type="hidden" name="resultado" value="No conforme">
                                             <div class="col-sm-8 mb-2 mb-sm-0">
-                                                <input type="text" name="observaciones" class="form-control form-control-sm" placeholder="Observación (opcional)">
+                                                <input type="text" name="observaciones" class="form-control form-control-sm" placeholder="Motivo obligatorio: daños, plagas, calidad…" required>
                                             </div>
                                             <div class="col-sm-4">
-                                                <button class="btn btn-sm btn-outline-success btn-block" type="submit">
-                                                    <i class="fas fa-stamp mr-1"></i>Certificar
+                                                <button class="btn btn-sm btn-outline-danger btn-block px-3 py-2" type="submit">
+                                                    <i class="fas fa-times-circle mr-1"></i>No conforme
                                                 </button>
                                             </div>
                                         </form>
@@ -211,17 +237,10 @@
                                 </div>
                             </div>
                         </div>
-                        @endif
                     @empty
                         <div class="text-center text-muted py-5">
                             <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
-                            <p class="mb-0">
-                                @if($esPlanta)
-                                    No hay lotes de planta pendientes de evaluación final.
-                                @else
-                                    Todos los lotes de campo elegibles ya están certificados.
-                                @endif
-                            </p>
+                            <p class="mb-0">Todos los lotes de campo elegibles ya están certificados.</p>
                         </div>
                     @endforelse
                 </div>
@@ -231,43 +250,25 @@
         <div class="col-lg-5 mb-4">
             <div class="card card-outline card-success card-modulo-main elevation-1 shadow-sm h-100">
                 <x-modulo-index-header
-                    titulo="{{ $esPlanta ? 'Evaluaciones registradas' : 'Certificados emitidos' }}"
+                    titulo="Evaluaciones registradas"
                     icono="fa-history"
                     icon-class="text-primary"
                     :registros="$certificados->count()"
                 />
                 <div class="card-body cert-timeline p-0">
                     @forelse($certificados as $cert)
-                        @if($esPlanta)
-                        @php $lotePlanta = $cert->loteProduccionPedido; @endphp
-                        <div class="border-bottom px-3 py-3 cert-item">
-                            <div class="d-flex justify-content-between align-items-start mb-1">
-                                <span class="badge badge-{{ $cert->razon === 'Certificado' ? 'success' : 'warning' }}">{{ $cert->razon }}</span>
-                                <small class="text-muted">{{ $cert->fecha_evaluacion?->format('d/m/Y H:i') }}</small>
-                            </div>
-                            <div class="font-weight-bold">{{ $lotePlanta?->nombre ?? 'Lote de planta' }}</div>
-                            <div class="small text-muted">
-                                {{ $lotePlanta?->codigo_lote ?? '—' }}
-                                @if($lotePlanta?->producto) · {{ $lotePlanta->producto }} @endif
-                            </div>
-                            @if($cert->observaciones)
-                                <p class="small mb-1 mt-2 text-secondary">{{ Str::limit($cert->observaciones, 80) }}</p>
-                            @endif
-                            @if($lotePlanta)
-                            <a href="{{ route('procesamiento.show', $lotePlanta) }}" class="small text-primary d-inline-block mt-1">
-                                <i class="fas fa-external-link-alt mr-1"></i>Ver lote
-                            </a>
-                            @endif
-                        </div>
-                        @else
                         <div class="border-bottom px-3 py-3 cert-item"
                              role="button"
                              tabindex="0"
-                             title="Ver detalle del certificado"
+                             title="Ver detalle de la evaluación"
                              data-cert-id="{{ $cert->certificacionid }}"
                              data-cert-url="{{ route('certificaciones.show', $cert) }}">
                             <div class="d-flex justify-content-between align-items-start mb-1">
-                                <span class="cert-badge badge badge-success">{{ $cert->codigo_certificado }}</span>
+                                @if($cert->esNoConforme())
+                                    <span class="badge badge-warning">No conforme</span>
+                                @else
+                                    <span class="cert-badge badge badge-success">{{ $cert->codigo_certificado }}</span>
+                                @endif
                                 <small class="text-muted">{{ $cert->fecha_certificacion?->format('d/m/Y H:i') }}</small>
                             </div>
                             <div class="font-weight-bold">{{ $cert->lote->nombre ?? 'Lote #'.$cert->loteid }}</div>
@@ -282,11 +283,10 @@
                         <div id="cert-detail-{{ $cert->certificacionid }}" class="d-none cert-detail-template">
                             @include('certificaciones.partials.detalle-contenido', ['cert' => $cert])
                         </div>
-                        @endif
                     @empty
                         <div class="text-center text-muted py-5 px-3">
                             <i class="fas fa-file-alt fa-2x mb-2"></i>
-                            <p class="mb-0">Aún no hay {{ $esPlanta ? 'evaluaciones' : 'certificados' }} registrados.</p>
+                            <p class="mb-0">Aún no hay evaluaciones registradas.</p>
                         </div>
                     @endforelse
                 </div>
@@ -295,7 +295,6 @@
     </div>
 </div>
 
-@if(! $esPlanta)
 <div class="modal fade" id="modalCertDetalle" tabindex="-1" role="dialog" aria-labelledby="modalCertDetalleLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
         <div class="modal-content">
@@ -307,22 +306,20 @@
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <div class="modal-body" id="modalCertDetalleBody">
+            <div class="modal-body px-4 py-3" id="modalCertDetalleBody">
                 <div class="text-center text-muted py-4">Seleccione un certificado de la lista.</div>
             </div>
-            <div class="modal-footer justify-content-between">
-                <a href="#" id="modalCertDetalleLink" class="btn btn-outline-primary btn-sm d-none">
+            <div class="modal-footer justify-content-between px-4 py-3">
+                <a href="#" id="modalCertDetalleLink" class="btn btn-outline-primary px-3 py-2 d-none" style="border-radius:10px;font-weight:600;">
                     <i class="fas fa-external-link-alt mr-1"></i>Abrir en página completa
                 </a>
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-secondary px-4 py-2" style="border-radius:10px;font-weight:600;" data-dismiss="modal">Cerrar</button>
             </div>
         </div>
     </div>
 </div>
-@endif
 @endsection
 
-@if(! $esPlanta)
 @push('scripts')
 <script>
 (function () {
@@ -410,4 +407,3 @@
 })();
 </script>
 @endpush
-@endif

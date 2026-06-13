@@ -48,6 +48,12 @@
                 <dt class="col-sm-4">Asignado por</dt>
                 <dd class="col-sm-8">{{ $logistica['asignado_por'] }}</dd>
             @endif
+            @if(($logistica['costo_bs'] ?? null) !== null)
+                <dt class="col-sm-4">Costo del servicio</dt>
+                <dd class="col-sm-8 text-success font-weight-bold">
+                    {{ \App\Support\TransporteIngresoCatalogo::formatearCosto((float) $logistica['costo_bs']) }}
+                </dd>
+            @endif
         </dl>
 
         @if($logistica['cargado_en_ruta'])

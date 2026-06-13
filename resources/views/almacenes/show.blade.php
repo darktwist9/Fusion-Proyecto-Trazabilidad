@@ -10,6 +10,10 @@
 
     $coords = \App\Support\UbicacionGpsParser::coordsOrDefault($almacen->ubicacion ?? null);
 
+    $ubicacionResuelta = \App\Support\UbicacionGpsParser::resolverAlmacen($almacen->almacenid, $almacen->nombre, $almacen->ubicacion ?? null);
+
+    $direccionVisible = $ubicacionResuelta['direccion'];
+
     $tieneGps = \App\Support\UbicacionGpsParser::fromTexto($almacen->ubicacion ?? null) !== null;
 
 @endphp
@@ -169,17 +173,17 @@
 
                             <div id="mapaDetalleAlmacen" data-lat="{{ $coords['lat'] }}" data-lng="{{ $coords['lng'] }}" data-nombre="{{ $almacen->nombre }}"></div>
 
-                            @if($almacen->ubicacion)
+                            @if($direccionVisible)
 
                                 <p class="ubicacion-texto mt-2 mb-0">
 
-                                    <i class="fas fa-map-marker-alt text-danger mr-1"></i>{{ $almacen->ubicacion }}
+                                    <i class="fas fa-map-marker-alt text-danger mr-1"></i>{{ $direccionVisible }}
 
-                                    @unless($tieneGps)
+                                    @if($ubicacionResuelta['estimada'] ?? false)
 
-                                        <span class="text-warning d-block small mt-1">Sin coordenadas GPS — se muestra ubicación por defecto (Santa Cruz).</span>
+                                        <span class="text-muted d-block small mt-1">Dirección referencial (edite el almacén y marque el mapa para fijar la calle exacta).</span>
 
-                                    @endunless
+                                    @endif
 
                                 </p>
 

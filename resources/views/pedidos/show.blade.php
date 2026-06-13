@@ -179,6 +179,11 @@
                                 @if($logisticaEnvio['fecha_asignacion'])
                                 <p class="ped-paso-det">{{ $logisticaEnvio['fecha_asignacion']->format('d/m/Y H:i') }}</p>
                                 @endif
+                                @if(($logisticaEnvio['costo_bs'] ?? null) !== null)
+                                <p class="ped-paso-det text-success font-weight-bold mb-0">
+                                    Costo: {{ number_format($logisticaEnvio['costo_bs'], 2, ',', '.') }} Bs
+                                </p>
+                                @endif
                                 @else
                                 <p class="ped-paso-det">Aún sin chofer ni vehículo.</p>
                                 @endif

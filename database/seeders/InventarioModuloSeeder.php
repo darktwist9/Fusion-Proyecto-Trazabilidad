@@ -61,7 +61,6 @@ class InventarioModuloSeeder extends Seeder
         DB::transaction(function () use ($almacenCentral, $almacenNorte, $almacenPlanta, $usuarioAlmacen, $agricultor) {
             $this->seedActoresExtra();
             $insumosAgro = $this->seedInsumosAgricolas($almacenCentral);
-            $this->seedInsumosProductoYMovimientos($almacenCentral, $usuarioAlmacen);
             $this->seedLoteInsumos($insumosAgro, $agricultor);
             $this->seedProductosDistribucionStock($almacenCentral, $almacenNorte, $almacenPlanta);
         });

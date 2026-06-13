@@ -7,6 +7,7 @@ use App\Models\EnvioAsignacionMultiple;
 use App\Models\Usuario;
 use App\Services\NotificacionUsuarioService;
 use App\Services\RecepcionPlantaEnvioService;
+use App\Services\SimulacionRutaService;
 use App\Models\PerfilTransportista;
 use App\Models\RutaMultiEntrega;
 use App\Models\RutaParada;
@@ -14,6 +15,7 @@ use App\Support\EnvioAsignacionEstadoCatalogo;
 use App\Support\EnvioListadoService;
 use App\Support\EnvioPedidoService;
 use App\Support\PedidoCatalogo;
+use App\Support\PedidoReservaService;
 use App\Support\UsuarioRol;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -45,6 +47,12 @@ class AsignacionMultipleController extends Controller
         ]);
 
         $paradasMapa = EnvioPedidoService::paradasMapaEnvio($asignacion);
+        $pedido = $asignacion->pedido;
+        $logistica = EnvioPedidoService::datosLogistica($asignacion);
+        $pendienteAgricola = $pedido !== null && PedidoCatalogo::pendienteAprobacionAgricola($pedido);
+        $estadoVisual = $pedido !== null
+            ? PedidoCatalogo::badgeEstadoLista($logistica, $pedido)
+            : ['clase' => 'env-estado-asignado', 'etiqueta' => EnvioAsignacionEstadoCatalogo::etiqueta($asignacion->estado), 'titulo' => ''];
 
         return view('logistica.asignaciones.show', [
             'asignacion' => $asignacion,
@@ -56,41 +64,117 @@ class AsignacionMultipleController extends Controller
                 : null,
             'llegoDestino' => EnvioAsignacionEstadoCatalogo::llegoADestino($asignacion),
             'puedeGestionar' => EnvioAsignacionEstadoCatalogo::puedeGestionarAdmin($asignacion),
+            'puedeEditar' => PedidoCatalogo::puedeEditarAsignacionEnvio($asignacion),
+            'logistica' => $logistica,
+            'pendienteAgricola' => $pendienteAgricola,
+            'estadoVisual' => $estadoVisual,
+            'erroresStock' => $pendienteAgricola && $pedido
+                ? app(PedidoReservaService::class)->verificarDisponibilidad($pedido)
+                : [],
+            'puedeAceptarAgricola' => $pendienteAgricola && auth()->user()?->can('pedidos.update'),
         ]);
     }
 
     public function edit(EnvioAsignacionMultiple $asignacion): View|RedirectResponse
     {
-        if (! EnvioAsignacionEstadoCatalogo::puedeGestionarAdmin($asignacion)) {
+        $asignacion->load(['transportista', 'ruta', 'pedido']);
+        $nivelEdicion = PedidoCatalogo::nivelEdicionAsignacionEnvio($asignacion);
+
+        if ($nivelEdicion === PedidoCatalogo::EDICION_ASIGNACION_NINGUNA) {
             return redirect()
                 ->route('logistica.asignaciones.show', $asignacion)
-                ->with('warning', 'Este envío ya llegó a destino. Solo puede consultar el detalle.');
+                ->with('warning', 'Este envío ya no puede editarse en su estado actual.');
         }
 
-        $asignacion->load(['transportista', 'ruta']);
+        $pedido = $asignacion->pedido;
+        $vehiculo = EnvioPedidoService::resolverVehiculoAsignado($asignacion);
+        $recogidasExtra = EnvioPedidoService::recogidasExtraDesdeEnvio($asignacion);
+        $origenLabel = $pedido
+            ? (EnvioPedidoService::trayectoPartesPedido($pedido)['recogidas'][0] ?? $pedido->origen_direccion ?? '')
+            : '';
 
-        return view('logistica.asignaciones.edit', compact('asignacion'));
+        $rutaEsAutomatica = $asignacion->ruta !== null
+            && EnvioPedidoService::esRutaRecogidasAutomatica($asignacion->ruta);
+
+        $vehiculoLabel = '';
+        if ($vehiculo !== null) {
+            $vehiculoLabel = (string) $vehiculo->placa;
+            $detalleVehiculo = trim(($vehiculo->marca ?? '').' '.($vehiculo->modelo ?? ''));
+            if ($detalleVehiculo !== '') {
+                $vehiculoLabel .= ' — '.$detalleVehiculo;
+            }
+        }
+
+        $fechaEntregaValor = old(
+            'fechaEntregaDeseada',
+            optional($pedido?->fechaEntregaDeseada)->format('Y-m-d') ?: now()->format('Y-m-d')
+        );
+
+        return view('logistica.asignaciones.edit', compact(
+            'asignacion',
+            'pedido',
+            'vehiculo',
+            'vehiculoLabel',
+            'recogidasExtra',
+            'origenLabel',
+            'rutaEsAutomatica',
+            'nivelEdicion',
+            'fechaEntregaValor',
+        ));
     }
 
     public function update(Request $request, EnvioAsignacionMultiple $asignacion): RedirectResponse
     {
-        if (! EnvioAsignacionEstadoCatalogo::puedeGestionarAdmin($asignacion)) {
+        $asignacion->loadMissing('pedido');
+        $nivelEdicion = PedidoCatalogo::nivelEdicionAsignacionEnvio($asignacion);
+
+        if ($nivelEdicion === PedidoCatalogo::EDICION_ASIGNACION_NINGUNA) {
             return redirect()
                 ->route('logistica.asignaciones.show', $asignacion)
-                ->with('error', 'No puede editar un envío que ya llegó a destino.');
+                ->with('error', 'Este envío ya no puede editarse en su estado actual.');
         }
 
-        $validated = $request->validate([
-            'transportista_usuarioid' => ['nullable', 'integer', 'exists:usuario,usuarioid'],
-            'vehiculo_ref' => ['nullable', 'string', 'max:80'],
-            'rutamultientregaid' => ['nullable', 'integer', 'exists:ruta_multi_entrega,rutamultientregaid'],
-        ]);
+        if ($nivelEdicion === PedidoCatalogo::EDICION_ASIGNACION_SOLO_TRANSPORTISTA) {
+            $validated = $request->validate([
+                'transportista_usuarioid' => ['nullable', 'integer', 'exists:usuario,usuarioid'],
+            ]);
+        } else {
+            $rules = [
+                'transportista_usuarioid' => ['nullable', 'integer', 'exists:usuario,usuarioid'],
+                'vehiculoid' => ['nullable', 'integer', 'exists:vehiculo,vehiculoid'],
+                'vehiculo_ref' => ['nullable', 'string', 'max:80'],
+                'fechaEntregaDeseada' => ['nullable', 'date'],
+                'origen_latitud' => ['nullable', 'numeric', 'between:-90,90'],
+                'origen_longitud' => ['nullable', 'numeric', 'between:-180,180'],
+                'origen_direccion' => ['nullable', 'string', 'max:255'],
+                'recogidas' => ['nullable', 'array', 'max:5'],
+                'recogidas.*.latitud' => ['required_with:recogidas', 'numeric', 'between:-90,90'],
+                'recogidas.*.longitud' => ['required_with:recogidas', 'numeric', 'between:-180,180'],
+                'recogidas.*.direccion' => ['nullable', 'string', 'max:255'],
+            ];
 
-        $asignacion->update([
-            'transportista_usuarioid' => $validated['transportista_usuarioid'] ?? null,
-            'vehiculo_ref' => $validated['vehiculo_ref'] ?? null,
-            'rutamultientregaid' => $validated['rutamultientregaid'] ?? null,
-        ]);
+            if ($asignacion->pedidoid) {
+                $rules['origen_latitud'] = ['required', 'numeric', 'between:-90,90'];
+                $rules['origen_longitud'] = ['required', 'numeric', 'between:-180,180'];
+            }
+
+            $validated = $request->validate($rules);
+
+            if (! empty($validated['transportista_usuarioid']) xor ! empty($validated['vehiculoid'])) {
+                return back()->withInput()->with('error', 'Seleccione transportista y vehículo juntos, o deje ambos vacíos.');
+            }
+        }
+
+        try {
+            EnvioPedidoService::actualizarAsignacionEnvio(
+                $asignacion,
+                $validated,
+                (int) auth()->id(),
+                $nivelEdicion
+            );
+        } catch (\InvalidArgumentException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
 
         return redirect()
             ->route('logistica.asignaciones.show', $asignacion)
@@ -323,26 +407,23 @@ class AsignacionMultipleController extends Controller
 
     public function markEnTransportePlanta(EnvioAsignacionMultiple $asignacion): RedirectResponse
     {
+        return $this->empezarRuta($asignacion);
+    }
+
+    public function empezarRuta(EnvioAsignacionMultiple $asignacion, SimulacionRutaService $simulacion): RedirectResponse
+    {
         $user = auth()->user();
         if (! $user?->can('asignaciones.update') && (int) $asignacion->transportista_usuarioid !== (int) $user?->usuarioid) {
             abort(403);
         }
 
-        if (! in_array($asignacion->estado, ['asignado', 'pendiente', 'asignada', 'creada'], true)) {
-            return back()->with('error', 'Solo puede iniciar el transporte cuando el envío está asignado.');
-        }
-
-        if (! $this->envioListoParaLogistica($asignacion)) {
-            return back()->with('error', 'No se puede avanzar el envío hasta que producción agrícola acepte el pedido y reserve stock.');
-        }
-
         try {
-            EnvioPedidoService::confirmarCargaHaciaPlanta($asignacion);
+            $simulacion->empezarAgricola($asignacion);
         } catch (\InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', 'El envío quedó en transporte hacia planta.');
+        return back()->with('success', 'Ruta iniciada. El recorrido simulado está en marcha hacia el destino.');
     }
 
     public function markLlegadaDestino(

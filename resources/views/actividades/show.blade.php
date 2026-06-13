@@ -47,6 +47,19 @@
             <p class="mb-1"><strong>Observaciones:</strong></p>
             <p class="text-muted">{{ $actividad->observaciones }}</p>
         @endif
+
+        @if($completada && $actividad->evidencia_foto_path)
+            @php $evidenciaUrl = asset('storage/'.$actividad->evidencia_foto_path); @endphp
+            <div class="mt-3">
+                <p class="mb-2"><strong><i class="fas fa-camera mr-1"></i> Evidencia fotográfica</strong></p>
+                <a href="{{ $evidenciaUrl }}" target="_blank" rel="noopener" class="d-inline-block">
+                    <img src="{{ $evidenciaUrl }}"
+                         alt="Evidencia: {{ $actividad->tipoActividad->nombre ?? 'Actividad' }}"
+                         class="img-fluid rounded border shadow-sm"
+                         style="max-width: 320px; max-height: 240px; object-fit: cover; cursor: zoom-in;">
+                </a>
+            </div>
+        @endif
     </div>
 
     <div class="card-footer d-flex flex-wrap justify-content-between align-items-center">
@@ -55,16 +68,12 @@
         </a>
         <div class="d-flex flex-wrap" style="gap: 6px;">
             @if(!empty($puedeMarcarCompletada))
-                <form action="{{ route('actividades.marcar-realizada', $actividad) }}" method="POST" class="d-inline">
-                    @csrf
-                    <button type="button" class="btn btn-success"
-                        data-confirm-modal
-                        data-confirm-title="¿Marcar como completada?"
-                        data-confirm-message="Se registrará «{{ $actividad->tipoActividad->nombre ?? 'Actividad' }}» en el lote «{{ $actividad->lote->nombre ?? 'Sin lote' }}» y se quitará la alerta del responsable."
-                        data-confirm-tone="success">
-                        <i class="fas fa-check mr-1"></i> Marcar como completada
-                    </button>
-                </form>
+                <button type="button" class="btn btn-success btn-completar-evidencia"
+                    data-action="{{ route('actividades.marcar-realizada', $actividad) }}"
+                    data-titulo="{{ $actividad->tipoActividad->nombre ?? 'Actividad' }}"
+                    data-lote="{{ $actividad->lote->nombre ?? 'Sin lote' }}">
+                    <i class="fas fa-check mr-1"></i> Marcar como completada
+                </button>
             @endif
             @can('lotes.update')
                 <a href="{{ route('actividades.edit', $actividad) }}" class="btn btn-warning">
@@ -81,5 +90,6 @@
     </div>
 </div>
 
-@include('partials.modal-confirmar-accion')
+@include('partials.modal-completar-evidencia')
+@include('partials.modal-ver-evidencia')
 @endsection

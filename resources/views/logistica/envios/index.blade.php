@@ -40,15 +40,17 @@
 @section('content')
 <div class="envios-wrap">
     @if($esTransportista ?? false)
-        <div class="alert alert-info envios-alert">
-            <i class="fas fa-truck mr-1"></i> Envíos asignados a su cuenta: solicitud agrícola y datos de transporte en un solo lugar.
+        <div class="alert alert-info envios-alert d-flex flex-wrap justify-content-between align-items-center">
+            <span><i class="fas fa-truck mr-1"></i> Envíos asignados: almacén agrícola → planta y planta → puntos de venta en un solo listado.</span>
+            <a href="{{ route('logistica.transportista.ingresos') }}" class="btn btn-sm btn-outline-primary mt-2 mt-md-0">
+                <i class="fas fa-coins mr-1"></i> Mis ingresos
+            </a>
         </div>
     @else
         <div class="alert alert-light border envios-alert">
             <i class="fas fa-route text-success mr-1"></i>
-            <strong>Envíos unificados:</strong> cultivo, kg, trayecto almacén agrícola → planta, chofer y vehículo en un solo lugar.
-            Los envíos nuevos requieren aceptación agrícola; puede programar el chofer al crearlos
-            (<a href="{{ route('agricola.pedidos.index') }}">Producción → Pedidos de planta</a>).
+            <strong>Envíos unificados:</strong> solicitudes agrícolas hacia planta y rutas de distribución hacia minoristas en una sola lista.
+            El costo del servicio (Bs) lo define logística al planificar cada ruta.
         </div>
     @endif
 
@@ -163,7 +165,7 @@
             <div class="d-flex flex-wrap justify-content-between align-items-center">
                 <h3 class="card-title mb-2 mb-md-0 font-weight-bold">
                     <i class="fas fa-truck text-success mr-2"></i>{{ $tituloPagina }}
-                    <small class="text-muted font-weight-normal">({{ $pedidos->total() }})</small>
+                    <small class="text-muted font-weight-normal">({{ $items->total() }})</small>
                 </h3>
                 @can('pedidos.create')
                 <a href="{{ route('pedidos.create') }}" class="btn btn-success btn-sm">
@@ -176,105 +178,112 @@
             <table class="table table-hover mb-0">
                 <thead class="thead-light">
                     <tr>
+                        <th>Tipo</th>
                         <th>Código</th>
                         <th>Cultivo / producto</th>
                         <th>Total</th>
-                        <th>Planta destino</th>
+                        <th>Destino</th>
                         <th>Chofer</th>
                         <th>Vehículo</th>
                         <th>Trayecto</th>
+                        <th>Costo (Bs)</th>
                         <th>Estado</th>
                         <th>Fecha</th>
                         <th class="td-acciones">Gestión</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse($pedidos as $pedido)
-                        @php
-                            $asignacion = $pedido->envioAsignacion;
-                            $itemsCount = $pedido->detalles?->count() ?? 0;
-                            $totalKg = $pedido->detalles?->sum('cantidad') ?? 0;
-                            $transportistaAsignado = $asignacion?->transportista;
-                            $logisticaEnvio = \App\Support\EnvioPedidoService::datosLogistica($asignacion);
-                            $estadoVisual = \App\Support\PedidoCatalogo::badgeEstadoLista($logisticaEnvio, $pedido);
-                            $faseLogistica = \App\Support\PedidoCatalogo::faseLogistica($logisticaEnvio);
-                            $codigoEnvio = $asignacion?->externo_envio_id ?? $pedido->numero_solicitud;
-                            $verUrl = $asignacion
-                                ? route('logistica.asignaciones.show', $asignacion)
-                                : route('pedidos.show', $pedido);
-                            $trayectoPartes = \App\Support\EnvioPedidoService::trayectoPartesListaPedido($pedido);
-                            $plantaDestinoLista = \App\Support\EnvioPedidoService::etiquetaPlantaDestinoLista($pedido);
-                        @endphp
+                    @forelse($items as $item)
                         <tr>
                             <td>
-                                <a href="{{ $verUrl }}" class="font-weight-bold text-success">{{ $codigoEnvio }}</a>
-                                @if($pedido->numero_solicitud !== $codigoEnvio)
-                                    <br><small class="text-muted">{{ $pedido->numero_solicitud }}</small>
-                                @endif
-                            </td>
-                            <td>
-                                <span class="text-primary font-weight-bold">
-                                    {{ $pedido->detalles->first()?->cultivo_personalizado ?? '—' }}
+                                <span class="badge badge-{{ $item['tipo'] === 'agricola' ? 'success' : 'primary' }}">
+                                    {{ $item['tipo_etiqueta'] }}
                                 </span>
-                                @if($itemsCount > 1)
-                                    <br><small class="text-muted">+{{ $itemsCount - 1 }} ítem(s) más</small>
+                            </td>
+                            <td>
+                                <a href="{{ $item['ver_url'] }}" class="font-weight-bold text-success">{{ $item['codigo'] }}</a>
+                                @if($item['subcodigo'])
+                                    <br><small class="text-muted">{{ $item['subcodigo'] }}</small>
                                 @endif
                             </td>
-                            <td><strong>{{ number_format($totalKg, 2) }}</strong> <small class="text-muted">kg</small></td>
                             <td>
-                                @if($plantaDestinoLista)
-                                    <span>{{ $plantaDestinoLista }}</span>
+                                <span class="text-primary font-weight-bold">{{ $item['producto_label'] }}</span>
+                                @if($item['producto_extra'])
+                                    <br><small class="text-muted">{{ $item['producto_extra'] }}</small>
+                                @endif
+                            </td>
+                            <td>
+                                @if($item['total_kg'])
+                                    <strong>{{ number_format($item['total_kg'], 2) }}</strong> <small class="text-muted">kg</small>
                                 @else
                                     <span class="text-muted">—</span>
                                 @endif
                             </td>
                             <td>
-                                @if($transportistaAsignado)
-                                    {{ trim($transportistaAsignado->nombre.' '.$transportistaAsignado->apellido) }}
-                                @elseif(\App\Support\PedidoCatalogo::puedeAsignarTransportista($pedido))
+                                @if($item['destino_label'])
+                                    <span>{{ $item['destino_label'] }}</span>
+                                @else
+                                    <span class="text-muted">—</span>
+                                @endif
+                            </td>
+                            <td>
+                                @if($item['chofer_nombre'])
+                                    {{ $item['chofer_nombre'] }}
+                                @elseif($item['puede_asignar'])
                                     @can('pedidos.update')
                                     <button type="button" class="btn btn-link btn-sm p-0 text-primary btn-asignar-transportista"
-                                        data-pedido-id="{{ $pedido->pedidoid }}"
-                                        data-pedido-label="{{ $pedido->numero_solicitud }}">
+                                        data-pedido-id="{{ $item['pedido']->pedidoid }}"
+                                        data-pedido-label="{{ $item['pedido']->numero_solicitud }}">
                                         <i class="fas fa-user-plus mr-1"></i>Asignar
                                     </button>
                                     @else
                                     <span class="text-muted small">Sin asignar</span>
                                     @endcan
                                 @else
-                                    <span class="text-muted small" title="Pendiente agrícola">—</span>
+                                    <span class="text-muted small">—</span>
                                 @endif
                             </td>
-                            <td>{{ $asignacion?->vehiculo_ref ?? '—' }}</td>
+                            <td>{{ $item['vehiculo_placa'] ?? '—' }}</td>
                             <td class="small">
-                                @if($trayectoPartes && (($trayectoPartes['recogidas'] ?? []) !== [] || ($trayectoPartes['destino'] ?? null)))
-                                    @include('logistica.partials.trayecto-colores', ['trayectoPartes' => $trayectoPartes])
+                                @if($item['trayecto_partes'] && (($item['trayecto_partes']['recogidas'] ?? []) !== [] || ($item['trayecto_partes']['destino'] ?? null)))
+                                    @include('logistica.partials.trayecto-colores', ['trayectoPartes' => $item['trayecto_partes']])
+                                @else
+                                    <span class="text-muted">—</span>
+                                @endif
+                            </td>
+                            <td class="text-nowrap">
+                                @if($item['costo_bs'] !== null)
+                                    <strong>{{ number_format($item['costo_bs'], 2, ',', '.') }}</strong>
                                 @else
                                     <span class="text-muted">—</span>
                                 @endif
                             </td>
                             <td>
-                                <span class="pedido-estado-badge {{ $estadoVisual['clase'] }}"
-                                      title="{{ $estadoVisual['titulo'] ?? $estadoVisual['etiqueta'] }}">
-                                    {{ $estadoVisual['etiqueta'] }}
+                                <span class="pedido-estado-badge {{ $item['estado_badge']['clase'] }}"
+                                      title="{{ $item['estado_badge']['titulo'] ?? $item['estado_badge']['etiqueta'] }}">
+                                    {{ $item['estado_badge']['etiqueta'] }}
                                 </span>
                             </td>
-                            <td class="text-muted small">{{ \Carbon\Carbon::parse($pedido->fechapedido)->format('d/m/Y') }}</td>
+                            <td class="text-muted small">{{ $item['fecha']?->format('d/m/Y') ?? '—' }}</td>
                             <td class="td-acciones">
-                                @if($asignacion)
-                                    @include('logistica.partials.acciones-tabla-asignacion', ['asignacion' => $asignacion])
-                                @else
-                                    <a href="{{ route('pedidos.show', $pedido) }}" class="btn btn-sm btn-outline-info" title="Ver">
+                                @if($item['asignacion'])
+                                    @include('logistica.partials.acciones-tabla-asignacion', ['asignacion' => $item['asignacion']])
+                                @elseif($item['ruta'])
+                                    <a href="{{ $item['ver_url'] }}" class="btn btn-sm btn-outline-info" title="Ver ruta">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                @elseif($item['pedido'])
+                                    <a href="{{ route('pedidos.show', $item['pedido']) }}" class="btn btn-sm btn-outline-info" title="Ver">
                                         <i class="fas fa-eye"></i>
                                     </a>
                                 @endif
-                                @if($faseLogistica === 'en_camino_planta' && ! $asignacion)
+                                @if(($item['fase_logistica'] ?? null) === 'en_camino_planta' && ! $item['asignacion'] && $item['pedido'])
                                     @can('recepcion_planta.confirm')
-                                    <form method="POST" action="{{ route('pedidos.confirmar-llegada-planta', $pedido) }}" class="d-inline">
+                                    <form method="POST" action="{{ route('pedidos.confirmar-llegada-planta', $item['pedido']) }}" class="d-inline">
                                         @csrf
                                         <button type="button" class="btn btn-sm btn-outline-success" data-confirm-modal
                                             data-confirm-tone="success" data-confirm-title="Confirmar llegada"
-                                            data-confirm-message="¿Confirma llegada del pedido {{ $pedido->numero_solicitud }} a planta?">
+                                            data-confirm-message="¿Confirma llegada del pedido {{ $item['pedido']->numero_solicitud }} a planta?">
                                             <i class="fas fa-check"></i>
                                         </button>
                                     </form>
@@ -284,7 +293,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10" class="text-center text-muted py-5">
+                            <td colspan="12" class="text-center text-muted py-5">
                                 <i class="fas fa-inbox fa-2x mb-2 d-block opacity-25"></i>
                                 No hay envíos con esos filtros.
                                 @can('pedidos.create')
@@ -296,8 +305,8 @@
                 </tbody>
             </table>
         </div>
-        @if($pedidos->hasPages())
-        <div class="card-footer">{{ $pedidos->links() }}</div>
+        @if($items->hasPages())
+        <div class="card-footer">{{ $items->links() }}</div>
         @endif
     </div>
 </div>
@@ -309,6 +318,7 @@
     @csrf
     <input type="hidden" name="transportista_usuarioid" id="inputTransportistaAsignar">
     <input type="hidden" name="vehiculoid" id="inputVehiculoAsignar">
+    <input type="hidden" name="costo_bs" id="inputCostoAsignar">
 </form>
 @once
     @push('styles')
@@ -331,6 +341,43 @@ document.addEventListener('DOMContentLoaded', function () {
     const inputVehiculo = document.getElementById('inputVehiculoAsignar');
     const urlAsignar = @json(route('pedidos.asignar-transportista', ['pedido' => '__PEDIDO__']));
 
+    const inputCosto = document.getElementById('inputCostoAsignar');
+
+    function solicitarCostoYEnviar() {
+        if (!form || !pedidoIdAsignar) return;
+        const pedirCosto = (valor) => {
+            const costo = parseFloat(String(valor).replace(',', '.'));
+            if (!Number.isFinite(costo) || costo <= 0) {
+                if (window.Swal) {
+                    Swal.fire('Costo inválido', 'Ingrese un monto mayor a 0 en bolivianos.', 'warning');
+                } else {
+                    alert('Ingrese un costo válido en bolivianos.');
+                }
+                return;
+            }
+            inputCosto.value = costo.toFixed(2);
+            form.action = urlAsignar.replace('__PEDIDO__', pedidoIdAsignar);
+            form.submit();
+        };
+
+        if (window.Swal) {
+            Swal.fire({
+                title: 'Costo del servicio (Bs)',
+                input: 'number',
+                inputAttributes: { min: '0.01', step: '0.01' },
+                inputPlaceholder: 'Ej. 150.00',
+                showCancelButton: true,
+                confirmButtonText: 'Asignar',
+                cancelButtonText: 'Cancelar',
+            }).then((result) => {
+                if (result.isConfirmed) pedirCosto(result.value);
+            });
+        } else {
+            const valor = prompt('Costo del servicio en bolivianos (Bs):');
+            if (valor !== null) pedirCosto(valor);
+        }
+    }
+
     document.querySelectorAll('.btn-asignar-transportista').forEach(btn => {
         btn.addEventListener('click', () => {
             pedidoIdAsignar = btn.dataset.pedidoId;
@@ -342,8 +389,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (!form || !pedidoIdAsignar) return;
                     inputTransportista.value = item.id;
                     inputVehiculo.value = item.meta?.vehiculoid || '';
-                    form.action = urlAsignar.replace('__PEDIDO__', pedidoIdAsignar);
-                    form.submit();
+                    solicitarCostoYEnviar();
                 },
             });
         });

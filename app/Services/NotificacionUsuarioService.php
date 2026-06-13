@@ -9,6 +9,7 @@ use App\Models\Lote;
 use App\Models\Pedido;
 use App\Models\Usuario;
 use App\Models\UsuarioNotificacion;
+use App\Models\RutaDistribucion;
 use App\Support\EnvioPedidoService;
 use App\Support\PedidoCatalogo;
 use App\Support\UsuarioRol;
@@ -127,7 +128,7 @@ class NotificacionUsuarioService
             (int) $asignacion->transportista_usuarioid,
             'envio_listo_recoger',
             'Envío listo para recoger',
-            "El pedido {$codigo} ({$producto}) fue aceptado. Confirme la carga e inicie ruta hacia {$destino}.",
+            "El pedido {$codigo} ({$producto}) fue aceptado. Pulse «Empezar ruta» cuando esté listo para salir hacia {$destino}.",
             route('logistica.asignaciones.show', $asignacion, false),
             'envio_asignacion',
             (int) $asignacion->envioasignacionmultipleid,
@@ -183,6 +184,64 @@ class NotificacionUsuarioService
             'asignacion_etapa_planta',
             (int) $asignacion->asignacionetapaplantaid,
         );
+    }
+
+    public function simulacionCompletadaAgricola(EnvioAsignacionMultiple $asignacion): void
+    {
+        $asignacion->loadMissing(['pedido', 'transportista']);
+        $codigo = $asignacion->externo_envio_id ?? '#'.$asignacion->envioasignacionmultipleid;
+        $chofer = trim(($asignacion->transportista?->nombre ?? '').' '.($asignacion->transportista?->apellido ?? ''));
+        $planta = $asignacion->pedido
+            ? (EnvioPedidoService::etiquetaPlantaDestinoLista($asignacion->pedido) ?? 'planta')
+            : 'planta';
+        $mensaje = "El envío {$codigo} llegó a {$planta} (simulación completada). Chofer: {$chofer}.";
+
+        $destinatarios = Usuario::query()
+            ->where('activo', true)
+            ->where(function ($q) {
+                $q->whereIn('role', ['admin', 'Admin'])
+                    ->orWhereHas('roles', fn ($r) => $r->whereIn('name', ['admin', 'jefe_planta', 'jefe_agricultor']));
+            })
+            ->get();
+
+        foreach ($destinatarios as $usuario) {
+            $this->notificar(
+                $usuario,
+                'simulacion_envio_completada',
+                'Envío recibido en planta',
+                $mensaje,
+                route('logistica.asignaciones.show', $asignacion, false),
+                'envio_asignacion',
+                (int) $asignacion->envioasignacionmultipleid,
+            );
+        }
+    }
+
+    public function simulacionCompletadaDistribucion(RutaDistribucion $ruta): void
+    {
+        $ruta->loadMissing(['transportista', 'almacenOrigen']);
+        $chofer = trim(($ruta->transportista?->nombre ?? '').' '.($ruta->transportista?->apellido ?? ''));
+        $mensaje = "La ruta {$ruta->codigo} completó todas las entregas (simulación). Chofer: {$chofer}.";
+
+        $destinatarios = Usuario::query()
+            ->where('activo', true)
+            ->where(function ($q) {
+                $q->whereIn('role', ['admin', 'Admin'])
+                    ->orWhereHas('roles', fn ($r) => $r->whereIn('name', ['admin', 'jefe_planta']));
+            })
+            ->get();
+
+        foreach ($destinatarios as $usuario) {
+            $this->notificar(
+                $usuario,
+                'simulacion_ruta_completada',
+                'Ruta de distribución completada',
+                $mensaje,
+                route('punto-venta.rutas.show', $ruta, false),
+                'ruta_distribucion',
+                (int) $ruta->rutadistribucionid,
+            );
+        }
     }
 
     /** @return \Illuminate\Database\Eloquent\Collection<int, UsuarioNotificacion> */

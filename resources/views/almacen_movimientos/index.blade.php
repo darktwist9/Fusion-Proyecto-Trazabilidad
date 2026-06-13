@@ -11,15 +11,148 @@
 @push('styles')
 @include('partials.modulo-inventario-styles')
 <style>
-.page-mov-almacen .mov-filter-card {
-    display: block;
+.page-mov-almacen .mov-kpi-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    margin-bottom: 1.25rem;
+}
+.page-mov-almacen .mov-kpi {
+    flex: 1 1 200px;
+    display: flex;
+    align-items: center;
+    gap: .85rem;
+    padding: .85rem 1rem;
+    border-radius: 12px;
+    border: 2px solid transparent;
     text-decoration: none !important;
     color: inherit !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,.06);
+    transition: transform .15s, box-shadow .15s, border-color .15s;
 }
-.page-mov-almacen .mov-filter-card.active .small-box {
-    outline: 3px solid rgba(255, 255, 255, 0.9);
-    outline-offset: -3px;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+.page-mov-almacen .mov-kpi:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0,0,0,.1);
+}
+.page-mov-almacen .mov-kpi.active {
+    border-color: rgba(255,255,255,.85);
+    box-shadow: 0 6px 20px rgba(0,0,0,.14);
+}
+.page-mov-almacen .mov-kpi-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+    background: rgba(255,255,255,.22);
+}
+.page-mov-almacen .mov-kpi-body { min-width: 0; }
+.page-mov-almacen .mov-kpi-value {
+    font-size: 1.55rem;
+    font-weight: 800;
+    line-height: 1.1;
+}
+.page-mov-almacen .mov-kpi-label {
+    font-size: .78rem;
+    opacity: .92;
+    margin-top: .1rem;
+}
+.page-mov-almacen .mov-kpi-hint {
+    font-size: .7rem;
+    opacity: .75;
+    margin-top: .15rem;
+}
+.page-mov-almacen .mov-kpi-ingreso {
+    background: linear-gradient(135deg, #2c5530, #4a7c59);
+    color: #fff;
+}
+.page-mov-almacen .mov-kpi-salida {
+    background: linear-gradient(135deg, #e67e22, #f39c12);
+    color: #fff;
+}
+.page-mov-almacen .mov-kpi-total {
+    background: linear-gradient(135deg, #17a2b8, #20c997);
+    color: #fff;
+}
+.page-mov-almacen .mov-toolbar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+    align-items: center;
+}
+.page-mov-almacen .mov-table-wrap {
+    border-top: 1px solid #eef2f0;
+}
+.page-mov-almacen .mov-table .table-modulo tbody td {
+    padding: .55rem .65rem;
+    font-size: .86rem;
+}
+.page-mov-almacen .mov-tipo-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .2rem .55rem;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.page-mov-almacen .mov-tipo-pill.ingreso {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+.page-mov-almacen .mov-tipo-pill.salida {
+    background: #fff3e0;
+    color: #e65100;
+}
+.page-mov-almacen .mov-producto {
+    font-weight: 600;
+    color: #1e4620;
+}
+.page-mov-almacen .mov-cantidad {
+    font-weight: 700;
+    color: #1e293b;
+    white-space: nowrap;
+}
+.page-mov-almacen .mov-ref {
+    font-size: .8rem;
+    color: #64748b;
+    font-family: ui-monospace, monospace;
+}
+.page-mov-almacen .mov-btn-ver {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid #dbeafe;
+    background: #f0f9ff;
+    color: #0284c7;
+    transition: background .15s;
+}
+.page-mov-almacen .mov-btn-ver:hover {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+.page-mov-almacen .mov-cosecha-tag {
+    display: block;
+    font-size: .72rem;
+    color: #94a3b8;
+    margin-top: .2rem;
+}
+.page-mov-almacen .mov-filter-active {
+    border-radius: 10px;
+    padding: .55rem .85rem;
+    margin-bottom: 1rem;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    font-size: .88rem;
+    color: #1e40af;
 }
 </style>
 @endpush
@@ -27,55 +160,46 @@
 @section('content')
 <div class="modulo-inv page-mov-almacen">
 
-@if($filtroNaturaleza)
-    <div class="alert alert-info alert-dismissible fade show shadow-sm py-2">
-        <button type="button" class="close" data-dismiss="alert">&times;</button>
-        <i class="fas fa-filter mr-1"></i>
-        Filtro activo: <strong>{{ $filtroNaturaleza === 'ingreso' ? 'Ingresos' : 'Salidas' }}</strong>
-        <a href="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.movimientos.index') }}" class="alert-link ml-2">Ver todos</a>
+    @if($filtroNaturaleza)
+    <div class="mov-filter-active d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span>
+            <i class="fas fa-filter mr-1"></i>
+            Mostrando solo <strong>{{ $filtroNaturaleza === 'ingreso' ? 'ingresos' : 'salidas' }}</strong>
+        </span>
+        <a href="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.movimientos.index') }}" class="btn btn-sm btn-outline-primary">
+            <i class="fas fa-times mr-1"></i> Quitar filtro
+        </a>
     </div>
     @endif
 
-    <div class="row mb-2">
-        <div class="col-lg-4 col-md-4 col-12">
-            <a href="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.movimientos.index', ['naturaleza' => 'ingreso']) }}"
-               class="mov-filter-card {{ $filtroNaturaleza === 'ingreso' ? 'active' : '' }}">
-                <div class="small-box small-box-green mb-0">
-                    <div class="inner">
-                        <h3>{{ $totalIngresos }}</h3>
-                        <p>Ingresos registrados</p>
-                    </div>
-                    <div class="icon"><i class="fas fa-arrow-down"></i></div>
-                    <span class="small-box-footer">Filtrar ingresos <i class="fas fa-arrow-circle-right"></i></span>
-                </div>
-            </a>
-        </div>
-        <div class="col-lg-4 col-md-4 col-12">
-            <a href="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.movimientos.index', ['naturaleza' => 'salida']) }}"
-               class="mov-filter-card {{ $filtroNaturaleza === 'salida' ? 'active' : '' }}">
-                <div class="small-box small-box-yellow mb-0">
-                    <div class="inner">
-                        <h3>{{ $totalSalidas }}</h3>
-                        <p>Salidas registradas</p>
-                    </div>
-                    <div class="icon"><i class="fas fa-arrow-up"></i></div>
-                    <span class="small-box-footer">Filtrar salidas <i class="fas fa-arrow-circle-right"></i></span>
-                </div>
-            </a>
-        </div>
-        <div class="col-lg-4 col-md-4 col-12">
-            <a href="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.movimientos.index') }}"
-               class="mov-filter-card {{ $filtroNaturaleza === '' ? 'active' : '' }}">
-                <div class="small-box small-box-blue mb-0">
-                    <div class="inner">
-                        <h3>{{ $totalMovimientos }}</h3>
-                        <p>Total de movimientos</p>
-                    </div>
-                    <div class="icon"><i class="fas fa-exchange-alt"></i></div>
-                    <span class="small-box-footer">Ver todos <i class="fas fa-arrow-circle-right"></i></span>
-                </div>
-            </a>
-        </div>
+    <div class="mov-kpi-row">
+        <a href="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.movimientos.index', ['naturaleza' => 'ingreso']) }}"
+           class="mov-kpi mov-kpi-ingreso {{ $filtroNaturaleza === 'ingreso' ? 'active' : '' }}">
+            <div class="mov-kpi-icon"><i class="fas fa-arrow-down"></i></div>
+            <div class="mov-kpi-body">
+                <div class="mov-kpi-value">{{ $totalIngresos }}</div>
+                <div class="mov-kpi-label">Ingresos registrados</div>
+                <div class="mov-kpi-hint">Clic para filtrar</div>
+            </div>
+        </a>
+        <a href="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.movimientos.index', ['naturaleza' => 'salida']) }}"
+           class="mov-kpi mov-kpi-salida {{ $filtroNaturaleza === 'salida' ? 'active' : '' }}">
+            <div class="mov-kpi-icon"><i class="fas fa-arrow-up"></i></div>
+            <div class="mov-kpi-body">
+                <div class="mov-kpi-value">{{ $totalSalidas }}</div>
+                <div class="mov-kpi-label">Salidas registradas</div>
+                <div class="mov-kpi-hint">Clic para filtrar</div>
+            </div>
+        </a>
+        <a href="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.movimientos.index') }}"
+           class="mov-kpi mov-kpi-total {{ $filtroNaturaleza === '' ? 'active' : '' }}">
+            <div class="mov-kpi-icon"><i class="fas fa-exchange-alt"></i></div>
+            <div class="mov-kpi-body">
+                <div class="mov-kpi-value">{{ $totalMovimientos }}</div>
+                <div class="mov-kpi-label">Total de movimientos</div>
+                <div class="mov-kpi-hint">Ver todos</div>
+            </div>
+        </a>
     </div>
 
     <div class="card card-outline card-success card-modulo-main elevation-1">
@@ -86,26 +210,28 @@
             filtros-target="#filtrosMovimientosPanel"
         >
             <x-slot:tools>
-                @can('almacen.ingresos.create')
-                <a class="btn btn-success btn-sm ml-1" href="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.movimientos.create', ['naturaleza' => 'ingreso']) }}">
-                    <i class="fas fa-arrow-down mr-1"></i>
-                    @if(($ambito ?? '') === 'agricola')
-                        Ingreso manual
-                    @else
-                        Ingreso
-                    @endif
-                </a>
-                @endcan
-                @can('almacen.salidas.create')
-                <a class="btn btn-warning btn-sm" href="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.movimientos.create', ['naturaleza' => 'salida']) }}">
-                    <i class="fas fa-arrow-up mr-1"></i> Salida
-                </a>
-                @endcan
-                @can('almacen.reportes.view')
-                <a class="btn btn-info btn-sm" href="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.movimientos.reportes') }}">
-                    <i class="fas fa-chart-bar mr-1"></i> Reportes
-                </a>
-                @endcan
+                <div class="mov-toolbar-actions">
+                    @can('almacen.ingresos.create')
+                    <a class="btn btn-success btn-sm" href="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.movimientos.create', ['naturaleza' => 'ingreso']) }}">
+                        <i class="fas fa-plus mr-1"></i>
+                        @if(($ambito ?? '') === 'agricola')
+                            Ingreso manual
+                        @else
+                            Ingreso
+                        @endif
+                    </a>
+                    @endcan
+                    @can('almacen.salidas.create')
+                    <a class="btn btn-warning btn-sm" href="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.movimientos.create', ['naturaleza' => 'salida']) }}">
+                        <i class="fas fa-arrow-up mr-1"></i> Salida
+                    </a>
+                    @endcan
+                    @can('almacen.reportes.view')
+                    <a class="btn btn-outline-info btn-sm" href="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.movimientos.reportes') }}">
+                        <i class="fas fa-chart-bar mr-1"></i> Reportes
+                    </a>
+                    @endcan
+                </div>
             </x-slot:tools>
         </x-modulo-index-header>
 
@@ -151,18 +277,18 @@
             <x-filtros-client-actions />
         </div>
 
-        <div class="table-responsive">
+        <div class="table-responsive mov-table-wrap mov-table">
             <table class="table table-modulo table-hover mb-0">
                 <thead>
                     <tr>
                         <th>Fecha</th>
                         <th>Tipo</th>
                         <th>Almacén</th>
-                        <th>Producto / detalle</th>
+                        <th>Producto</th>
                         <th class="text-right">Cantidad</th>
                         <th>Responsable</th>
                         <th>Referencia</th>
-                        <th class="text-center" style="width: 70px;">Ver</th>
+                        <th class="text-center" style="width:52px;"></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -172,35 +298,34 @@
                             data-almacen="{{ strtolower($linea->almacen_nombre) }}"
                             data-tipo="{{ strtolower($linea->tipo_nombre) }}"
                             data-naturaleza="{{ strtolower($linea->naturaleza) }}">
-                            <td>{{ $linea->fecha ? \Carbon\Carbon::parse($linea->fecha)->format('d/m/Y') : '—' }}</td>
+                            <td class="text-nowrap">{{ $linea->fecha ? \Carbon\Carbon::parse($linea->fecha)->format('d/m/Y') : '—' }}</td>
                             <td>
-                                <span class="badge badge-{{ $linea->naturaleza === 'ingreso' ? 'success' : 'warning' }}">
-                                    <i class="fas fa-arrow-{{ $linea->naturaleza === 'ingreso' ? 'down' : 'up' }} mr-1"></i>
+                                <span class="mov-tipo-pill {{ $linea->naturaleza === 'ingreso' ? 'ingreso' : 'salida' }}">
+                                    <i class="fas fa-arrow-{{ $linea->naturaleza === 'ingreso' ? 'down' : 'up' }}"></i>
                                     {{ $linea->tipo_nombre }}
                                 </span>
                                 @if($linea->tipo_linea === 'cosecha')
-                                    <br><small class="text-muted"><i class="fas fa-seedling"></i> Desde registro de cosecha</small>
+                                    <span class="mov-cosecha-tag"><i class="fas fa-seedling"></i> Desde cosecha</span>
                                 @endif
                             </td>
                             <td>{{ $linea->almacen_nombre ?: '—' }}</td>
-                            <td><strong class="text-success">{{ $linea->producto }}</strong></td>
+                            <td><span class="mov-producto">{{ $linea->producto }}</span></td>
                             <td class="text-right">
-                                {{ number_format((float) $linea->cantidad, 2) }}
+                                <span class="mov-cantidad">{{ number_format((float) $linea->cantidad, 2) }}</span>
                                 <small class="text-muted">{{ $linea->unidad }}</small>
                             </td>
                             <td>{{ $linea->responsable ?: '—' }}</td>
-                            <td>{{ $linea->referencia ?: '—' }}</td>
+                            <td><span class="mov-ref">{{ $linea->referencia ?: '—' }}</span></td>
                             <td class="text-center">
-                                <a href="{{ $linea->url_ver }}"
-                                   class="btn btn-default btn-sm" title="Ver detalle">
-                                    <i class="fas fa-eye text-info"></i>
+                                <a href="{{ $linea->url_ver }}" class="mov-btn-ver" title="Ver detalle">
+                                    <i class="fas fa-eye"></i>
                                 </a>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="text-center text-muted py-5">
-                                <i class="fas fa-exchange-alt fa-2x mb-2 text-light d-block"></i>
+                            <td colspan="8" class="text-center text-muted py-4">
+                                <i class="fas fa-inbox fa-lg mb-2 d-block opacity-50"></i>
                                 No hay movimientos para este filtro.
                             </td>
                         </tr>

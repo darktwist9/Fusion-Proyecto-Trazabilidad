@@ -65,10 +65,20 @@
                 <p class="role-metric__lbl">Entregados ({{ $filtros->etiquetaPeriodo() }})</p>
             </div>
             <div class="role-metric role-metric--a5">
-                <i class="fas fa-tachometer-alt role-metric__icon"></i>
-                <div class="role-metric__val">{{ $stats['productividad'] }}%</div>
-                <p class="role-metric__lbl">Productividad</p>
+                <i class="fas fa-coins role-metric__icon"></i>
+                <div class="role-metric__val">{{ number_format($stats['ingresos_bs'] ?? 0, 0, ',', '.') }}</div>
+                <p class="role-metric__lbl">Ingresos Bs</p>
+                <div class="role-metric__sub">{{ $filtros->etiquetaPeriodo() }}</div>
             </div>
+        </div>
+
+        <div class="d-flex flex-wrap mb-3" style="gap:.5rem;">
+            <a href="{{ route('logistica.asignaciones.listado') }}" class="btn btn-sm btn-success">
+                <i class="fas fa-truck mr-1"></i> Mis envíos
+            </a>
+            <a href="{{ route('logistica.transportista.ingresos') }}" class="btn btn-sm btn-outline-success">
+                <i class="fas fa-coins mr-1"></i> Ver ingresos ({{ $stats['servicios_completados'] ?? 0 }} completados)
+            </a>
         </div>
 
         @if($stats['asignados'] > 0)
@@ -115,7 +125,7 @@
                                 @elseif(in_array($a->estado, ['en_transporte_planta', 'en_ruta', 'en_transito'], true))
                                     @include('logistica.partials.accion-llegada-destino', ['asignacion' => $a])
                                 @else
-                                    @include('logistica.partials.accion-iniciar-transporte', ['asignacion' => $a])
+                                    @include('logistica.partials.accion-empezar-ruta', ['asignacion' => $a, 'compacto' => true])
                                 @endif
                             </td>
                         </tr>

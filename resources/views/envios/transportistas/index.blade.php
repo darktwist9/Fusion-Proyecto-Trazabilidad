@@ -84,14 +84,17 @@
                         <th>Categoría</th>
                         <th>Correo</th>
                         <th>Teléfono</th>
+                        <th>Licencia</th>
                         <th>Estado</th>
-                        <th style="width:130px" class="text-center">Acciones</th>
+                        <th style="width:150px" class="text-center">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($transportistas as $t)
                     @php
                         $ambito = $t->perfilTransportista?->ambito_flota ?? \App\Support\TransportistaFlotaCatalogo::AGRICOLA;
+                        $tipoLic = $t->tipo_licencia ?? $t->perfilTransportista?->tipo_licencia;
+                        $numLic = $t->perfilTransportista?->licencia;
                     @endphp
                     <tr>
                         <td class="font-weight-bold">{{ $t->nombreCompleto() }}</td>
@@ -102,6 +105,16 @@
                         </td>
                         <td>{{ $t->email }}</td>
                         <td>{{ $t->telefono ?? '—' }}</td>
+                        <td>
+                            @if($tipoLic)
+                                <span class="badge badge-info badge-estado">{{ $tipoLic }}</span>
+                                @if($numLic)
+                                    <span class="small text-muted d-block">{{ $numLic }}</span>
+                                @endif
+                            @else
+                                —
+                            @endif
+                        </td>
                         <td>
                             @if($t->activo)
                                 <span class="badge badge-success badge-estado">Activo</span>
@@ -123,7 +136,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="6" class="text-center text-muted py-4">
+                        <td colspan="7" class="text-center text-muted py-4">
                             <i class="fas fa-user-slash mr-1"></i> No hay transportistas registrados.
                             <a href="{{ route('envios.transportistas.create') }}" class="d-block mt-2">Registrar el primero</a>
                         </td>

@@ -21,11 +21,12 @@ class LoteTrazabilidadService
         'siembra' => ['label' => 'Siembra', 'orden' => 2, 'color' => '#17a2b8', 'icon' => 'seedling'],
         'en_crecimiento' => ['label' => 'En crecimiento', 'orden' => 3, 'color' => '#28a745', 'icon' => 'leaf'],
         'cosecha' => ['label' => 'Cosecha', 'orden' => 4, 'color' => '#e83e8c', 'icon' => 'tractor'],
-        'envio_almacen' => ['label' => 'Envío al almacén', 'orden' => 5, 'color' => '#6f42c1', 'icon' => 'warehouse'],
+        'certificacion' => ['label' => 'Certificación', 'orden' => 5, 'color' => '#6f42c1', 'icon' => 'certificate'],
+        'envio_almacen' => ['label' => 'Envío al almacén', 'orden' => 6, 'color' => '#6f42c1', 'icon' => 'warehouse'],
     ];
 
-    /** Fases que ocurren una sola vez por lote (no muestran contador de eventos). */
-    private const FASES_UNICAS = ['preparacion', 'siembra'];
+    /** Fases que ocurren una sola vez por lote (muestran check, no contador). */
+    private const FASES_UNICAS = ['preparacion', 'siembra', 'cosecha', 'certificacion', 'envio_almacen'];
 
     /** Fases internas de eventos (historial) que se agrupan en «En crecimiento» en el pipeline. */
     private const FASES_EVENTO_EXTRA = [
@@ -46,6 +47,8 @@ class LoteTrazabilidadService
         'en produccion' => 'en_crecimiento',
         'listo para cosecha' => 'cosecha',
         'cosechado' => 'cosecha',
+        'certificado' => 'envio_almacen',
+        'no conforme' => 'certificacion',
         'finalizado' => 'envio_almacen',
         'en descanso' => 'preparacion',
     ];
@@ -89,8 +92,14 @@ class LoteTrazabilidadService
         if ($this->milestoneEnvioAlmacen($lote)) {
             return 'envio_almacen';
         }
+
         if ($this->milestoneCosecha($lote)) {
-            return 'cosecha';
+            $cert = app(CertificacionCampoService::class);
+            if ($cert->estaCertificado($lote)) {
+                return 'envio_almacen';
+            }
+
+            return 'certificacion';
         }
         if ($this->milestoneFumigacion($lote) || $this->milestoneRegado($lote)) {
             return 'en_crecimiento';
@@ -106,19 +115,33 @@ class LoteTrazabilidadService
     }
 
     /**
-     * Impide registrar dos veces actividades de fases únicas (preparación / siembra).
+     * Valida si el tipo de actividad puede registrarse en el lote (fase actual + duplicados).
      */
-    public function mensajeActividadDuplicada(Lote $lote, ?string $tipoNombre): ?string
+    public function mensajeActividadNoPermitida(Lote $lote, ?string $tipoNombre): ?string
     {
         if ($tipoNombre === null || trim($tipoNombre) === '') {
             return null;
         }
 
-        $lote->loadMissing('actividades.tipoActividad');
+        $lote->loadMissing(['actividades.tipoActividad', 'estadoTipo']);
         $nombre = mb_strtolower(trim($tipoNombre));
+        $faseActual = $this->resolverFaseActual($lote);
+        $faseTipo = $this->faseDeTipoActividad($nombre);
 
-        if (str_contains($nombre, 'siembra') && $this->milestoneSiembra($lote)) {
-            return 'Este lote ya tiene siembra registrada. Solo puede realizarse una vez.';
+        if ($faseTipo !== null && $faseTipo !== $faseActual) {
+            $labelActual = self::FASES[$faseActual]['label'] ?? ucfirst($faseActual);
+
+            return "El lote está en fase «{$labelActual}». No puede registrar «{$tipoNombre}» porque pertenece a una fase anterior o distinta.";
+        }
+
+        // Riego, fertilización y control de plagas pueden repetirse en «en crecimiento».
+        if (str_contains($nombre, 'siembra')) {
+            if ($this->actividadExistenteConKeywords($lote, ['siembra'], true)) {
+                return 'Este lote ya tiene una actividad de siembra (pendiente o completada). Solo puede realizarse una vez.';
+            }
+            if ($this->milestoneSiembra($lote)) {
+                return 'Este lote ya superó la fase de siembra.';
+            }
         }
 
         if ((str_contains($nombre, 'labranza') || str_contains($nombre, 'prepar'))
@@ -127,6 +150,40 @@ class LoteTrazabilidadService
         }
 
         return null;
+    }
+
+    /** @deprecated Use mensajeActividadNoPermitida() */
+    public function mensajeActividadDuplicada(Lote $lote, ?string $tipoNombre): ?string
+    {
+        return $this->mensajeActividadNoPermitida($lote, $tipoNombre);
+    }
+
+    public function tipoActividadPermitidoEnFase(?string $tipoNombre, string $faseActual): bool
+    {
+        $faseTipo = $this->faseDeTipoActividad(mb_strtolower(trim($tipoNombre ?? '')));
+
+        if ($faseTipo === null) {
+            return true;
+        }
+
+        return $faseTipo === $faseActual;
+    }
+
+    private function faseDeTipoActividad(string $nombre): ?string
+    {
+        if ($nombre === '') {
+            return null;
+        }
+
+        return match (true) {
+            str_contains($nombre, 'labranza') || str_contains($nombre, 'prepar') => 'preparacion',
+            str_contains($nombre, 'siembra') => 'siembra',
+            str_contains($nombre, 'riego') || str_contains($nombre, 'regad'),
+            str_contains($nombre, 'fumig') || str_contains($nombre, 'plaga') || str_contains($nombre, 'fitosanit'),
+            str_contains($nombre, 'fertiliz') => 'en_crecimiento',
+            str_contains($nombre, 'cosecha') => 'cosecha',
+            default => null,
+        };
     }
 
     private function milestonePreparacion(Lote $lote): bool
@@ -180,9 +237,8 @@ class LoteTrazabilidadService
         $return = route('lotes.trazabilidad', $lote);
 
         return match ($faseKey) {
-            'siembra' => route('actividades.create', [
-                'loteid' => $lote->loteid,
-                'tipo' => 'Siembra',
+            'siembra' => route('lotes.siembra.create', [
+                'lote' => $lote->loteid,
                 'return' => $return,
             ]),
             'en_crecimiento' => $this->urlAsignarActividadEnCrecimiento($lote),
@@ -190,6 +246,7 @@ class LoteTrazabilidadService
                 'loteid' => $lote->loteid,
                 'return' => $return,
             ]),
+            'certificacion' => route('certificaciones.index'),
             'envio_almacen' => route('producciones.create', [
                 'loteid' => $lote->loteid,
                 'return' => $return,
@@ -222,6 +279,74 @@ class LoteTrazabilidadService
         return $this->milestoneRegado($lote)
             && $this->milestoneFumigacion($lote)
             && $this->milestoneFertilizacion($lote);
+    }
+
+    /** @return Collection<int, Actividad> */
+    public function actividadesPendientes(Lote $lote, bool $soloFaseActual = true): Collection
+    {
+        $lote->loadMissing('actividades.tipoActividad');
+        $faseActual = $soloFaseActual ? $this->resolverFaseActual($lote) : null;
+
+        return $lote->actividades
+            ->whereNull('fechafin')
+            ->when($faseActual !== null, fn (Collection $items) => $items->filter(
+                fn (Actividad $actividad) => $this->tipoActividadPermitidoEnFase(
+                    $actividad->tipoActividad->nombre ?? null,
+                    $faseActual
+                )
+            ))
+            ->sortByDesc('fechainicio')
+            ->values();
+    }
+
+    public function puedeIrACosecha(Lote $lote): bool
+    {
+        return $this->actividadesPendientes($lote)->isEmpty()
+            && $this->puedeRegistrarCosecha($lote);
+    }
+
+    /**
+     * @return array{
+     *     meta_label: ?string,
+     *     meta_progreso: ?int,
+     *     hitos: array<int, array{label: string, ok: bool}>,
+     *     actividades_abiertas: array<int, array{titulo: string, responsable: ?string}>
+     * }
+     */
+    public function panelPendientesLegible(Lote $lote, string $faseActual): array
+    {
+        $lote->loadMissing(['actividades.tipoActividad', 'actividades.usuario']);
+        $pend = $this->pasosHaciaCompleto($lote, $faseActual);
+        $siguienteKey = $pend['siguiente_fase'] ?? null;
+
+        $hitos = [];
+        if ($faseActual === 'en_crecimiento') {
+            $hitos = [
+                ['label' => 'Riego completado', 'ok' => $this->milestoneRegado($lote)],
+                ['label' => 'Control de plagas completado', 'ok' => $this->milestoneFumigacion($lote)],
+                ['label' => 'Fertilización completada', 'ok' => $this->milestoneFertilizacion($lote)],
+            ];
+        }
+
+        $actividadesAbiertas = $this->actividadesPendientes($lote)
+            ->map(fn (Actividad $a) => [
+                'actividadid' => (int) $a->actividadid,
+                'titulo' => $a->descripcion ?: ($a->tipoActividad->nombre ?? 'Actividad'),
+                'responsable' => trim(($a->usuario->nombre ?? '').' '.($a->usuario->apellido ?? '')) ?: null,
+                'es_siembra' => str_contains(mb_strtolower(trim($a->tipoActividad->nombre ?? '')), 'siembra'),
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'meta_label' => $pend['siguiente_label'] ?? null,
+            'meta_progreso' => $pend['progreso_siguiente'] ?? null,
+            'fases_despues' => array_slice($pend['fases_restantes'] ?? [], 1),
+            'hitos' => $hitos,
+            'actividades_abiertas' => $actividadesAbiertas,
+            'completo' => (bool) ($pend['completo'] ?? false),
+            'resumen_corto' => $pend['resumen'] ?? '',
+        ];
     }
 
     /** @return list<string> */
@@ -297,8 +422,13 @@ class LoteTrazabilidadService
      */
     private function actividadCompletadaConKeywords(Lote $lote, array $keywords): bool
     {
+        return $this->actividadExistenteConKeywords($lote, $keywords, false);
+    }
+
+    private function actividadExistenteConKeywords(Lote $lote, array $keywords, bool $incluirPendientes): bool
+    {
         return $lote->actividades
-            ->whereNotNull('fechafin')
+            ->when(! $incluirPendientes, fn (Collection $items) => $items->whereNotNull('fechafin'))
             ->contains(function ($actividad) use ($keywords) {
                 $nombre = mb_strtolower(trim($actividad->tipoActividad->nombre ?? ''));
 
@@ -439,22 +569,39 @@ class LoteTrazabilidadService
 
             case 'en_crecimiento':
                 if (! $this->milestoneRegado($lote)) {
-                    $pasos[] = 'Registrar riego / regado del lote';
+                    $pasos[] = 'Asignar y completar el riego del lote';
                 }
                 if (! $this->milestoneFumigacion($lote)) {
-                    $pasos[] = 'Registrar fumigación o control de plagas';
+                    $pasos[] = 'Asignar y completar el control de plagas';
                 }
                 if (! $this->milestoneFertilizacion($lote)) {
-                    $pasos[] = 'Registrar fertilización del lote';
+                    $pasos[] = 'Asignar y completar la fertilización';
                 }
-                $pasos[] = 'Documentar fechas y observaciones de las actividades de crecimiento';
+                foreach ($this->actividadesPendientes($lote) as $actividad) {
+                    $titulo = $actividad->descripcion ?: ($actividad->tipoActividad->nombre ?? 'Actividad');
+                    $pasos[] = 'Completar actividad pendiente: «'.$titulo.'»';
+                }
                 break;
 
             case 'cosecha':
                 if ($lote->producciones->isEmpty()) {
-                    $pasos[] = 'Registrar la cosecha (kg, fecha y destino)';
+                    $pasos[] = 'Registrar la cosecha (kg, fecha y evidencia)';
+                } else {
+                    $pasos[] = 'Cosecha registrada — continúe con la certificación del lote';
                 }
-                $pasos[] = 'Verificar cantidad cosechada antes del envío a almacén';
+                break;
+
+            case 'certificacion':
+                $cert = app(CertificacionCampoService::class);
+                if ($cert->esNoConforme($lote)) {
+                    $pasos[] = 'Lote No conforme: no puede enviarse al almacén';
+                    if ($cert->ultima($lote)?->observaciones) {
+                        $pasos[] = 'Motivo: '.$cert->ultima($lote)->observaciones;
+                    }
+                } else {
+                    $pasos[] = 'Evaluar el lote en Certificaciones (Certificado o No conforme)';
+                    $pasos[] = 'Si hay daños, plagas o calidad deficiente, marque No conforme';
+                }
                 break;
 
             case 'envio_almacen':
@@ -465,14 +612,14 @@ class LoteTrazabilidadService
                 break;
         }
 
-        if ($siguienteFase && isset(self::FASES[$siguienteFase])) {
+        if ($siguienteFase && isset(self::FASES[$siguienteFase]) && $faseActual !== 'en_crecimiento') {
             array_unshift(
                 $pasos,
                 'Alcanzar la fase «'.self::FASES[$siguienteFase]['label'].'» ('.$this->progresoFase($siguienteFase).' %)'
             );
         }
 
-        return array_values(array_unique(array_slice($pasos, 0, 5)));
+        return array_values(array_unique(array_slice($pasos, 0, 6)));
     }
 
     /**
@@ -528,12 +675,11 @@ class LoteTrazabilidadService
             $usuarioHist = $historial->usuario;
             $nombreHist = trim(($usuarioHist->nombre ?? '').' '.($usuarioHist->apellido ?? ''));
             $rolHist = ucfirst($usuarioHist->role ?? '');
-            $descripcion = $historial->observaciones ?? 'Sin observaciones';
-            if ($nombreHist && ! str_contains($descripcion, 'Realizado por:')) {
-                $descripcion .= ' · Realizado por: '.$nombreHist
-                    .($rolHist ? " ({$rolHist})" : '')
-                    .' — '.Carbon::parse($historial->fecha_cambio)->format('d/m/Y H:i');
-            }
+            $descripcion = $this->formatearObservacionHistorial(
+                $historial->observaciones,
+                $nombreHist ?: null,
+                $rolHist ?: null,
+            );
 
             $eventos->push($this->evento(
                 $historial->fecha_cambio,
@@ -566,6 +712,13 @@ class LoteTrazabilidadService
 
         foreach ($lote->actividades as $actividad) {
             $tipoNombre = strtolower(trim($actividad->tipoActividad->nombre ?? ''));
+
+            // La siembra tiene pantalla y flujo propios; no aparece como «actividad» en el historial.
+            if (str_contains($tipoNombre, 'siembra')) {
+                continue;
+            }
+
+            $fasePipeline = $this->resolverFasePipelineActividad($actividad, $lote);
             $faseAct = match (true) {
                 str_contains($tipoNombre, 'siembra') => 'siembra',
                 str_contains($tipoNombre, 'cosecha') => 'cosecha',
@@ -575,21 +728,54 @@ class LoteTrazabilidadService
                 str_contains($tipoNombre, 'labranza') => 'preparacion',
                 default => 'regado',
             };
+            $etapaLabel = self::FASES[$fasePipeline]['label'] ?? ucfirst($fasePipeline);
+            $nombreTipo = $actividad->tipoActividad->nombre ?? 'Actividad';
+            $descripcionAct = trim((string) ($actividad->descripcion ?? ''));
+            $evidenciaAct = $actividad->fechafin !== null
+                ? EvidenciaFoto::urlDesdePath($actividad->evidencia_foto_path ?? null)
+                : null;
             $eventos->push($this->evento(
                 $actividad->fechainicio,
                 'actividad',
                 $faseAct,
-                $actividad->tipoActividad->nombre ?? 'Actividad',
-                $actividad->descripcion ?? 'Sin descripción',
+                $nombreTipo,
+                $descripcionAct,
                 $actividad->usuario->nombre ?? null,
                 'tasks',
                 'primary',
                 $actividad->fechafin !== null,
                 (int) $actividad->actividadid,
+                $etapaLabel,
+                $evidenciaAct,
+            ));
+        }
+
+        foreach ($lote->actividades as $actividad) {
+            $tipoNombre = strtolower(trim($actividad->tipoActividad->nombre ?? ''));
+            if (! str_contains($tipoNombre, 'siembra') || $actividad->fechafin === null) {
+                continue;
+            }
+
+            $descripcionSiembra = trim((string) ($actividad->descripcion ?? ''));
+            $evidenciaSiembra = EvidenciaFoto::urlDesdePath($actividad->evidencia_foto_path ?? null);
+            $eventos->push($this->evento(
+                $actividad->fechafin ?? $actividad->fechainicio,
+                'siembra',
+                'siembra',
+                'Siembra realizada',
+                $descripcionSiembra,
+                $actividad->usuario->nombre ?? null,
+                'seedling',
+                'info',
+                true,
+                null,
+                self::FASES['siembra']['label'],
+                $evidenciaSiembra,
             ));
         }
 
         foreach ($lote->producciones as $produccion) {
+            $evidenciaCosecha = EvidenciaFoto::urlDesdeImagenUrl($produccion->imagenurl ?? null);
             $eventos->push($this->evento(
                 $produccion->fechacosecha,
                 'cosecha',
@@ -600,7 +786,12 @@ class LoteTrazabilidadService
                     .' — Destino: '.($produccion->destino->nombre ?? 'N/D'),
                 null,
                 'tractor',
-                'success'
+                'success',
+                null,
+                null,
+                null,
+                $evidenciaCosecha,
+                (int) $produccion->produccionid,
             ));
 
             foreach ($produccion->almacenamientos as $alm) {
@@ -635,17 +826,23 @@ class LoteTrazabilidadService
         }
 
         foreach ($lote->certificaciones as $cert) {
+            $titulo = $cert->esNoConforme() ? 'No conforme — lote de campo' : 'Certificación de lote';
+            $detalle = $cert->codigo_certificado
+                ? 'Código: '.$cert->codigo_certificado
+                : ($cert->observaciones ?? 'Evaluación registrada');
+            if ($cert->observaciones && $cert->esNoConforme()) {
+                $detalle .= ' — '.$cert->observaciones;
+            }
+
             $eventos->push($this->evento(
                 $cert->fecha_certificacion,
                 'certificacion',
-                'envio_almacen',
-                'Certificación de lote',
-                $cert->codigo_certificado
-                    ? 'Código: '.$cert->codigo_certificado
-                    : ($cert->observaciones ?? 'Lote certificado'),
+                'certificacion',
+                $titulo,
+                $detalle,
                 $cert->usuario->nombre ?? null,
                 'certificate',
-                'success'
+                $cert->esNoConforme() ? 'danger' : 'success'
             ));
         }
 
@@ -765,9 +962,10 @@ class LoteTrazabilidadService
         $faseActual = $this->resolverFaseActual($lote);
 
         $porFase = $eventos->groupBy('fase')->map->count();
-        $porTipo = $eventosFiltrados->groupBy('tipo')->map->count();
+        $porTipo = $eventos->groupBy('tipo')->map->count();
+        $porTipoFiltrado = $eventosFiltrados->groupBy('tipo')->map->count();
 
-        $fasesPipeline = collect(self::FASES)->map(function ($meta, $key) use ($faseActual, $porFase, $lote) {
+        $fasesPipeline = collect(self::FASES)->map(function ($meta, $key) use ($faseActual, $porFase, $porTipo, $lote) {
             $ordenActual = self::FASES[$faseActual]['orden'] ?? 1;
             $ordenSiguiente = $ordenActual + 1;
             $completo = $this->trazabilidadCompleta($lote);
@@ -788,12 +986,24 @@ class LoteTrazabilidadService
             $esFaseUnica = in_array($key, self::FASES_UNICAS, true);
             $eventosCount = match ($key) {
                 'en_crecimiento' => ($porFase->get('regado', 0) + $porFase->get('fumigacion', 0) + $porFase->get('fertilizacion', 0)),
-                default => $porFase->get($key, 0),
+                'cosecha' => (int) $porTipo->get('cosecha', 0),
+                'certificacion' => (int) $porTipo->get('certificacion', 0),
+                'envio_almacen' => (int) $porTipo->get('almacenamiento', 0),
+                default => (int) $porFase->get($key, 0),
             };
 
-            if ($esFaseUnica) {
+            if ($esFaseUnica && $key !== 'en_crecimiento') {
                 $eventosCount = 0;
             }
+
+            $certService = app(CertificacionCampoService::class);
+            $completada = match ($key) {
+                'preparacion', 'siembra' => $estado === 'done',
+                'cosecha' => (int) $porTipo->get('cosecha', 0) > 0,
+                'certificacion' => $certService->fueEvaluado($lote),
+                'envio_almacen' => (int) $porTipo->get('almacenamiento', 0) > 0,
+                default => false,
+            };
 
             return [
                 'key' => $key,
@@ -802,7 +1012,8 @@ class LoteTrazabilidadService
                 'icon' => $meta['icon'],
                 'eventos' => $eventosCount,
                 'fase_unica' => $esFaseUnica,
-                'completada' => $esFaseUnica && $estado === 'done',
+                'completada' => $completada,
+                'mostrar_contador' => $key === 'en_crecimiento' && $eventosCount > 0,
                 'estado' => $estado,
                 'url' => $url,
             ];
@@ -833,14 +1044,19 @@ class LoteTrazabilidadService
             'url_siguiente_fase' => $urlSiguienteFase,
             'url_asignar_actividad' => $urlAsignarActividad,
             'siguiente_actividad_crecimiento' => $siguienteActividadCrecimiento,
+            'puede_ir_a_cosecha' => $faseActual === 'en_crecimiento' && $siguienteFase === 'cosecha'
+                ? $this->puedeIrACosecha($lote)
+                : true,
+            'actividades_pendientes_count' => $this->actividadesPendientes($lote)->count(),
+            'panel_pendientes' => $this->panelPendientesLegible($lote, $faseActual),
             'chart_por_fase' => [
                 'labels' => $porFase->keys()->map(fn ($k) => self::FASES[$k]['label'] ?? $k)->values()->all(),
                 'data' => $porFase->values()->all(),
                 'colors' => $porFase->keys()->map(fn ($k) => self::FASES[$k]['color'] ?? '#999')->values()->all(),
             ],
             'chart_por_tipo' => [
-                'labels' => $porTipo->keys()->map(fn ($t) => ucfirst($t))->values()->all(),
-                'data' => $porTipo->values()->all(),
+                'labels' => $porTipoFiltrado->keys()->map(fn ($t) => ucfirst($t))->values()->all(),
+                'data' => $porTipoFiltrado->values()->all(),
             ],
             'chart_linea' => $this->chartLineaMensual($eventosFiltrados),
             'actividades_marcables_ids' => $this->idsActividadesMarcables($lote, $request->user()),
@@ -857,6 +1073,7 @@ class LoteTrazabilidadService
         return Actividad::query()
             ->where('loteid', $lote->loteid)
             ->whereNull('fechafin')
+            ->with('tipoActividad')
             ->get()
             ->filter(fn (Actividad $actividad) => ActividadPermisos::puedeMarcarCompletada($user, $actividad))
             ->map(fn (Actividad $actividad) => (int) $actividad->actividadid)
@@ -940,16 +1157,101 @@ class LoteTrazabilidadService
             if ($filtros['tipo'] && ($e['tipo'] ?? '') !== $filtros['tipo']) {
                 return false;
             }
-            $fecha = $e['fecha'] ? Carbon::parse($e['fecha']) : null;
-            if ($filtros['desde'] && $fecha && $fecha->lt(Carbon::parse($filtros['desde'])->startOfDay())) {
+            $fecha = $e['fecha'] ? $this->parseFechaApp($e['fecha']) : null;
+            if ($filtros['desde'] && $fecha && $fecha->lt($this->parseFechaApp($filtros['desde'])->startOfDay())) {
                 return false;
             }
-            if ($filtros['hasta'] && $fecha && $fecha->gt(Carbon::parse($filtros['hasta'])->endOfDay())) {
+            if ($filtros['hasta'] && $fecha && $fecha->gt($this->parseFechaApp($filtros['hasta'])->endOfDay())) {
                 return false;
             }
 
             return true;
         })->values();
+    }
+
+    private function formatearObservacionHistorial(?string $observaciones, ?string $usuario, ?string $rol): string
+    {
+        $lineas = [];
+
+        if ($observaciones !== null && trim($observaciones) !== '' && trim($observaciones) !== 'Sin observaciones') {
+            $texto = preg_replace('/^\[[^\]]+\]\s*/', '', trim($observaciones)) ?? trim($observaciones);
+            $partes = preg_split('/\s*·\s*/', $texto) ?: [];
+
+            foreach ($partes as $parte) {
+                $parte = trim($parte);
+                if ($parte === '' || strcasecmp($parte, 'historial') === 0) {
+                    continue;
+                }
+                if (preg_match('/^Realizado por:/i', $parte)) {
+                    continue;
+                }
+                if (preg_match('/\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/', $parte)) {
+                    continue;
+                }
+                if (preg_match('/\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}/', $parte)) {
+                    continue;
+                }
+                $lineas[] = $parte;
+            }
+        }
+
+        if ($usuario) {
+            $lineas[] = 'Registrado por '.$usuario.($rol ? " ({$rol})" : '');
+        }
+
+        if ($lineas === []) {
+            return 'Cambio de estado registrado en el lote.';
+        }
+
+        return implode("\n", array_values(array_unique($lineas)));
+    }
+
+    private function resolverFasePipelineActividad(Actividad $actividad, Lote $lote): string
+    {
+        $tipoNombre = strtolower(trim($actividad->tipoActividad->nombre ?? ''));
+
+        if (str_contains($tipoNombre, 'labranza')) {
+            return 'preparacion';
+        }
+        if (str_contains($tipoNombre, 'siembra')) {
+            return 'siembra';
+        }
+        if (str_contains($tipoNombre, 'cosecha')) {
+            return 'cosecha';
+        }
+
+        $siembraCompletada = $lote->actividades->first(function (Actividad $a) {
+            $nombre = strtolower(trim($a->tipoActividad->nombre ?? ''));
+
+            return str_contains($nombre, 'siembra') && $a->fechafin !== null;
+        });
+
+        if ($siembraCompletada === null) {
+            return 'siembra';
+        }
+
+        $fechaAct = $actividad->fechainicio ? $this->parseFechaApp($actividad->fechainicio) : null;
+        $fechaSiembraFin = $this->parseFechaApp($siembraCompletada->fechafin);
+
+        if ($fechaAct && $fechaAct->lte($fechaSiembraFin)) {
+            return 'siembra';
+        }
+
+        return 'en_crecimiento';
+    }
+
+    private function parseFechaApp(mixed $fecha): Carbon
+    {
+        return Carbon::parse($fecha)->timezone(config('app.timezone'));
+    }
+
+    private function formatearFechaApp(mixed $fecha): string
+    {
+        if ($fecha === null || $fecha === '') {
+            return '—';
+        }
+
+        return $this->parseFechaApp($fecha)->format('d/m/Y H:i');
     }
 
     private function evento(
@@ -963,14 +1265,18 @@ class LoteTrazabilidadService
         string $color,
         ?bool $completada = null,
         ?int $actividadid = null,
+        ?string $faseLabelOverride = null,
+        ?string $evidenciaUrl = null,
+        ?int $produccionid = null,
     ): array {
         $row = [
             'fecha' => $fecha,
-            'fecha_iso' => $fecha ? Carbon::parse($fecha)->toIso8601String() : null,
-            'fecha_fmt' => $fecha ? Carbon::parse($fecha)->format('d/m/Y H:i') : '—',
+            'fecha_iso' => $fecha ? $this->parseFechaApp($fecha)->toIso8601String() : null,
+            'fecha_fmt' => $this->formatearFechaApp($fecha),
             'tipo' => $tipo,
             'fase' => $fase,
-            'fase_label' => self::FASES_EVENTO_EXTRA[$fase]['label']
+            'fase_label' => $faseLabelOverride
+                ?? self::FASES_EVENTO_EXTRA[$fase]['label']
                 ?? self::FASES[$fase]['label']
                 ?? ucfirst($fase),
             'titulo' => $titulo,
@@ -984,6 +1290,12 @@ class LoteTrazabilidadService
         }
         if ($actividadid !== null) {
             $row['actividadid'] = $actividadid;
+        }
+        if ($evidenciaUrl !== null) {
+            $row['evidencia_url'] = $evidenciaUrl;
+        }
+        if ($produccionid !== null) {
+            $row['produccionid'] = $produccionid;
         }
 
         return $row;

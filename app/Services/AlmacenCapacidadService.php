@@ -8,6 +8,7 @@ use App\Models\Insumo;
 use App\Models\LoteProduccionPedido;
 use App\Models\ProduccionAlmacenamiento;
 use App\Models\UnidadMedida;
+use App\Support\InsumoCatalogo;
 use App\Support\ProductoPlantaCatalogo;
 
 class AlmacenCapacidadService
@@ -69,9 +70,9 @@ class AlmacenCapacidadService
             ->get()
             ->sum(fn (ProduccionAlmacenamiento $row) => $this->convertirAKg((float) $row->cantidad, $row->unidadMedida));
 
-        $insumoKg = (float) Insumo::query()
-            ->with('unidadMedida')
-            ->where('almacenid', $almacen->almacenid)
+        $insumoKg = (float) InsumoCatalogo::aplicarFiltroOperativo(
+            Insumo::query()->with('unidadMedida')->where('almacenid', $almacen->almacenid)
+        )
             ->get()
             ->sum(fn (Insumo $insumo) => $this->convertirAKg((float) $insumo->stock, $insumo->unidadMedida));
 
@@ -85,12 +86,7 @@ class AlmacenCapacidadService
         return (float) AlmacenajeLoteProduccion::query()
             ->with(['loteProduccionPedido.unidadMedida', 'loteProduccionPedido.materiasPrimas.insumo.unidadMedida'])
             ->whereNull('fecha_retiro')
-            ->where(function ($q) use ($almacen) {
-                $q->where('almacenid', $almacen->almacenid)
-                    ->orWhere(function ($q2) use ($almacen) {
-                        $q2->whereNull('almacenid')->where('ubicacion', $almacen->nombre);
-                    });
-            })
+            ->where('almacenid', $almacen->almacenid)
             ->get()
             ->sum(function (AlmacenajeLoteProduccion $row) {
                 $lote = $row->loteProduccionPedido;

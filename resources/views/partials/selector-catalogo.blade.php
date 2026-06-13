@@ -18,23 +18,27 @@
     $filter = $filter ?? null;
     $filterAlmacen = $filterAlmacen ?? null;
     $inputGroup = $inputGroup ?? false;
+    $size = $size ?? '';
+    $showLabel = $showLabel ?? ! $inputGroup;
     $searchLabel = $searchLabel ?? null;
     $modalIcon = $modalIcon ?? null;
     $rowIcon = $rowIcon ?? null;
     $colDetalle = $colDetalle ?? null;
+    $colNombre = $colNombre ?? null;
+    $theme = $theme ?? null;
 @endphp
 
 <div class="selector-catalogo-wrapper {{ $inputGroup ? 'flex-grow-1 w-100 mb-0' : 'form-group' }}" id="selector_wrap_{{ $id }}">
-    @unless($inputGroup)
-        <label>
+    @if($showLabel)
+        <label class="small font-weight-bold mb-1 d-block">
             @if($icon)<i class="fas {{ $icon }} mr-1"></i>@endif
             {!! $label !!}
             @if($required)<span class="text-danger">*</span>@endif
         </label>
-    @endunless
-    <div class="input-group">
+    @endif
+    <div class="input-group{{ $size === 'sm' ? ' input-group-sm' : '' }}">
         <input type="text"
-               class="form-control selector-catalogo-label {{ ! $tieneSeleccion ? 'text-muted' : '' }}"
+               class="form-control selector-catalogo-label{{ $size === 'sm' ? ' form-control-sm' : '' }} {{ ! $tieneSeleccion ? 'text-muted' : '' }}"
                value="{{ $tieneSeleccion ? $labelSelected : '' }}"
                placeholder="{{ $allowEmpty ? $placeholderEmpty : 'Clic en Buscar para elegir…' }}"
                readonly
@@ -45,17 +49,17 @@
                class="selector-catalogo-value"
                @if($required) required @endif>
         <div class="input-group-append">
-            <button type="button" class="btn btn-outline-primary" data-selector-open="{{ $id }}" title="Buscar y filtrar">
+            <button type="button" class="btn btn-outline-primary{{ $size === 'sm' ? ' btn-sm' : '' }}" data-selector-open="{{ $id }}" title="Buscar y filtrar">
                 <i class="fas fa-search mr-1"></i> Buscar
             </button>
             @if($allowEmpty)
-                <button type="button" class="btn btn-outline-secondary" data-selector-clear="{{ $id }}" title="Quitar selección">
+                <button type="button" class="btn btn-outline-secondary{{ $size === 'sm' ? ' btn-sm' : '' }}" data-selector-clear="{{ $id }}" title="Quitar selección">
                     <i class="fas fa-times"></i>
                 </button>
             @endif
         </div>
     </div>
-    @if($help && !$inputGroup)
+    @if($help && ! $showLabel)
         <p class="campo-guia mb-0">{{ $help }}</p>
     @endif
 </div>
@@ -79,7 +83,9 @@ document.addEventListener('DOMContentLoaded', function () {
         searchLabel: @json($searchLabel),
         modalIcon: @json($modalIcon),
         rowIcon: @json($rowIcon),
-        colDetalle: @json($colDetalle),
+        colDetalle: @json($colDetalle ?? 'Detalle'),
+        colNombre: @json($colNombre ?? 'Nombre'),
+        theme: @json($theme ?? null),
     });
 });
 </script>

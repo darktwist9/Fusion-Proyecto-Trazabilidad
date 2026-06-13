@@ -105,6 +105,7 @@ class PedidoController extends Controller
             'origen_latitud' => 'required|numeric|between:-90,90',
             'origen_longitud' => 'required|numeric|between:-180,180',
             'origen_direccion' => 'nullable|string|max:255',
+            'origen_almacenid' => 'nullable|integer|exists:almacen,almacenid',
             'latitud' => 'required|numeric|between:-90,90',
             'longitud' => 'required|numeric|between:-180,180',
             'direccion_texto' => 'nullable|string|max:255',
@@ -112,10 +113,12 @@ class PedidoController extends Controller
             'observaciones' => 'nullable|string',
             'transportista_usuarioid' => 'required|integer|exists:usuario,usuarioid',
             'vehiculoid' => 'required|integer|exists:vehiculo,vehiculoid',
+            'costo_bs' => 'required|numeric|min:0.01|max:99999999.99',
             'recogidas' => 'nullable|array|max:5',
             'recogidas.*.latitud' => 'required|numeric|between:-90,90',
             'recogidas.*.longitud' => 'required|numeric|between:-180,180',
             'recogidas.*.direccion' => 'nullable|string|max:255',
+            'recogidas.*.almacenid' => 'nullable|integer|exists:almacen,almacenid',
             'detalles' => 'required|array|min:1',
             'detalles.*.producto_ref' => ['required', 'string', 'regex:/^(insumo|cosecha|cultivo):\d+$/'],
             'detalles.*.cantidad' => 'required|numeric|min:0.01',
@@ -124,15 +127,30 @@ class PedidoController extends Controller
             'detalles.*.producto_ref.regex' => 'Seleccione un producto válido de producción agrícola.',
         ]);
 
+        if (empty($data['fechaEntregaDeseada'])) {
+            $data['fechaEntregaDeseada'] = now()->toDateString();
+        }
+
+        $erroresStock = PedidoCatalogo::validarStockDetallesPedido(
+            $data['detalles'],
+            isset($data['origen_almacenid']) ? (int) $data['origen_almacenid'] : null,
+            array_values($data['recogidas'] ?? [])
+        );
+        if ($erroresStock !== null) {
+            throw \Illuminate\Validation\ValidationException::withMessages($erroresStock);
+        }
+
         $transportistaId = (int) $data['transportista_usuarioid'];
         $vehiculoId = (int) $data['vehiculoid'];
+        $costoBs = (float) $data['costo_bs'];
         $recogidasExtra = array_values($data['recogidas'] ?? []);
 
         $pedido = null;
 
-        DB::transaction(function () use ($data, $transportistaId, $vehiculoId, $recogidasExtra, &$pedido) {
+        try {
+            DB::transaction(function () use ($data, $transportistaId, $vehiculoId, $costoBs, $recogidasExtra, &$pedido) {
             $detallesInput = $data['detalles'];
-            unset($data['detalles'], $data['transportista_usuarioid'], $data['vehiculoid'], $data['recogidas']);
+            unset($data['detalles'], $data['transportista_usuarioid'], $data['vehiculoid'], $data['recogidas'], $data['costo_bs']);
 
             $pedido = Pedido::create([
                 ...$data,
@@ -161,7 +179,8 @@ class PedidoController extends Controller
                 $pedido,
                 $transportistaId,
                 $vehiculoId,
-                (int) auth()->id()
+                (int) auth()->id(),
+                $costoBs
             );
 
             if ($recogidasExtra !== []) {
@@ -173,7 +192,12 @@ class PedidoController extends Controller
                     (int) auth()->id()
                 );
             }
-        });
+            });
+        } catch (\InvalidArgumentException $e) {
+            return back()->withInput()->withErrors([
+                'vehiculoid' => $e->getMessage(),
+            ]);
+        }
 
         app(NotificacionUsuarioService::class)->pedidoPendienteAgricola($pedido->fresh(['detalles']));
 
@@ -292,6 +316,7 @@ class PedidoController extends Controller
         $data = $request->validate([
             'transportista_usuarioid' => ['required', 'integer', 'exists:usuario,usuarioid'],
             'vehiculoid' => ['required', 'integer', 'exists:vehiculo,vehiculoid'],
+            'costo_bs' => ['required', 'numeric', 'min:0.01', 'max:99999999.99'],
         ]);
 
         $envio = null;
@@ -302,7 +327,8 @@ class PedidoController extends Controller
                 (int) $data['transportista_usuarioid'],
                 (int) $data['vehiculoid'],
                 (int) auth()->id(),
-                false
+                false,
+                (float) $data['costo_bs']
             );
         } catch (\InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage());

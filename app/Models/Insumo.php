@@ -23,6 +23,8 @@ class Insumo extends Model
         'actorid',
         'preciounitario',
         'descripcion',
+        'dosis_por_ha',
+        'dosis_unidad',
         'almacenid',
         'codigo_trazabilidad',
     ];
@@ -35,6 +37,7 @@ class Insumo extends Model
         'stock'          => 'float',
         'stockminimo'    => 'float',
         'preciounitario' => 'float',
+        'dosis_por_ha'   => 'float',
         'almacenid' => 'integer',
     ];
 

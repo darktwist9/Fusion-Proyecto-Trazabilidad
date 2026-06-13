@@ -16,40 +16,7 @@ final class EnvioListadoService
      */
     public static function prepararListado(Request $request): array
     {
-        $user = $request->user();
-        $esTransportista = UsuarioRol::esTransportista($user);
-        $filtroTransportista = (int) $request->query('transportista', 0);
-
-        $query = self::queryBase($user, $esTransportista, $request, $filtroTransportista);
-
-        $pedidos = $query->paginate(20)->withQueryString();
-
-        $transportistas = $esTransportista
-            ? collect()
-            : Usuario::query()
-                ->where('role', 'transportista')
-                ->where('activo', true)
-                ->orderBy('nombre')
-                ->orderBy('apellido')
-                ->get();
-
-        $resumenEnvios = (! $esTransportista && $user?->can('asignaciones.create'))
-            ? self::resumenDesdePedidos()
-            : null;
-
-        return [
-            'pedidos' => $pedidos,
-            'transportistas' => $transportistas,
-            'filtroTransportista' => $filtroTransportista,
-            'esTransportista' => $esTransportista,
-            'estadosPedido' => PedidoCatalogo::opcionesEstadoEnSelector(),
-            'estadosLogistica' => EnvioAsignacionEstadoCatalogo::opcionesFiltro(),
-            'resumenEnvios' => $resumenEnvios,
-            'puedeAsignarLogistica' => (bool) $user?->can('asignaciones.create'),
-            'urlListado' => $request->routeIs('pedidos.*')
-                ? route('pedidos.index')
-                : route('logistica.asignaciones.listado'),
-        ];
+        return app(TransporteListadoUnificadoService::class)->prepararListado($request);
     }
 
     /**

@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Support\UbicacionGpsParser;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -56,6 +58,24 @@ class PuntoVenta extends Model
         $u = $this->minorista;
 
         return trim(($u?->nombre ?? '').' '.($u?->apellido ?? '')) ?: '—';
+    }
+
+    public function direccionParaMostrar(): ?string
+    {
+        return UbicacionGpsParser::direccionLegible($this->direccion);
+    }
+
+    public function resumenUbicacion(): string
+    {
+        $dir = $this->direccionParaMostrar();
+        if ($dir) {
+            return Str::limit($dir, 60);
+        }
+        if ($this->latitud && $this->longitud) {
+            return 'Ubicación en mapa';
+        }
+
+        return 'Sin dirección registrada';
     }
 
     public function getRouteKeyName(): string

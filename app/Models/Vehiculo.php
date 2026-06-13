@@ -26,11 +26,15 @@ class Vehiculo extends Model
         'color',
         'activo',
         'ambito_flota',
+        'capacidad_kg_override',
+        'capacidad_m3_override',
     ];
 
     protected $casts = [
         'anio'   => 'integer',
         'activo' => 'boolean',
+        'capacidad_kg_override' => 'decimal:2',
+        'capacidad_m3_override' => 'decimal:2',
     ];
 
     public function tipoVehiculo(): BelongsTo

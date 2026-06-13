@@ -79,8 +79,9 @@
 
             <div class="alert alert-info py-2 small">
                 <i class="fas fa-info-circle mr-1"></i>
-                Elija el almacén de planta, seleccione los pedidos a entregar y asigne un <strong>transportista de flota planta</strong>.
-                Registre choferes de planta en <a href="{{ route('envios.transportistas.create') }}">Transportistas</a> (flota «Planta»).
+                Elija el <strong>almacén de planta</strong> donde cargará (solo aparecen plantas con pedidos listos),
+                marque los pedidos de minoristas a entregar y asigne un <strong>transportista de flota planta</strong>.
+                Registre choferes en <a href="{{ route('envios.transportistas.create') }}">Transportistas</a> (flota «Planta»).
             </div>
 
             <div class="form-row mb-3">
@@ -100,6 +101,7 @@
                             </div>
                         </div>
                         <input type="hidden" name="almacen_planta_origenid" id="almacen_origen" value="{{ old('almacen_planta_origenid') }}" required>
+                        <p class="small text-muted mb-0">Solo se listan plantas con pedidos de minoristas pendientes de reparto.</p>
                     </div>
                 </div>
                 <div class="form-group col-lg-4 mb-lg-0">
@@ -135,14 +137,28 @@
                 </div>
             </div>
 
+            <div class="row mb-3">
+                <div class="form-group col-lg-4 mb-lg-0">
+                    <label class="small font-weight-bold">Costo del servicio (Bs) <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <div class="input-group-prepend"><span class="input-group-text">Bs</span></div>
+                        <input type="number" name="costo_bs" class="form-control" min="0.01" step="0.01"
+                               value="{{ old('costo_bs') }}" placeholder="Monto por toda la ruta" required>
+                    </div>
+                    @error('costo_bs')<small class="text-danger d-block">{{ $message }}</small>@enderror
+                    <p class="small text-muted mb-0 mt-1">Un solo monto por la ruta completa planta → puntos de venta.</p>
+                </div>
+            </div>
+
             <h5 class="font-weight-bold mb-2"><i class="fas fa-store text-danger mr-1"></i>Pedidos a incluir</h5>
-            <p class="small text-muted">Marque los pedidos en el orden deseado de visita (de arriba hacia abajo).</p>
+            <p class="small text-muted">Al elegir planta solo verá los pedidos que salen de ese almacén. Marque el orden de visita (de arriba hacia abajo).</p>
             <div class="table-responsive mb-3">
                 <table class="table table-sm ruta-pedidos-table" id="tablaPedidosRuta">
                     <thead class="thead-light">
                         <tr>
                             <th style="width:40px"></th>
                             <th>Solicitud</th>
+                            <th>Planta origen</th>
                             <th>Punto de venta</th>
                             <th>Producto</th>
                             <th>Kg</th>
@@ -167,6 +183,7 @@
                                        value="{{ $pedido->pedidodistribucionid }}" @checked($checked)>
                             </td>
                             <td>{{ $pedido->numero_solicitud }}</td>
+                            <td>{{ $pedido->almacenPlantaOrigen?->nombre ?? '—' }}</td>
                             <td>{{ $pdv?->nombre ?? '—' }}</td>
                             <td>{{ $det?->producto_nombre ?? '—' }}</td>
                             <td>{{ $det ? number_format((float) $det->cantidad, 2) : '—' }}</td>
@@ -226,6 +243,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!mapEl || !window.L) return;
 
     const inputAlmacen = document.getElementById('almacen_origen');
+    const almacenesIdsPedidos = @json($almacenesIdsConPedidos ?? '');
 
     function filtrarPedidosPorAlmacen() {
         const almId = inputAlmacen.value;
@@ -589,13 +607,16 @@ document.addEventListener('DOMContentLoaded', function () {
             endpoint: @json(route('catalogo-selector.almacenes')),
             title: 'Almacén de planta (origen)',
             searchPlaceholder: 'Nombre o ubicación…',
-            searchLabel: 'Buscar planta',
+            searchLabel: 'Buscar planta con pedidos',
             modalIcon: 'fa-industry',
             rowIcon: 'fa-warehouse',
             theme: 'origen',
             colNombre: 'Planta',
-            colDetalle: 'Ubicación',
-            params: { ambito: 'planta' },
+            colDetalle: 'Pedidos listos',
+            params: {
+                ambito: 'planta',
+                almacenids_pedidos: almacenesIdsPedidos,
+            },
             onSelect: function (item) {
                 inputAlmacen.value = item.id;
                 document.getElementById('txtAlmacenOrigen').value = item.label;
@@ -672,6 +693,13 @@ document.addEventListener('DOMContentLoaded', function () {
         if (pedidosSeleccionados().length === 0) {
             e.preventDefault();
             aviso('Seleccione al menos un pedido para incluir en la ruta.', 'Sin pedidos', 'warning');
+            return;
+        }
+        const costoInput = document.querySelector('input[name="costo_bs"]');
+        const costo = costoInput ? parseFloat(String(costoInput.value).replace(',', '.')) : NaN;
+        if (!Number.isFinite(costo) || costo <= 0) {
+            e.preventDefault();
+            aviso('Ingrese el costo del servicio en bolivianos (mayor a 0).', 'Falta costo', 'warning');
         }
     });
 

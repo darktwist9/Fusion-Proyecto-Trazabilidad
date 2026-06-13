@@ -27,6 +27,13 @@
 @section('content')
 <div class="modulo-inv page-insumos">
 
+<div class="alert alert-light border py-2 mb-3 small">
+    <i class="fas fa-info-circle text-success mr-1"></i>
+    Catálogo de <strong>insumos del campo</strong> (bodega agrícola general): material de siembra, fertilizantes, pesticidas y riego.
+    Los productos cosechados se gestionan en <strong>Lotes</strong> y <strong>Almacén agrícola → Movimientos</strong>.
+    Al usarlos en un lote, registre una <strong>Actividad</strong>.
+</div>
+
 <div class="row mb-2">
         <div class="col-lg-3 col-6">
             <div class="small-box small-box-green">

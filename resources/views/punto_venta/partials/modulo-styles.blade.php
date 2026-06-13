@@ -23,6 +23,12 @@
     background: #ecfdf5; color: #047857; font-weight: 700; font-size: .85rem;
     border: 1px solid #a7f3d0; border-radius: 0 8px 8px 0; padding: 0 .75rem;
 }
+.pdv-unidad-badge--inline {
+    min-width: auto;
+    border-radius: 8px;
+    font-size: .78rem;
+    padding: .15rem .55rem;
+}
 .pdv-acciones-grupo .btn { min-width: 88px; }
 .modulo-filtros-panel {
     background: #f8faf9;

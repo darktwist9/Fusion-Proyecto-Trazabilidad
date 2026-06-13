@@ -11,6 +11,7 @@ use App\Support\PedidoDistribucionCatalogo;
 use App\Support\RutaDistribucionCatalogo;
 use App\Support\TransportistaFlotaCatalogo;
 use App\Support\UbicacionGpsParser;
+use App\Services\TransporteCapacidadService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -26,7 +27,8 @@ class DistribucionRutaService
         int $transportistaId,
         ?int $vehiculoId,
         int $creadoPorId,
-        ?string $nombre = null
+        ?string $nombre = null,
+        ?float $costoBs = null
     ): RutaDistribucion {
         if ($pedidoIds === []) {
             throw new InvalidArgumentException('Seleccione al menos un pedido para la ruta.');
@@ -61,13 +63,40 @@ class DistribucionRutaService
             ->filter()
             ->values();
 
+        if ($vehiculoId) {
+            $vehiculo = \App\Models\Vehiculo::query()
+                ->with('tipoVehiculo')
+                ->where('vehiculoid', $vehiculoId)
+                ->where('activo', true)
+                ->first();
+
+            if (! $vehiculo) {
+                throw new InvalidArgumentException('El vehículo seleccionado no está disponible.');
+            }
+
+            $transportista = \App\Models\Usuario::query()
+                ->where('usuarioid', $transportistaId)
+                ->where('role', 'transportista')
+                ->where('activo', true)
+                ->first();
+
+            if (! $transportista) {
+                throw new InvalidArgumentException('El transportista seleccionado no está disponible.');
+            }
+
+            $capacidad = app(TransporteCapacidadService::class);
+            $capacidad->validarAsignacion($transportista, $vehiculo);
+            $capacidad->validarCarga($vehiculo, $capacidad->pesoPedidosDistribucion($ordenPedidos));
+        }
+
         return DB::transaction(function () use (
             $almacenOrigen,
             $ordenPedidos,
             $transportistaId,
             $vehiculoId,
             $creadoPorId,
-            $nombre
+            $nombre,
+            $costoBs
         ) {
             $coordsOrigen = UbicacionGpsParser::resolverAlmacen(
                 (int) $almacenOrigen->almacenid,
@@ -81,9 +110,10 @@ class DistribucionRutaService
                 'almacen_planta_origenid' => $almacenOrigen->almacenid,
                 'transportista_usuarioid' => $transportistaId,
                 'vehiculoid' => $vehiculoId,
+                'costo_bs' => $costoBs !== null ? round($costoBs, 2) : null,
                 'creado_por_usuarioid' => $creadoPorId,
-                'estado' => RutaDistribucionCatalogo::ESTADO_EN_RUTA,
-                'fecha_salida' => now(),
+                'estado' => RutaDistribucionCatalogo::ESTADO_PLANIFICADA,
+                'fecha_salida' => null,
             ]);
 
             RutaDistribucionParada::create([
@@ -116,8 +146,6 @@ class DistribucionRutaService
 
                 $pedido->update([
                     'rutadistribucionid' => $ruta->rutadistribucionid,
-                    'estado' => PedidoDistribucionCatalogo::ESTADO_EN_TRANSITO,
-                    'fecha_envio' => now(),
                 ]);
             }
 

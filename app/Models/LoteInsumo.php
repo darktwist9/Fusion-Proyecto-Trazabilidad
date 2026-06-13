@@ -15,6 +15,7 @@ class LoteInsumo extends Model
 
     protected $fillable = [
         'loteid',
+        'actividadid',
         'insumoid',
         'usuarioid',
         'cantidadusada',

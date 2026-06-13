@@ -222,4 +222,132 @@
     background: #f8faf8;
     font-size: 0.875rem;
 }
+.modulo-env .crud-acciones {
+    gap: 6px;
+}
+.modulo-env .crud-acciones--inline {
+    flex-wrap: nowrap !important;
+}
+.modulo-env .veh-estado {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .3rem .65rem;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.modulo-env .veh-estado::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.modulo-env .veh-estado--operativo { background: #e8f5e9; color: #1b5e20; }
+.modulo-env .veh-estado--operativo::before { background: #28a745; }
+.modulo-env .veh-estado--mantenimiento { background: #fff8e1; color: #856404; }
+.modulo-env .veh-estado--mantenimiento::before { background: #ffc107; }
+.modulo-env .veh-estado--ruta { background: #e7f3ff; color: #0c5460; }
+.modulo-env .veh-estado--ruta::before { background: #17a2b8; animation: veh-estado-pulse 1.4s ease-in-out infinite; }
+@keyframes veh-estado-pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+.modulo-env .crud-acciones .btn {
+    min-width: 2rem;
+}
+.modulo-env .veh-det-toolbar__acciones {
+    gap: 8px;
+}
+.modulo-env .veh-det-hero {
+    border: none;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 18px rgba(44, 85, 48, 0.15);
+}
+.modulo-env .veh-det-hero__body {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 1.35rem 1.5rem;
+    background: linear-gradient(135deg, #2c5530 0%, #4a7c59 100%);
+    color: #fff;
+}
+.modulo-env .veh-det-hero__icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 14px;
+    background: rgba(255,255,255,.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.75rem;
+    flex-shrink: 0;
+}
+.modulo-env .veh-det-hero__placa {
+    font-size: 1.65rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+}
+.modulo-env .veh-det-panel {
+    border-radius: 10px;
+    border: 1px solid #e9ecef;
+    box-shadow: 0 1px 4px rgba(0,0,0,.04);
+}
+.modulo-env .veh-det-panel > .card-header {
+    background: #f8faf8;
+    font-weight: 600;
+    font-size: .9rem;
+    border-bottom: 1px solid #e9ecef;
+}
+.modulo-env .veh-det-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem 1.25rem;
+}
+.modulo-env .veh-det-item__label {
+    display: block;
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: #6c757d;
+    margin-bottom: .2rem;
+}
+.modulo-env .veh-det-item__value {
+    font-weight: 600;
+    color: #1a252f;
+}
+.modulo-env .veh-det-capacidad {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+}
+.modulo-env .veh-det-capacidad__chip {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    padding: .65rem .9rem;
+    background: #f0f7f1;
+    border: 1px solid #d4e8d6;
+    border-radius: 10px;
+    min-width: 120px;
+}
+.modulo-env .veh-det-capacidad__chip i {
+    color: #2c5530;
+    font-size: 1.1rem;
+}
+.modulo-env .veh-det-capacidad__chip strong {
+    display: block;
+    font-size: 1.15rem;
+    line-height: 1.1;
+}
+.modulo-env .veh-det-capacidad__chip span {
+    font-size: .75rem;
+    color: #6c757d;
+}
+.modulo-env .tipos-vehiculo-catalogo .card-header h6 {
+    font-size: .9rem;
+}
+@media (max-width: 575.98px) {
+    .modulo-env .veh-det-grid { grid-template-columns: 1fr; }
+}
 </style>

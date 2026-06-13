@@ -150,6 +150,15 @@
                             </div>
                         </div>
                         <div class="ruta-log-item">
+                            <span class="ruta-log-icon" style="background:#ecfdf5;color:#059669"><i class="fas fa-coins"></i></span>
+                            <div>
+                                <div class="ruta-dist-label">Costo del servicio</div>
+                                <div class="ruta-dist-value text-success font-weight-bold">
+                                    {{ \App\Support\TransporteIngresoCatalogo::formatearCosto($ruta->costo_bs !== null ? (float) $ruta->costo_bs : null) }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="ruta-log-item">
                             <span class="ruta-log-icon" style="background:#fef2f2;color:#dc2626"><i class="fas fa-industry"></i></span>
                             <div>
                                 <div class="ruta-dist-label">Almacén de carga</div>
@@ -172,6 +181,17 @@
                         </div>
                     </div>
                 </div>
+
+                @if((int) auth()->id() === (int) ($ruta->transportista_usuarioid ?? 0))
+                <div class="card ruta-dist-card mt-3">
+                    <div class="card-header bg-white border-0 pt-3">
+                        <h3 class="card-title font-weight-bold mb-0"><i class="fas fa-play-circle text-success mr-2"></i>Su ruta</h3>
+                    </div>
+                    <div class="card-body pt-0">
+                        @include('logistica.partials.accion-empezar-ruta-distribucion', ['ruta' => $ruta])
+                    </div>
+                </div>
+                @endif
             </div>
         </div>
     </div>

@@ -74,6 +74,7 @@
                     <div class="form-group col-md-4">
                         <label class="small font-weight-bold">Fecha de entrega deseada</label>
                         <input type="date" name="fechaEntregaDeseada" class="form-control form-control-sm" value="{{ old('fechaEntregaDeseada') }}">
+                        <small class="text-muted">Si no indica fecha, se usará la de hoy.</small>
                     </div>
                 </div>
 
@@ -233,6 +234,18 @@
                                 </div>
                                 <input type="hidden" name="vehiculoid" id="vehiculoid_create" value="{{ $vehiculoId }}" required>
                                 @error('vehiculoid')<small class="text-danger">{{ $message }}</small>@enderror
+                            </div>
+                        </div>
+                        <div class="form-row mt-2">
+                            <div class="form-group col-md-6 mb-0">
+                                <label class="small font-weight-bold">Costo del servicio (Bs) <span class="text-danger">*</span></label>
+                                <div class="input-group input-group-sm">
+                                    <div class="input-group-prepend"><span class="input-group-text">Bs</span></div>
+                                    <input type="number" name="costo_bs" class="form-control" min="0.01" step="0.01"
+                                           value="{{ old('costo_bs') }}" placeholder="Monto acordado por la ruta completa" required>
+                                </div>
+                                @error('costo_bs')<small class="text-danger">{{ $message }}</small>@enderror
+                                <small class="text-muted">Lo define logística; un solo monto por todo el envío.</small>
                             </div>
                         </div>
                     </div>
@@ -744,12 +757,34 @@
             lblStock.classList.add('text-success');
             cantInput.max = String(stockNum);
             cantInput.setAttribute('title', 'Máximo disponible: ' + formatearStock(stockNum) + ' ' + unidad);
+            validarCantidadContraStock(fila, cantInput, stockNum, unidad);
         } else {
             lblStock.textContent = 'Stock: no registrado';
             lblStock.classList.remove('text-success');
             lblStock.classList.add('text-muted');
             cantInput.removeAttribute('max');
             cantInput.removeAttribute('title');
+            cantInput.classList.remove('is-invalid');
+            fila.querySelector('.stock-excedido-aviso')?.remove();
+        }
+    }
+
+    function validarCantidadContraStock(fila, cantInput, stockNum, unidad) {
+        if (!cantInput || !Number.isFinite(stockNum)) return;
+        let avisoEl = fila.querySelector('.stock-excedido-aviso');
+        const val = cantInput.value ? parseFloat(cantInput.value) : NaN;
+        const excede = !isNaN(val) && val > stockNum;
+        if (excede) {
+            if (!avisoEl) {
+                avisoEl = document.createElement('small');
+                avisoEl.className = 'stock-excedido-aviso text-danger d-block mt-1';
+                cantInput.closest('.col-md-3')?.appendChild(avisoEl);
+            }
+            avisoEl.textContent = 'Supera el stock disponible (' + formatearStock(stockNum) + ' ' + unidad + ').';
+            cantInput.classList.add('is-invalid');
+        } else {
+            if (avisoEl) avisoEl.remove();
+            cantInput.classList.remove('is-invalid');
         }
     }
 
@@ -760,6 +795,17 @@
         wrap.addEventListener('selector-catalogo:change', function (e) {
             actualizarStockFilaProducto(fila, e.detail?.extra || {});
         });
+        const cantInput = fila.querySelector('[data-field="cantidad"]');
+        if (cantInput && cantInput.dataset.stockListener !== '1') {
+            cantInput.dataset.stockListener = '1';
+            cantInput.addEventListener('input', function () {
+                const max = cantInput.max ? parseFloat(cantInput.max) : NaN;
+                if (!isNaN(max)) {
+                    const unidad = fila.querySelector('.lbl-cantidad-titulo')?.textContent?.replace(/^Cantidad\s*\(/, '').replace(/\)$/, '') || 'kg';
+                    validarCantidadContraStock(fila, cantInput, max, unidad);
+                }
+            });
+        }
     }
 
     function registrarSelectorProducto(selId, rec) {
@@ -1128,6 +1174,13 @@
             if (!document.getElementById('transportista_usuarioid_create').value || !document.getElementById('vehiculoid_create').value) {
                 e.preventDefault();
                 aviso('Seleccione chofer y vehículo para el envío.');
+                return;
+            }
+            const costoInput = document.querySelector('input[name="costo_bs"]');
+            const costo = costoInput ? parseFloat(String(costoInput.value).replace(',', '.')) : NaN;
+            if (!Number.isFinite(costo) || costo <= 0) {
+                e.preventDefault();
+                aviso('Ingrese el costo del servicio en bolivianos (mayor a 0).');
             }
         });
 

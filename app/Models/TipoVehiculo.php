@@ -13,7 +13,7 @@ class TipoVehiculo extends Model
 
     protected $primaryKey = 'tipovehiculoid';
 
-    protected $fillable = ['nombre', 'descripcion', 'capacidad_kg', 'capacidad_m3', 'activo', 'codigo'];
+    protected $fillable = ['nombre', 'descripcion', 'tamano', 'licencia_requerida', 'capacidad_kg', 'capacidad_m3', 'activo', 'codigo'];
 
     protected $casts = [
         'capacidad_kg' => 'decimal:2',

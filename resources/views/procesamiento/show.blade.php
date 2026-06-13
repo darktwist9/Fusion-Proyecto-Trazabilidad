@@ -27,6 +27,59 @@
     .lp-paso.done { border-color: #28a745; background: #f0fdf4; }
     .lp-paso.cierre { border-color: #0ea5e9; background: #f0f9ff; }
     .lp-paso.pending { opacity: .85; }
+    .maq-etapa-card {
+        border: 2px solid #e5e7eb; border-radius: 12px; overflow: hidden; background: #fff;
+        cursor: pointer; transition: all .2s ease; height: 100%;
+        display: flex; flex-direction: column;
+    }
+    .maq-etapa-card:hover { border-color: #28a745; box-shadow: 0 4px 14px rgba(40,167,69,.15); }
+    .maq-etapa-card.is-selected { border-color: #28a745; background: #f0fdf4; }
+    .maq-etapa-card__img {
+        height: 220px; background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+        display: flex; align-items: center; justify-content: center;
+        overflow: hidden; padding: .65rem;
+    }
+    .maq-etapa-card__img img {
+        width: 100%; height: 100%; object-fit: contain; object-position: center;
+        image-rendering: auto;
+    }
+    .maq-etapa-card__img i { font-size: 2.5rem; color: #94a3b8; }
+    .maq-etapa-card__body { padding: .75rem .85rem; flex: 1; }
+    .maq-etapa-card__nombre { font-weight: 700; color: #1e293b; font-size: .9rem; }
+    .maq-etapa-card__meta { font-size: .75rem; color: #64748b; margin-top: .2rem; }
+    .maq-etapa-card__desc { font-size: .78rem; color: #475569; margin-top: .45rem; line-height: 1.4; }
+    .lp-etapa-asignar-row { align-items: stretch; }
+    .lp-etapa-field {
+        display: flex; flex-direction: column; margin-bottom: 1rem;
+    }
+    .lp-etapa-field .lp-etapa-label {
+        min-height: 1.2rem; margin-bottom: .35rem; line-height: 1.2;
+    }
+    .lp-etapa-field .lp-etapa-control { flex: 0 0 auto; }
+    .lp-etapa-field .lp-etapa-hint {
+        font-size: .75rem; color: #6c757d; min-height: 2.55rem;
+        margin-top: .35rem; margin-bottom: 0; line-height: 1.35;
+    }
+    .lp-maquina-slot { min-height: calc(1.8125rem + 2px); }
+    .lp-maquina-filled {
+        display: flex; gap: .55rem; align-items: center;
+        border: 1px solid #ced4da; border-radius: .2rem;
+        padding: .3rem .4rem; background: #fff;
+        min-height: calc(1.8125rem + 2px);
+    }
+    .lp-maquina-filled__media {
+        width: 52px; height: 52px; flex-shrink: 0;
+        background: #f8fafc; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        overflow: hidden; border: 1px solid #e2e8f0;
+    }
+    .lp-maquina-filled__media img {
+        width: 100%; height: 100%; object-fit: contain; object-position: center;
+    }
+    .lp-maquina-filled__body { min-width: 0; flex: 1; }
+    .lp-maquina-filled__body .btn { font-size: .72rem; }
+    #selector_wrap_etapa_operario.is-bloqueado .input-group-append button { pointer-events: none; opacity: .55; }
+
     .lp-timeline-num {
         width: 28px; height: 28px; border-radius: 50%; background: #2c5530; color: #fff;
         display: inline-flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 700; margin-right: .65rem;
@@ -351,44 +404,81 @@
                 </h6>
                 <form method="POST" action="{{ route('procesamiento.asignar-etapa', $lote) }}" id="formAsignarEtapa">
                     @csrf
-                    <div class="form-row">
-                        <div class="col-md-3 form-group">
-                            <label class="small font-weight-bold">Proceso de planta</label>
-                            <select name="procesoplantaid" id="selectProcesoEtapa" class="form-control form-control-sm" required>
-                                <option value="">Seleccionar…</option>
-                                @foreach($procesosDisponibles as $proc)
-                                    <option value="{{ $proc->procesoplantaid }}">{{ $proc->nombre }}</option>
-                                @endforeach
-                            </select>
-                            @if(!empty($siguientePasoPlantilla))
-                            <small class="text-success"><i class="fas fa-magic mr-1"></i>Sugerido: {{ $siguientePasoPlantilla->proceso?->nombre }}</small>
-                            @else
-                            <small class="text-muted">Puede repetir el mismo proceso las veces que necesite.</small>
-                            @endif
+                    <div class="form-row lp-etapa-asignar-row">
+                        <div class="col-md-3 lp-etapa-field">
+                            <label class="small font-weight-bold lp-etapa-label">Proceso de planta</label>
+                            <div class="lp-etapa-control">
+                                <select name="procesoplantaid" id="selectProcesoEtapa" class="form-control form-control-sm" required>
+                                    <option value="">Seleccionar…</option>
+                                    @foreach($procesosDisponibles as $proc)
+                                        <option value="{{ $proc->procesoplantaid }}">{{ $proc->nombre }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <small class="lp-etapa-hint">
+                                @if(!empty($siguientePasoPlantilla))
+                                    <span class="text-success"><i class="fas fa-magic mr-1"></i>Sugerido: {{ $siguientePasoPlantilla->proceso?->nombre }}</span>
+                                @else
+                                    Puede repetir el mismo proceso las veces que necesite.
+                                @endif
+                            </small>
                         </div>
-                        <div class="col-md-3 form-group">
-                            <label class="small font-weight-bold">Maquinaria</label>
-                            <select name="maquinaplantaid" id="selectMaquinaEtapa" class="form-control form-control-sm" required disabled>
-                                <option value="">Primero elija un proceso…</option>
-                                @foreach($maquinasPlanta as $maq)
-                                    <option value="{{ $maq->maquinaplantaid }}" data-codigo="{{ $maq->codigo }}">{{ $maq->nombre }}@if($maq->codigo) ({{ $maq->codigo }})@endif</option>
-                                @endforeach
-                            </select>
-                            <small class="text-muted" id="hintMaquinaEtapa">Solo equipos compatibles con el proceso.</small>
+                        <div class="col-md-3 lp-etapa-field">
+                            <label class="small font-weight-bold lp-etapa-label">Maquinaria</label>
+                            <div class="lp-etapa-control lp-maquina-slot">
+                                <input type="hidden" name="maquinaplantaid" id="inputMaquinaEtapa" required>
+                                <div id="maquinaEtapaEmpty">
+                                    <div class="input-group input-group-sm">
+                                        <input type="text" id="labelMaquinaEtapa" class="form-control" readonly
+                                               placeholder="Primero elija un proceso…">
+                                        <div class="input-group-append">
+                                            <button type="button" class="btn btn-outline-primary btn-sm" id="btnAbrirMaquinariaEtapa" disabled>
+                                                <i class="fas fa-search mr-1"></i> Elegir
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="maquinaEtapaFilled" class="lp-maquina-filled d-none">
+                                    <div class="lp-maquina-filled__media">
+                                        <img id="imgMaquinaEtapaSel" src="" alt="Maquinaria seleccionada">
+                                    </div>
+                                    <div class="lp-maquina-filled__body">
+                                        <div id="txtMaquinaEtapaSel" class="small font-weight-bold text-truncate"></div>
+                                        <button type="button" class="btn btn-link btn-sm p-0" id="btnCambiarMaquinaEtapa">Cambiar</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <small class="lp-etapa-hint" id="hintMaquinaEtapa">Solo equipos compatibles con el proceso.</small>
                         </div>
-                        <div class="col-md-3 form-group">
-                            <label class="small font-weight-bold">Operario (rol planta)</label>
-                            <select name="operador_usuarioid" id="selectOperadorEtapa" class="form-control form-control-sm" required disabled>
-                                <option value="">Primero elija maquinaria…</option>
-                                @foreach($operadoresPlanta as $op)
-                                    <option value="{{ $op->usuarioid }}">{{ $op->nombreCompleto() }}</option>
-                                @endforeach
-                            </select>
-                            <small class="text-muted" id="hintOperadorEtapa">El operario recibirá una alerta en su panel.</small>
+                        <div class="col-md-3 lp-etapa-field">
+                            <div class="lp-etapa-control">
+                                @include('partials.selector-catalogo', [
+                                    'id' => 'etapa_operario',
+                                    'name' => 'operador_usuarioid',
+                                    'label' => 'Operario',
+                                    'icon' => 'fa-user-cog',
+                                    'endpoint' => route('catalogo-selector.usuarios'),
+                                    'params' => ['operarios_planta' => '1'],
+                                    'title' => 'Elegir operario',
+                                    'searchPlaceholder' => 'Nombre, correo…',
+                                    'colNombre' => 'Operario',
+                                    'colDetalle' => 'Contacto',
+                                    'rowIcon' => 'fa-user-cog',
+                                    'theme' => 'planta',
+                                    'required' => true,
+                                    'inputGroup' => true,
+                                    'showLabel' => true,
+                                    'size' => 'sm',
+                                ])
+                            </div>
+                            <small class="lp-etapa-hint d-block" id="hintOperadorEtapa">Primero elija maquinaria…</small>
                         </div>
-                        <div class="col-md-3 form-group">
-                            <label class="small font-weight-bold">Observaciones</label>
-                            <input type="text" name="observaciones" class="form-control form-control-sm" maxlength="500" placeholder="Ej. Pelado y corte en cubos">
+                        <div class="col-md-3 lp-etapa-field">
+                            <label class="small font-weight-bold lp-etapa-label">Observaciones</label>
+                            <div class="lp-etapa-control">
+                                <input type="text" name="observaciones" class="form-control form-control-sm" maxlength="500" placeholder="Ej. Pelado y corte en cubos">
+                            </div>
+                            <small class="lp-etapa-hint">&nbsp;</small>
                         </div>
                     </div>
                     <div class="form-row">
@@ -621,6 +711,7 @@
 </div>
 
 @include('partials.modal-confirmar-accion')
+@include('partials.modal-maquinaria-etapa')
 @endsection
 
 @push('scripts')
@@ -637,80 +728,194 @@
 (function () {
     const mapa = @json($mapaCompatibilidad ?? ['proceso_maquina' => [], 'maquina_proceso' => []]);
     const selectProceso = document.getElementById('selectProcesoEtapa');
-    const selectMaquina = document.getElementById('selectMaquinaEtapa');
+    const inputMaquina = document.getElementById('inputMaquinaEtapa');
+    const labelMaquina = document.getElementById('labelMaquinaEtapa');
+    const btnMaquina = document.getElementById('btnAbrirMaquinariaEtapa');
     const hintMaquina = document.getElementById('hintMaquinaEtapa');
+    const hintOperador = document.getElementById('hintOperadorEtapa');
+    const wrapOperario = document.getElementById('selector_wrap_etapa_operario');
+    const maquinaEtapaEmpty = document.getElementById('maquinaEtapaEmpty');
+    const maquinaEtapaFilled = document.getElementById('maquinaEtapaFilled');
+    const imgMaquinaSel = document.getElementById('imgMaquinaEtapaSel');
+    const txtMaquinaSel = document.getElementById('txtMaquinaEtapaSel');
+    const btnCambiarMaquina = document.getElementById('btnCambiarMaquinaEtapa');
+    const endpointMaquinas = @json(route('catalogo-selector.maquinas-planta'));
+    const modalMaquina = document.getElementById('modalMaquinariaEtapa');
+    const gridMaquina = document.getElementById('modalMaquinariaGrid');
+    const vacioMaquina = document.getElementById('modalMaquinariaVacio');
+    const buscarMaquina = document.getElementById('modalMaquinariaBuscar');
+    const resMaquina = document.getElementById('modalMaquinariaResultados');
+    let maquinasCache = [];
+    let debounceMaq = null;
 
-    if (!selectProceso || !selectMaquina) return;
+    if (!selectProceso || !inputMaquina) return;
 
-    const todasMaquinas = Array.from(selectMaquina.querySelectorAll('option[value]')).map(function (opt) {
-        return { id: opt.value, label: opt.textContent, codigo: opt.dataset.codigo || '' };
-    });
+    function limpiarMaquina() {
+        inputMaquina.value = '';
+        if (labelMaquina) {
+            labelMaquina.value = '';
+            labelMaquina.placeholder = selectProceso.value ? 'Clic en Elegir…' : 'Primero elija un proceso…';
+        }
+        if (maquinaEtapaEmpty) maquinaEtapaEmpty.classList.remove('d-none');
+        if (maquinaEtapaFilled) maquinaEtapaFilled.classList.add('d-none');
+        if (imgMaquinaSel) imgMaquinaSel.removeAttribute('src');
+        if (txtMaquinaSel) txtMaquinaSel.textContent = '';
+        if (btnMaquina) btnMaquina.disabled = !selectProceso.value;
+        bloquearOperario(true);
+    }
 
-    function actualizarMaquinas() {
+    function mostrarMaquinaElegida(item) {
+        const extra = item.extra || {};
+        const etiqueta = item.label + (extra.codigo ? ' (' + extra.codigo + ')' : '');
+        if (labelMaquina) labelMaquina.value = etiqueta;
+        if (txtMaquinaSel) txtMaquinaSel.textContent = etiqueta;
+        if (imgMaquinaSel) {
+            if (extra.imagen) {
+                imgMaquinaSel.src = extra.imagen;
+                imgMaquinaSel.alt = item.label;
+            } else {
+                imgMaquinaSel.removeAttribute('src');
+            }
+        }
+        if (maquinaEtapaEmpty) maquinaEtapaEmpty.classList.add('d-none');
+        if (maquinaEtapaFilled) maquinaEtapaFilled.classList.remove('d-none');
+    }
+
+    function bloquearOperario(bloquear) {
+        if (!wrapOperario) return;
+        wrapOperario.classList.toggle('is-bloqueado', bloquear);
+        if (bloquear && window.CatalogoSelector) {
+            CatalogoSelector.clear('etapa_operario');
+        }
+        if (hintOperador) {
+            hintOperador.textContent = bloquear
+                ? 'Primero elija maquinaria…'
+                : 'El operario recibirá una alerta en su panel.';
+        }
+    }
+
+    function seleccionarMaquina(item) {
+        inputMaquina.value = item.id;
+        mostrarMaquinaElegida(item);
+        bloquearOperario(false);
+        if (window.jQuery && modalMaquina) window.jQuery(modalMaquina).modal('hide');
+    }
+
+    function renderMaquinas(items) {
+        if (!gridMaquina) return;
+        gridMaquina.innerHTML = '';
+        const seleccionado = inputMaquina.value;
+        if (!items.length) {
+            vacioMaquina?.classList.remove('d-none');
+            if (resMaquina) resMaquina.textContent = '0 equipos encontrados';
+            return;
+        }
+        vacioMaquina?.classList.add('d-none');
+        if (resMaquina) resMaquina.textContent = items.length + ' equipo(s) encontrado(s)';
+        items.forEach(function (item) {
+            const col = document.createElement('div');
+            col.className = 'col-md-4 col-sm-6 mb-3';
+            const extra = item.extra || {};
+            const imgHtml = extra.imagen
+                ? '<img src="' + extra.imagen + '" alt="' + (item.label || 'Equipo') + '" loading="lazy" decoding="async">'
+                : '<i class="fas fa-cogs"></i>';
+            col.innerHTML =
+                '<div class="maq-etapa-card' + (String(seleccionado) === String(item.id) ? ' is-selected' : '') + '" data-id="' + item.id + '">' +
+                    '<div class="maq-etapa-card__img">' + imgHtml + '</div>' +
+                    '<div class="maq-etapa-card__body">' +
+                        '<div class="maq-etapa-card__nombre">' + item.label + '</div>' +
+                        '<div class="maq-etapa-card__meta">' + (extra.codigo || item.meta || 'Equipo de planta') + '</div>' +
+                        '<div class="maq-etapa-card__desc">' + (extra.descripcion || '') + '</div>' +
+                    '</div>' +
+                '</div>';
+            col.querySelector('.maq-etapa-card').addEventListener('click', function () {
+                seleccionarMaquina(item);
+            });
+            gridMaquina.appendChild(col);
+        });
+    }
+
+    function cargarMaquinas() {
         const procesoId = selectProceso.value;
-        const permitidas = (mapa.proceso_maquina && mapa.proceso_maquina[procesoId]) ? mapa.proceso_maquina[procesoId].map(String) : [];
-
-        selectMaquina.innerHTML = '';
         if (!procesoId) {
-            selectMaquina.disabled = true;
-            selectMaquina.innerHTML = '<option value="">Primero elija un proceso…</option>';
+            maquinasCache = [];
+            renderMaquinas([]);
+            return;
+        }
+        const q = buscarMaquina ? buscarMaquina.value.trim() : '';
+        const params = new URLSearchParams({ per_page: '50', page: '1', activo: '1', procesoplantaid: procesoId });
+        if (q) params.set('q', q);
+        if (gridMaquina) gridMaquina.innerHTML = '<div class="col-12 text-muted small py-3"><i class="fas fa-spinner fa-spin mr-1"></i> Cargando…</div>';
+        fetch(endpointMaquinas + '?' + params.toString(), { headers: { Accept: 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (json) {
+                maquinasCache = json.data || [];
+                renderMaquinas(maquinasCache);
+            })
+            .catch(function () {
+                if (gridMaquina) gridMaquina.innerHTML = '<div class="col-12 text-danger small">No se pudo cargar la maquinaria.</div>';
+            });
+    }
+
+    function actualizarEstadoProceso() {
+        const procesoId = selectProceso.value;
+        limpiarMaquina();
+        if (!procesoId) {
             if (hintMaquina) hintMaquina.textContent = 'Solo equipos compatibles con el proceso.';
             return;
         }
-
-        const opciones = todasMaquinas.filter(function (m) { return permitidas.includes(String(m.id)); });
-
-        if (!opciones.length) {
-            selectMaquina.disabled = true;
-            selectMaquina.innerHTML = '<option value="">Sin maquinaria compatible</option>';
-            if (hintMaquina) hintMaquina.textContent = 'Configure equipos en catálogo o ejecute el seeder MaquinasProcesoPlantaSeeder.';
-            return;
+        const permitidas = (mapa.proceso_maquina && mapa.proceso_maquina[procesoId]) ? mapa.proceso_maquina[procesoId].length : 0;
+        if (btnMaquina) btnMaquina.disabled = permitidas === 0;
+        if (hintMaquina) {
+            hintMaquina.textContent = permitidas
+                ? permitidas + ' equipo(s) compatible(s) con este proceso.'
+                : 'Configure equipos en catálogo o ejecute el seeder MaquinasProcesoPlantaSeeder.';
         }
-
-        selectMaquina.disabled = false;
-        selectMaquina.innerHTML = '<option value="">Seleccionar…</option>';
-        opciones.forEach(function (m) {
-            const opt = document.createElement('option');
-            opt.value = m.id;
-            opt.textContent = m.label;
-            selectMaquina.appendChild(opt);
-        });
-        if (hintMaquina) hintMaquina.textContent = opciones.length + ' equipo(s) compatible(s) con este proceso.';
-        actualizarOperador();
     }
 
-    const selectOperador = document.getElementById('selectOperadorEtapa');
-    const hintOperador = document.getElementById('hintOperadorEtapa');
-
-    function actualizarOperador() {
-        if (!selectOperador) return;
-        const maquinaOk = selectMaquina && !selectMaquina.disabled && selectMaquina.value;
-        selectOperador.disabled = !maquinaOk;
-        if (!maquinaOk) {
-            selectOperador.value = '';
-            if (hintOperador) hintOperador.textContent = 'Primero elija maquinaria…';
-            return;
+    selectProceso.addEventListener('change', actualizarEstadoProceso);
+    btnMaquina?.addEventListener('click', function () {
+        if (!selectProceso.value) return;
+        if (window.jQuery && modalMaquina) {
+            window.jQuery(modalMaquina).modal('show');
+            cargarMaquinas();
         }
-        if (hintOperador) hintOperador.textContent = 'El operario recibirá una alerta en su panel.';
-    }
+    });
+    btnCambiarMaquina?.addEventListener('click', function () {
+        if (!selectProceso.value) return;
+        if (window.jQuery && modalMaquina) {
+            window.jQuery(modalMaquina).modal('show');
+            cargarMaquinas();
+        }
+    });
+    buscarMaquina?.addEventListener('input', function () {
+        clearTimeout(debounceMaq);
+        debounceMaq = setTimeout(cargarMaquinas, 320);
+    });
 
-    selectProceso.addEventListener('change', actualizarMaquinas);
-    if (selectMaquina) selectMaquina.addEventListener('change', actualizarOperador);
+    bloquearOperario(true);
+    actualizarEstadoProceso();
 
     @php
         $sugeridoPasoJs = $siguientePasoPlantilla ? [
             'procesoplantaid' => $siguientePasoPlantilla->procesoplantaid,
             'maquinaplantaid' => $siguientePasoPlantilla->maquinaplantaid,
+            'maquina_nombre' => $siguientePasoPlantilla->maquina?->nombre,
+            'maquina_codigo' => $siguientePasoPlantilla->maquina?->codigo,
             'notas' => $siguientePasoPlantilla->notas,
         ] : null;
     @endphp
     const sugerido = @json($sugeridoPasoJs);
     if (sugerido && sugerido.procesoplantaid) {
         selectProceso.value = String(sugerido.procesoplantaid);
-        actualizarMaquinas();
+        actualizarEstadoProceso();
         if (sugerido.maquinaplantaid) {
-            selectMaquina.value = String(sugerido.maquinaplantaid);
-            actualizarOperador();
+            inputMaquina.value = String(sugerido.maquinaplantaid);
+            if (labelMaquina) {
+                labelMaquina.value = (sugerido.maquina_nombre || 'Maquinaria sugerida')
+                    + (sugerido.maquina_codigo ? ' (' + sugerido.maquina_codigo + ')' : '');
+            }
+            bloquearOperario(false);
         }
         const obs = document.querySelector('#formAsignarEtapa input[name="observaciones"]');
         if (obs && sugerido.notas && !obs.value) obs.value = sugerido.notas;

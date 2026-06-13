@@ -22,6 +22,13 @@
     };
     $filtrosActivos = collect($filtros ?? [])->filter(fn ($v) => $v !== null && $v !== '');
     $filtrosAbiertos = EstadoLoteCatalogo::filtrosPanelAbierto(request(), $filtrosActivos->isNotEmpty());
+    $semillaFiltroLabel = ($filtros['insumosemillaid'] ?? '')
+        ? (\App\Models\Insumo::find((int) $filtros['insumosemillaid'])?->nombre ?? '')
+        : '';
+    $encargadoFiltro = $usuarios->firstWhere('usuarioid', (int) ($filtros['usuarioid'] ?? 0));
+    $encargadoFiltroLabel = $encargadoFiltro
+        ? trim($encargadoFiltro->nombre.' '.$encargadoFiltro->apellido)
+        : '';
 @endphp
 
 @push('styles')
@@ -88,9 +95,13 @@
     padding: 0.35em 0.65em;
     white-space: nowrap;
 }
-.page-lotes .sync-hint {
-    font-size: 0.8rem;
-    color: #6c757d;
+.page-lotes .filtros-panel .selector-catalogo-wrapper .input-group .form-control {
+    height: calc(1.8125rem + 2px);
+    font-size: .875rem;
+}
+.page-lotes .filtros-panel .selector-catalogo-wrapper .btn {
+    padding: .25rem .65rem;
+    font-size: .8rem;
 }
 </style>
 @endpush
@@ -172,17 +183,28 @@
                                 <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
                             </div>
                             <input type="text" name="q" class="form-control"
-                                value="{{ $filtros['q'] ?? '' }}" placeholder="Nombre, ubicación o código TRAZ">
+                                value="{{ $filtros['q'] ?? '' }}" placeholder="Nombre, calle o código TRAZ">
                         </div>
                     </div>
-                    <div class="col-lg-2 col-md-3 col-6 mb-2">
-                        <label class="small text-muted mb-1">Cultivo</label>
-                        <select name="cultivoid" class="form-control form-control-sm">
-                            <option value="">Todos</option>
-                            @foreach($cultivos as $c)
-                                <option value="{{ $c->cultivoid }}" @selected(($filtros['cultivoid'] ?? '') == $c->cultivoid)>{{ $c->nombre }}</option>
-                            @endforeach
-                        </select>
+                    <div class="col-lg-3 col-md-6 mb-2">
+                        <label class="small text-muted mb-1">Semilla / cultivo</label>
+                        @include('partials.selector-catalogo', [
+                            'id' => 'filtro_lote_semilla',
+                            'name' => 'insumosemillaid',
+                            'value' => $filtros['insumosemillaid'] ?? '',
+                            'labelSelected' => $semillaFiltroLabel,
+                            'endpoint' => route('catalogo-selector.insumos'),
+                            'params' => ['tipo_slug' => 'material_siembra'],
+                            'allowEmpty' => true,
+                            'emptyLabel' => 'Todas las semillas',
+                            'placeholderEmpty' => 'Todas las semillas',
+                            'title' => 'Filtrar por semilla',
+                            'searchPlaceholder' => 'Nombre de semilla…',
+                            'searchLabel' => 'Buscar semilla',
+                            'modalIcon' => 'fa-seedling',
+                            'rowIcon' => 'fa-seedling',
+                            'inputGroup' => true,
+                        ])
                     </div>
                     <div class="col-lg-2 col-md-3 col-6 mb-2">
                         <label class="small text-muted mb-1">Estado</label>
@@ -198,22 +220,26 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-lg-2 col-md-3 col-6 mb-2">
+                    <div class="col-lg-3 col-md-6 mb-2">
                         <label class="small text-muted mb-1">Encargado</label>
-                        <select name="usuarioid" class="form-control form-control-sm">
-                            <option value="">Todos</option>
-                            @foreach($usuarios as $u)
-                                <option value="{{ $u->usuarioid }}" @selected(($filtros['usuarioid'] ?? '') == $u->usuarioid)>{{ $u->nombre }} {{ $u->apellido }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="col-lg-2 col-md-3 col-6 mb-2">
-                        <label class="small text-muted mb-1">GPS</label>
-                        <select name="con_mapa" class="form-control form-control-sm">
-                            <option value="">Todos</option>
-                            <option value="1" @selected(($filtros['con_mapa'] ?? '') === '1')>Con GPS</option>
-                            <option value="0" @selected(($filtros['con_mapa'] ?? '') === '0')>Sin GPS</option>
-                        </select>
+                        @include('partials.selector-catalogo', [
+                            'id' => 'filtro_lote_encargado',
+                            'name' => 'usuarioid',
+                            'value' => $filtros['usuarioid'] ?? '',
+                            'labelSelected' => $encargadoFiltroLabel,
+                            'endpoint' => route('catalogo-selector.usuarios'),
+                            'params' => ['roles' => 'agricultor,jefe_agricultor'],
+                            'allowEmpty' => true,
+                            'emptyLabel' => 'Todos los encargados',
+                            'placeholderEmpty' => 'Todos los encargados',
+                            'title' => 'Filtrar por encargado',
+                            'searchPlaceholder' => 'Nombre, apellido o correo…',
+                            'searchLabel' => 'Buscar encargado',
+                            'modalIcon' => 'fa-user',
+                            'rowIcon' => 'fa-user',
+                            'colDetalle' => 'Correo',
+                            'inputGroup' => true,
+                        ])
                     </div>
                 </div>
                 <x-filtros-form-actions
@@ -230,48 +256,50 @@
                     <tr>
                         <th>Lote</th>
                         <th>Encargado</th>
-                        <th>Cultivo</th>
+                        <th>Semilla / cultivo</th>
                         <th>Estado</th>
                         <th class="text-right">Superficie</th>
-                        <th>GPS</th>
+                        <th>Ubicación</th>
                         <th class="text-center" style="width: 140px;">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($lotes as $l)
-                        @php $badge = $estadoBadge($l->estadoTipo->nombre ?? ''); @endphp
+                        @php
+                            $estadoNombre = $l->estadoTipo->nombre ?? 'Sin estado';
+                            $badge = $estadoBadge($estadoNombre);
+                            $loteCerrado = \App\Support\EstadoLoteCatalogo::loteEsCerrado($estadoNombre);
+                        @endphp
                         <tr>
                             <td>
                                 <a href="{{ route('lotes.show', $l) }}" class="lote-nombre d-block">{{ $l->nombre }}</a>
-                                @if($l->ubicacion)
-                                <small class="text-muted">{{ Str::limit($l->ubicacion, 36) }}</small>
+                                @if($l->ubicacion_visible && $l->ubicacion_visible !== 'Sin ubicación registrada')
+                                <small class="text-muted">{{ Str::limit($l->ubicacion_visible, 36) }}</small>
                                 @endif
                             </td>
                             <td class="text-muted">{{ $l->usuario->nombre ?? '—' }}</td>
-                            <td>{{ $l->cultivo->nombre ?? '—' }}</td>
+                            <td>{{ $l->cultivo_etiqueta ?? '—' }}</td>
                             <td>
                                 <span class="badge badge-{{ $badge }}">{{ ucfirst($l->estadoTipo->nombre ?? '—') }}</span>
                             </td>
-                            <td class="text-right font-weight-bold">{{ number_format((float) $l->superficie, 1) }} ha</td>
-                            <td>
-                                @if($l->latitud && $l->longitud)
-                                    <i class="fas fa-check-circle text-success" title="Con coordenadas"></i>
-                                @else
-                                    <i class="fas fa-minus-circle text-muted" title="Sin GPS"></i>
-                                @endif
-                            </td>
+                            <td class="text-right font-weight-bold">@superficie($l->superficie, 1)</td>
+                            <td class="text-muted small">{{ Str::limit($l->ubicacion_visible, 28) }}</td>
                             <td class="text-center">
                                 <div class="btn-group btn-group-sm btn-actions">
                                     <a href="{{ route('lotes.show', $l) }}" class="btn btn-default" title="Ver"><i class="fas fa-eye text-info"></i></a>
-                                    @can('lotes.update')
-                                    <a href="{{ route('lotes.edit', $l) }}" class="btn btn-default" title="Editar"><i class="fas fa-edit text-warning"></i></a>
-                                    @endcan
-                                    @can('lotes.delete')
-                                    <form action="{{ route('lotes.destroy', $l) }}" method="POST" class="d-inline on-submit-confirm">
-                                        @csrf @method('DELETE')
-                                        <button type="submit" class="btn btn-default" title="Eliminar"><i class="fas fa-trash text-danger"></i></button>
-                                    </form>
-                                    @endcan
+                                    @if($loteCerrado)
+                                        <a href="{{ route('lotes.trazabilidad', $l) }}" class="btn btn-default" title="Trazabilidad del lote"><i class="fas fa-route text-success"></i></a>
+                                    @else
+                                        @can('lotes.update')
+                                        <a href="{{ route('lotes.edit', $l) }}" class="btn btn-default" title="Editar"><i class="fas fa-edit text-warning"></i></a>
+                                        @endcan
+                                        @can('lotes.delete')
+                                        <form action="{{ route('lotes.destroy', $l) }}" method="POST" class="d-inline on-submit-confirm">
+                                            @csrf @method('DELETE')
+                                            <button type="submit" class="btn btn-default" title="Eliminar"><i class="fas fa-trash text-danger"></i></button>
+                                        </form>
+                                        @endcan
+                                    @endif
                                 </div>
                             </td>
                         </tr>
@@ -292,11 +320,12 @@
 
         {{-- Vista tarjetas (alternativa) --}}
         <div id="cardView" style="display: none;">
-            @forelse($lotes as $l)
-                @php
-                    $estadoNombre = $l->estadoTipo->nombre ?? 'Sin estado';
-                    $badge = $estadoBadge($estadoNombre);
-                @endphp
+                    @forelse($lotes as $l)
+                        @php
+                            $estadoNombre = $l->estadoTipo->nombre ?? 'Sin estado';
+                            $badge = $estadoBadge($estadoNombre);
+                            $loteCerrado = \App\Support\EstadoLoteCatalogo::loteEsCerrado($estadoNombre);
+                        @endphp
                 <div class="lote-row-card">
                     <div class="lote-avatar">
                         <i class="fas fa-map-marker-alt"></i>
@@ -305,28 +334,32 @@
                         <a href="{{ route('lotes.show', $l) }}" class="lote-nombre">{{ $l->nombre }}</a>
                         <div class="mt-1">
                             <span class="meta-chip">{{ $l->usuario->nombre ?? '—' }}</span>
-                            <span class="meta-chip">{{ $l->cultivo->nombre ?? 'Sin cultivo' }}</span>
-                            <span class="meta-chip">{{ number_format((float) $l->superficie, 1) }} ha</span>
+                            <span class="meta-chip">{{ $l->cultivo_etiqueta ?? 'Sin semilla' }}</span>
+                            <span class="meta-chip">@superficie($l->superficie, 1)</span>
                             @if($l->fechasiembra)
                             <span class="meta-chip">{{ \Carbon\Carbon::parse($l->fechasiembra)->format('d/m/Y') }}</span>
                             @endif
-                            @if($l->latitud && $l->longitud)
-                            <span class="meta-chip text-success"><i class="fas fa-map-pin mr-1"></i>GPS</span>
+                            @if($l->ubicacion_visible && $l->ubicacion_visible !== 'Sin ubicación registrada')
+                            <span class="meta-chip"><i class="fas fa-road mr-1"></i>{{ Str::limit($l->ubicacion_visible, 24) }}</span>
                             @endif
                         </div>
                     </div>
                     <span class="badge badge-{{ $badge }} mr-2 d-none d-md-inline">{{ ucfirst($estadoNombre) }}</span>
                     <div class="btn-group btn-group-sm btn-actions flex-shrink-0">
                         <a href="{{ route('lotes.show', $l) }}" class="btn btn-default"><i class="fas fa-eye text-info"></i></a>
-                        @can('lotes.update')
-                        <a href="{{ route('lotes.edit', $l) }}" class="btn btn-default"><i class="fas fa-edit text-warning"></i></a>
-                        @endcan
-                        @can('lotes.delete')
-                        <form action="{{ route('lotes.destroy', $l) }}" method="POST" class="d-inline on-submit-confirm">
-                            @csrf @method('DELETE')
-                            <button type="submit" class="btn btn-default"><i class="fas fa-trash text-danger"></i></button>
-                        </form>
-                        @endcan
+                        @if($loteCerrado)
+                            <a href="{{ route('lotes.trazabilidad', $l) }}" class="btn btn-default" title="Trazabilidad"><i class="fas fa-route text-success"></i></a>
+                        @else
+                            @can('lotes.update')
+                            <a href="{{ route('lotes.edit', $l) }}" class="btn btn-default"><i class="fas fa-edit text-warning"></i></a>
+                            @endcan
+                            @can('lotes.delete')
+                            <form action="{{ route('lotes.destroy', $l) }}" method="POST" class="d-inline on-submit-confirm">
+                                @csrf @method('DELETE')
+                                <button type="submit" class="btn btn-default"><i class="fas fa-trash text-danger"></i></button>
+                            </form>
+                            @endcan
+                        @endif
                     </div>
                 </div>
             @empty

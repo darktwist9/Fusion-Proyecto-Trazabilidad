@@ -22,71 +22,7 @@
         <div class="card-body">
             <div class="row">
                 <div class="col-md-6">
-                    <h5 class="mb-3"><i class="fas fa-clipboard-list mr-2 text-success"></i>Datos del lote</h5>
-                    <table class="table info-table">
-                        <tr>
-                            <td>ID</td>
-                            <td><strong>#{{ $lote->loteid }}</strong></td>
-                        </tr>
-                        <tr>
-                            <td>Código trazabilidad</td>
-                            <td><code>{{ $lote->codigo_trazabilidad ?? '—' }}</code></td>
-                        </tr>
-                        <tr>
-                            <td>Propietario</td>
-                            <td>{{ $lote->usuario->nombre ?? '-' }} {{ $lote->usuario->apellido ?? '' }}</td>
-                        </tr>
-                        <tr>
-                            <td>Cultivo</td>
-                            <td>
-                                @if($lote->cultivo)
-                                    <span class="badge badge-success">{{ $lote->cultivo->nombre }}</span>
-                                @else
-                                    <span class="text-muted">Sin cultivo</span>
-                                @endif
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>Estado</td>
-                            <td>
-                                <span class="badge {{ $estadoClass }}">
-                                    {{ ucfirst($lote->estadoTipo->nombre ?? 'Sin estado') }}
-                                </span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>Superficie</td>
-                            <td><strong>{{ $lote->superficie }}</strong> ha</td>
-                        </tr>
-                        <tr>
-                            <td>Fecha siembra</td>
-                            <td>
-                                @if($lote->fechasiembra)
-                                    {{ \Carbon\Carbon::parse($lote->fechasiembra)->format('d/m/Y') }}
-                                    <small class="text-muted">({{ $estadisticas['dias_desde_siembra'] }} días)</small>
-                                @else
-                                    <span class="text-muted">No registrada</span>
-                                @endif
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>Ubicación</td>
-                            <td>{{ $lote->ubicacion ?? 'No especificada' }}</td>
-                        </tr>
-                        <tr>
-                            <td>Coordenadas</td>
-                            <td>
-                                @if($lote->latitud && $lote->longitud)
-                                    <code>{{ $lote->latitud }}, {{ $lote->longitud }}</code>
-                                    <a href="{{ route('lotes.ubicacion', $lote) }}" class="btn btn-outline-success btn-xs btn-sm ml-2">
-                                        Ver en mapa
-                                    </a>
-                                @else
-                                    <span class="text-muted">No registradas</span>
-                                @endif
-                            </td>
-                        </tr>
-                    </table>
+                    @include('lotes.partials.datos-lote-panel')
                 </div>
                 <div class="col-md-6">
                     @if($lote->imagenurl)

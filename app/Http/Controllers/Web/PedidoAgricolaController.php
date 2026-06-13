@@ -164,6 +164,21 @@ class PedidoAgricolaController extends Controller
             ? 'Pedido aceptado. Se reservó material del almacén agrícola y el transportista programado quedó asignado.'
             : 'Pedido aceptado. Se reservó material del almacén agrícola. Ya se puede asignar un transportista.';
 
+        if ($request->input('volver') === 'logistica') {
+            $envioVista = EnvioAsignacionMultiple::query()
+                ->where(function ($q) use ($pedido) {
+                    $q->where('pedidoid', $pedido->pedidoid)
+                        ->orWhere('externo_envio_id', $pedido->numero_solicitud);
+                })
+                ->first();
+
+            if ($envioVista) {
+                return redirect()
+                    ->route('logistica.asignaciones.show', $envioVista)
+                    ->with('success', $mensaje);
+            }
+        }
+
         return redirect()
             ->route('agricola.pedidos.show', $pedido)
             ->with('success', $mensaje);
@@ -196,6 +211,21 @@ class PedidoAgricolaController extends Controller
                     'estado' => 'cancelado',
                 ]));
         });
+
+        if ($request->input('volver') === 'logistica') {
+            $envioVista = EnvioAsignacionMultiple::query()
+                ->where(function ($q) use ($pedido) {
+                    $q->where('pedidoid', $pedido->pedidoid)
+                        ->orWhere('externo_envio_id', $pedido->numero_solicitud);
+                })
+                ->first();
+
+            if ($envioVista) {
+                return redirect()
+                    ->route('logistica.asignaciones.show', $envioVista)
+                    ->with('success', 'Pedido rechazado. El envío quedó cancelado.');
+            }
+        }
 
         return redirect()
             ->route('agricola.pedidos.index')

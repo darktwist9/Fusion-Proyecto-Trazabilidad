@@ -72,6 +72,7 @@
                             <input type="password" name="password" class="form-control" placeholder="Por defecto: 12345">
                         </div>
                     </div>
+                    @include('envios.partials.campo-licencia-transportista')
                 </div>
             </div>
             <div class="card-footer">

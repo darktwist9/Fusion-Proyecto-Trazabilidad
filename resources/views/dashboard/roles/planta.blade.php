@@ -378,7 +378,7 @@
             </div>
             @endcan
 
-            @canany(['documentos.view', 'incidentes.view', 'ventas.view'])
+            @canany(['documentos.view', 'incidentes.view'])
             <div class="planta-acc-grupo">
                 <div class="planta-acc-grupo__titulo">Logística avanzada</div>
                 <div class="planta-acc-grid">
@@ -397,15 +397,6 @@
                         <span>
                             <span class="planta-acc-tile__lbl">Incidentes</span>
                             <span class="planta-acc-tile__sub">{{ $stats['incidentes_abiertos'] }} abierto(s)</span>
-                        </span>
-                    </a>
-                    @endcan
-                    @can('ventas.view')
-                    <a href="{{ route('ventas.index') }}" class="planta-acc-tile">
-                        <span class="planta-acc-tile__icon planta-acc-tile__icon--dark"><i class="fas fa-receipt"></i></span>
-                        <span>
-                            <span class="planta-acc-tile__lbl">Notas de venta</span>
-                            <span class="planta-acc-tile__sub">Registro comercial</span>
                         </span>
                     </a>
                     @endcan

@@ -9,7 +9,6 @@ use App\Models\Produccion;
 use App\Support\DashboardCharts;
 use App\Support\DashboardFiltros;
 use App\Support\DashboardPresentacion;
-use App\Models\Venta;
 use App\Models\Actividad;
 use App\Models\DocumentoEntrega;
 use App\Models\EnvioAsignacionMultiple;
@@ -19,6 +18,9 @@ use App\Models\Pedido;
 use App\Models\PedidoDistribucion;
 use App\Models\PuntoVenta;
 use App\Models\RutaMultiEntrega;
+use App\Models\RutaDistribucion;
+use App\Support\RutaDistribucionCatalogo;
+use App\Support\TransporteIngresoService;
 use App\Support\PedidoCatalogo;
 use App\Support\PedidoDistribucionCatalogo;
 use App\Models\Usuario;
@@ -337,8 +339,18 @@ class DashboardController extends Controller
         $filtros->aplicarFecha($produccionQuery, 'fechacosecha');
         $filtros->aplicarCultivoEnLote($produccionQuery);
 
-        $ventasQuery = Venta::query();
-        $filtros->aplicarFecha($ventasQuery, 'fechaventa');
+        $enviosTransporteQuery = EnvioAsignacionMultiple::query()
+            ->whereNotNull('costo_bs')
+            ->where(function ($q) {
+                $q->whereIn('estado', ['recibido_planta', 'entregado', 'entregada'])
+                    ->orWhereNotNull('fecha_recepcion_planta');
+            });
+        $filtros->aplicarFecha($enviosTransporteQuery, 'fecha_recepcion_planta');
+
+        $rutasTransporteQuery = RutaDistribucion::query()
+            ->where('estado', RutaDistribucionCatalogo::ESTADO_COMPLETADA)
+            ->whereNotNull('costo_bs');
+        $filtros->aplicarFecha($rutasTransporteQuery, 'fecha_salida');
 
         $actividadesQuery = Actividad::query();
         $filtros->aplicarFecha($actividadesQuery, 'fechainicio');
@@ -349,9 +361,11 @@ class DashboardController extends Controller
             'total_lotes' => Lote::count(),
             'produccion_mes_kg' => (clone $produccionQuery)->sum('cantidad'),
             'insumos_stock_bajo' => Insumo::where('stock', '<=', InsumoCatalogo::UMBRAL_ALERTA_STOCK)->count(),
-            'ventas_mes' => (clone $ventasQuery)
-                ->selectRaw('COALESCE(SUM(cantidad * preciounitario), 0) as total')
-                ->value('total') ?? 0,
+            'transporte_costo_mes' => round(
+                (float) (clone $enviosTransporteQuery)->sum('costo_bs')
+                + (float) (clone $rutasTransporteQuery)->sum('costo_bs'),
+                2
+            ),
             'hectareas_totales' => Lote::sum('superficie') ?? 0,
             'total_actividades' => (clone $actividadesQuery)->count(),
             'usuarios' => Usuario::count(),
@@ -421,7 +435,9 @@ class DashboardController extends Controller
             'stats' => $stats,
             'chartData' => ['labels' => array_column($meses, 'nombre'), 'datasets' => $datasets],
             'actividadesRecientes' => $actividadesRecientes,
-            'insumosStockBajo' => Insumo::with(['tipo', 'unidadMedida'])
+            'insumosStockBajo' => InsumoCatalogo::aplicarFiltroOperativo(
+                Insumo::with(['tipo', 'unidadMedida'])
+            )
                 ->where('stock', '<=', InsumoCatalogo::UMBRAL_ALERTA_STOCK)
                 ->orderBy('stock')->limit(12)->get()
                 ->filter(fn (Insumo $insumo) => ! EtiquetaDemo::esDemo($insumo->nombre))
@@ -672,18 +688,25 @@ class DashboardController extends Controller
         $documentos = DocumentoEntrega::query()->where('usuarioid', $user->usuarioid);
 
         $total = $asignacionesPeriodo->count();
-        $enRuta = (clone $asignaciones)->where('estado', 'en_ruta')->count();
+        $enRuta = (clone $asignaciones)->where('estado', 'en_ruta')->count()
+            + RutaDistribucion::query()->where('transportista_usuarioid', $user->usuarioid)
+                ->where('estado', RutaDistribucionCatalogo::ESTADO_EN_RUTA)->count();
         $entregadosPeriodo = (clone $asignacionesPeriodo)->where('estado', 'entregado')->count();
+
+        $ingresos = TransporteIngresoService::resumenPeriodo((int) $user->usuarioid, $filtros);
 
         return [
             'stats' => [
-                'asignados' => $total,
+                'asignados' => $total + RutaDistribucion::query()
+                    ->where('transportista_usuarioid', $user->usuarioid)->count(),
                 'por_recoger' => (clone $asignaciones)->where('estado', 'asignado')->count(),
                 'en_camino' => $enRuta,
                 'entregados_hoy' => $entregadosPeriodo,
                 'productividad' => $total > 0 ? round(($entregadosPeriodo / $total) * 100, 2) : 0,
                 'incidentes_abiertos' => (clone $incidentes)->where('estado', 'abierto')->count(),
                 'documentos' => $documentos->count(),
+                'ingresos_bs' => $ingresos['total_bs'],
+                'servicios_completados' => $ingresos['servicios'],
             ],
             'mis_asignaciones' => $asignaciones->with('pedido')->latest()->take(10)->get(),
             'mis_rutas' => $rutas->latest()->take(6)->get(),

@@ -7,6 +7,7 @@ use App\Models\Insumo;
 use App\Models\PuntoVenta;
 use App\Support\PuntoVentaAccess;
 use App\Support\TrazabilidadProductoPdvService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,53 @@ use Illuminate\View\View;
 
 class PuntoVentaInventarioController extends Controller
 {
+    public function index(Request $request): View
+    {
+        $user = $request->user();
+
+        $puntos = PuntoVentaAccess::scopePuntosDelUsuario(
+            PuntoVenta::query()->where('activo', true)->orderBy('nombre'),
+            $user
+        )->get();
+
+        $almacenPorPunto = $puntos->pluck('almacenid', 'puntoventaid');
+
+        $query = Insumo::query()
+            ->with(['unidadMedida', 'almacen'])
+            ->whereIn('almacenid', $almacenPorPunto->filter()->values());
+
+        if ($request->filled('puntoventaid')) {
+            $almId = $almacenPorPunto->get((int) $request->puntoventaid);
+            if ($almId) {
+                $query->where('almacenid', $almId);
+            }
+        }
+
+        if ($request->filled('q')) {
+            $term = '%'.$request->string('q')->trim().'%';
+            $query->where(function (Builder $w) use ($term) {
+                $w->where('nombre', 'like', $term)
+                    ->orWhere('codigo_trazabilidad', 'like', $term);
+            });
+        }
+
+        $insumos = $query->orderBy('nombre')->get();
+
+        $insumos = $insumos->map(function (Insumo $insumo) use ($puntos) {
+            $punto = $puntos->firstWhere('almacenid', $insumo->almacenid);
+            $insumo->setAttribute('punto_venta', $punto);
+
+            return $insumo;
+        });
+
+        return view('punto_venta.inventario.index', [
+            'puntos' => $puntos,
+            'insumos' => $insumos,
+            'filtroPdv' => $request->integer('puntoventaid') ?: null,
+            'filtroQ' => $request->string('q')->toString(),
+        ]);
+    }
+
     public function edit(PuntoVenta $punto, Insumo $insumo): View
     {
         $this->autorizarInsumo($punto, $insumo);
@@ -39,8 +87,12 @@ class PuntoVentaInventarioController extends Controller
             'descripcion' => $data['descripcion'] ?? $insumo->descripcion,
         ]);
 
+        $destino = $request->input('return') === 'inventario'
+            ? route('punto-venta.inventario.index', ['puntoventaid' => $punto->puntoventaid])
+            : route('punto-venta.puntos.show', $punto);
+
         return redirect()
-            ->route('punto-venta.puntos.show', $punto)
+            ->to($destino)
             ->with('success', 'Producto del inventario actualizado.');
     }
 
@@ -50,8 +102,12 @@ class PuntoVentaInventarioController extends Controller
 
         $insumo->delete();
 
+        $destino = request()->input('return') === 'inventario'
+            ? route('punto-venta.inventario.index', ['puntoventaid' => $punto->puntoventaid])
+            : route('punto-venta.puntos.show', $punto);
+
         return redirect()
-            ->route('punto-venta.puntos.show', $punto)
+            ->to($destino)
             ->with('success', 'Producto eliminado del inventario.');
     }
 

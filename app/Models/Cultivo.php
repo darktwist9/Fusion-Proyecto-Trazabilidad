@@ -22,6 +22,12 @@ class Cultivo extends Model
     protected $fillable = [
         'nombre',
         'detalle',
+        'dosis_siembra_por_ha',
+        'dosis_siembra_unidad',
+    ];
+
+    protected $casts = [
+        'dosis_siembra_por_ha' => 'float',
     ];
 
     public function detalleVisible(): ?string

@@ -10,6 +10,7 @@ use App\Models\RutaMultiEntrega;
 use App\Models\RutaParada;
 use App\Models\Usuario;
 use App\Models\Vehiculo;
+use App\Services\TransporteCapacidadService;
 use InvalidArgumentException;
 
 final class EnvioPedidoService
@@ -105,6 +106,7 @@ final class EnvioPedidoService
             'cargado_en_ruta' => $cargadoEnRuta,
             'recibido_planta' => $recibidoPlanta,
             'fecha_asignacion' => $envio->fecha_asignacion,
+            'costo_bs' => $envio->costo_bs !== null ? (float) $envio->costo_bs : null,
             'asignado_por' => $envio->asignadoPor
                 ? trim($envio->asignadoPor->nombre.' '.($envio->asignadoPor->apellido ?? ''))
                 : null,
@@ -116,7 +118,8 @@ final class EnvioPedidoService
         int $transportistaId,
         int $vehiculoId,
         int $asignadoPorId,
-        bool $permitirReasignar = true
+        bool $permitirReasignar = true,
+        ?float $costoBs = null
     ): EnvioAsignacionMultiple {
         if (! PedidoCatalogo::puedeAsignarTransportista($pedido)) {
             throw new InvalidArgumentException('Producción agrícola debe aceptar el pedido y reservar stock antes de asignar transportista.');
@@ -133,6 +136,7 @@ final class EnvioPedidoService
         }
 
         $vehiculo = Vehiculo::query()
+            ->with('tipoVehiculo')
             ->where('vehiculoid', $vehiculoId)
             ->where('activo', true)
             ->first();
@@ -140,6 +144,10 @@ final class EnvioPedidoService
         if (! $vehiculo) {
             throw new InvalidArgumentException('El vehículo seleccionado no está disponible.');
         }
+
+        $capacidad = app(TransporteCapacidadService::class);
+        $capacidad->validarAsignacion($transportista, $vehiculo);
+        $capacidad->validarCarga($vehiculo, $capacidad->pesoPedido($pedido->loadMissing('detalles')));
 
         $envioExistente = EnvioAsignacionMultiple::query()
             ->where(function ($q) use ($pedido) {
@@ -157,16 +165,22 @@ final class EnvioPedidoService
             ? $estadoActual
             : 'asignado';
 
+        $atributos = [
+            'pedidoid' => $pedido->pedidoid,
+            'transportista_usuarioid' => $transportista->usuarioid,
+            'asignadopor_usuarioid' => $asignadoPorId,
+            'vehiculo_ref' => $vehiculo->placa,
+            'estado' => $estadoNuevo,
+            'fecha_asignacion' => $envioExistente?->fecha_asignacion ?? now(),
+        ];
+
+        if ($costoBs !== null) {
+            $atributos['costo_bs'] = round($costoBs, 2);
+        }
+
         return EnvioAsignacionMultiple::updateOrCreate(
             ['externo_envio_id' => $pedido->numero_solicitud],
-            EnvioAsignacionEstadoCatalogo::applyToAttributes([
-                'pedidoid' => $pedido->pedidoid,
-                'transportista_usuarioid' => $transportista->usuarioid,
-                'asignadopor_usuarioid' => $asignadoPorId,
-                'vehiculo_ref' => $vehiculo->placa,
-                'estado' => $estadoNuevo,
-                'fecha_asignacion' => $envioExistente?->fecha_asignacion ?? now(),
-            ])
+            EnvioAsignacionEstadoCatalogo::applyToAttributes($atributos)
         );
     }
 
@@ -178,7 +192,8 @@ final class EnvioPedidoService
         Pedido $pedido,
         int $transportistaId,
         int $vehiculoId,
-        int $programadoPorId
+        int $programadoPorId,
+        ?float $costoBs = null
     ): EnvioAsignacionMultiple {
         $transportista = Usuario::query()
             ->where('usuarioid', $transportistaId)
@@ -191,6 +206,7 @@ final class EnvioPedidoService
         }
 
         $vehiculo = Vehiculo::query()
+            ->with('tipoVehiculo')
             ->where('vehiculoid', $vehiculoId)
             ->where('activo', true)
             ->first();
@@ -199,6 +215,10 @@ final class EnvioPedidoService
             throw new InvalidArgumentException('El vehículo seleccionado no está disponible.');
         }
 
+        $capacidad = app(TransporteCapacidadService::class);
+        $capacidad->validarAsignacion($transportista, $vehiculo);
+        $capacidad->validarCarga($vehiculo, $capacidad->pesoPedido($pedido->loadMissing('detalles')));
+
         $envioExistente = EnvioAsignacionMultiple::query()
             ->where(function ($q) use ($pedido) {
                 $q->where('pedidoid', $pedido->pedidoid)
@@ -206,16 +226,22 @@ final class EnvioPedidoService
             })
             ->first();
 
+        $atributos = [
+            'pedidoid' => $pedido->pedidoid,
+            'transportista_usuarioid' => $transportista->usuarioid,
+            'asignadopor_usuarioid' => $programadoPorId,
+            'vehiculo_ref' => $vehiculo->placa,
+            'estado' => 'pendiente',
+            'fecha_asignacion' => $envioExistente?->fecha_asignacion ?? now(),
+        ];
+
+        if ($costoBs !== null) {
+            $atributos['costo_bs'] = round($costoBs, 2);
+        }
+
         return EnvioAsignacionMultiple::updateOrCreate(
             ['externo_envio_id' => $pedido->numero_solicitud],
-            EnvioAsignacionEstadoCatalogo::applyToAttributes([
-                'pedidoid' => $pedido->pedidoid,
-                'transportista_usuarioid' => $transportista->usuarioid,
-                'asignadopor_usuarioid' => $programadoPorId,
-                'vehiculo_ref' => $vehiculo->placa,
-                'estado' => 'pendiente',
-                'fecha_asignacion' => $envioExistente?->fecha_asignacion ?? now(),
-            ])
+            EnvioAsignacionEstadoCatalogo::applyToAttributes($atributos)
         );
     }
 
@@ -792,5 +818,160 @@ final class EnvioPedidoService
         $sinGps = trim((string) $sinGps, " ·");
 
         return $sinGps !== '' ? $sinGps : null;
+    }
+
+    public static function esRutaRecogidasAutomatica(?RutaMultiEntrega $ruta): bool
+    {
+        return $ruta !== null && str_starts_with((string) $ruta->nombre, 'Recogidas ');
+    }
+
+    /**
+     * @return array<int, array{latitud: float, longitud: float, direccion: string}>
+     */
+    public static function recogidasExtraDesdeEnvio(EnvioAsignacionMultiple $envio): array
+    {
+        $envio->loadMissing(['ruta.paradas', 'pedido']);
+
+        if (! $envio->ruta?->paradas?->isNotEmpty()) {
+            return [];
+        }
+
+        $recogidas = $envio->ruta->paradas
+            ->filter(fn (RutaParada $p) => str_starts_with((string) $p->destino, 'Recogida:'))
+            ->sortBy('orden')
+            ->values();
+
+        if ($recogidas->count() <= 1) {
+            return [];
+        }
+
+        return $recogidas->slice(1)->map(fn (RutaParada $p) => [
+            'latitud' => (float) $p->latitud,
+            'longitud' => (float) $p->longitud,
+            'direccion' => self::etiquetaParada((string) $p->destino, 'Recogida:'),
+        ])->values()->all();
+    }
+
+    /**
+     * @param  array{
+     *     transportista_usuarioid?: int|null,
+     *     vehiculoid?: int|null,
+     *     vehiculo_ref?: string|null,
+     *     rutamultientregaid?: int|null,
+     *     fechaEntregaDeseada?: string|null,
+     *     origen_latitud?: float,
+     *     origen_longitud?: float,
+     *     origen_direccion?: string|null,
+     *     recogidas?: array<int, array{latitud: float|int|string, longitud: float|int|string, direccion?: string|null}>
+     * }  $datos
+     */
+    public static function actualizarAsignacionEnvio(
+        EnvioAsignacionMultiple $envio,
+        array $datos,
+        int $editorId,
+        string $nivelEdicion = PedidoCatalogo::EDICION_ASIGNACION_COMPLETA
+    ): void {
+        $envio->loadMissing(['pedido', 'ruta.paradas']);
+
+        $transportistaId = ! empty($datos['transportista_usuarioid'])
+            ? (int) $datos['transportista_usuarioid']
+            : null;
+
+        if ($nivelEdicion === PedidoCatalogo::EDICION_ASIGNACION_SOLO_TRANSPORTISTA) {
+            $vehiculoRef = $transportistaId !== null
+                ? (self::placaTransportista($transportistaId) ?? $envio->vehiculo_ref)
+                : null;
+
+            $envio->update([
+                'transportista_usuarioid' => $transportistaId,
+                'vehiculo_ref' => $vehiculoRef,
+            ]);
+
+            return;
+        }
+
+        $pedido = $envio->pedido;
+
+        $vehiculoRef = null;
+        if (! empty($datos['vehiculoid'])) {
+            $vehiculoRef = Vehiculo::query()
+                ->where('vehiculoid', (int) $datos['vehiculoid'])
+                ->value('placa');
+        } elseif (array_key_exists('vehiculo_ref', $datos)) {
+            $vehiculoRef = $datos['vehiculo_ref'] !== '' ? $datos['vehiculo_ref'] : null;
+        }
+
+        if ($transportistaId && ! empty($datos['vehiculoid']) && $pedido !== null) {
+            $transportista = Usuario::query()
+                ->where('usuarioid', $transportistaId)
+                ->where('role', 'transportista')
+                ->where('activo', true)
+                ->first();
+
+            $vehiculo = Vehiculo::query()
+                ->with('tipoVehiculo')
+                ->where('vehiculoid', (int) $datos['vehiculoid'])
+                ->where('activo', true)
+                ->first();
+
+            if ($transportista && $vehiculo) {
+                $capacidad = app(TransporteCapacidadService::class);
+                $capacidad->validarAsignacion($transportista, $vehiculo);
+                $capacidad->validarCarga($vehiculo, $capacidad->pesoPedido($pedido->loadMissing('detalles')));
+            }
+        }
+
+        if ($pedido !== null) {
+            $camposPedido = [];
+            if (array_key_exists('fechaEntregaDeseada', $datos)) {
+                $camposPedido['fechaEntregaDeseada'] = $datos['fechaEntregaDeseada'] ?: now()->toDateString();
+            }
+            if (isset($datos['origen_latitud'], $datos['origen_longitud'])) {
+                $camposPedido['origen_latitud'] = (float) $datos['origen_latitud'];
+                $camposPedido['origen_longitud'] = (float) $datos['origen_longitud'];
+                $camposPedido['origen_direccion'] = $datos['origen_direccion'] ?? null;
+            }
+            if ($camposPedido !== []) {
+                $pedido->update($camposPedido);
+            }
+        }
+
+        $rutaCatalogoId = array_key_exists('rutamultientregaid', $datos) && ! empty($datos['rutamultientregaid'])
+            ? (int) $datos['rutamultientregaid']
+            : null;
+        $recogidasExtra = array_values($datos['recogidas'] ?? []);
+
+        if ($rutaCatalogoId) {
+            $envio->update([
+                'transportista_usuarioid' => $transportistaId,
+                'vehiculo_ref' => $vehiculoRef,
+                'rutamultientregaid' => $rutaCatalogoId,
+            ]);
+
+            return;
+        }
+
+        $rutaAnterior = $envio->ruta;
+        if ($rutaAnterior !== null && self::esRutaRecogidasAutomatica($rutaAnterior)) {
+            $rutaAnterior->paradas()->delete();
+            $rutaAnterior->delete();
+            $envio->update(['rutamultientregaid' => null]);
+            $envio->unsetRelation('ruta');
+        }
+
+        $envio->update([
+            'transportista_usuarioid' => $transportistaId,
+            'vehiculo_ref' => $vehiculoRef,
+        ]);
+
+        if ($pedido !== null && $recogidasExtra !== []) {
+            self::crearRutaRecogidasMultiples(
+                $pedido->fresh(),
+                $envio->fresh(),
+                $recogidasExtra,
+                $transportistaId,
+                $editorId
+            );
+        }
     }
 }

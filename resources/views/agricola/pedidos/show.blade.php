@@ -521,7 +521,7 @@
 
     display: grid;
 
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 
     gap: .75rem;
 
@@ -1001,6 +1001,16 @@
 
                             </div>
 
+                            <div class="transporte-dato">
+
+                                <div class="dato-label">Costo del servicio</div>
+
+                                <div class="dato-valor text-success font-weight-bold">
+                                    {{ \App\Support\TransporteIngresoCatalogo::formatearCosto($logistica['costo_bs'] ?? null) }}
+                                </div>
+
+                            </div>
+
                         </div>
 
 
@@ -1024,6 +1034,16 @@
                                 <dt class="col-sm-4">Asignado por</dt>
 
                                 <dd class="col-sm-8">{{ $logistica['asignado_por'] }}</dd>
+
+                            @endif
+
+                            @if(($logistica['costo_bs'] ?? null) !== null)
+
+                                <dt class="col-sm-4">Costo del servicio</dt>
+
+                                <dd class="col-sm-8 text-success font-weight-bold">
+                                    {{ \App\Support\TransporteIngresoCatalogo::formatearCosto((float) $logistica['costo_bs']) }}
+                                </dd>
 
                             @endif
 
@@ -1075,29 +1095,13 @@
 
 
 
-                        @if(\App\Support\PedidoCatalogo::listoParaLogistica($pedido) && $logistica['asignado'] && ! $logistica['cargado_en_ruta'] && ! $logistica['recibido_planta'])
-                            @php $esChoferAsignado = (int) auth()->id() === (int) ($pedido->envioAsignacion?->transportista_usuarioid ?? 0); @endphp
-                            @can('pedidos.update')
-                                <form method="POST" action="{{ route('agricola.pedidos.confirmar-carga-envio', $pedido) }}" class="mt-3 mb-0">
-                                    @csrf
-                                    <button type="button" class="btn btn-success btn-block btn-lg font-weight-bold"
-                                            data-confirm-modal data-confirm-tone="success"
-                                            data-confirm-title="Confirmar carga e iniciar ruta"
-                                            data-confirm-message="¿Confirma que el pedido ya fue cargado en el vehículo y sale hacia planta?">
-                                        <i class="fas fa-shipping-fast mr-1"></i> Confirmar carga e iniciar ruta a planta
-                                    </button>
-                                </form>
-                            @elseif($esChoferAsignado && $pedido->envioAsignacion)
+                        @if(\App\Support\PedidoCatalogo::listoParaLogistica($pedido) && $logistica['asignado'] && ! $logistica['cargado_en_ruta'] && ! $logistica['recibido_planta'] && $pedido->envioAsignacion)
+                            @php $esChoferAsignado = (int) auth()->id() === (int) ($pedido->envioAsignacion->transportista_usuarioid ?? 0); @endphp
+                            @if($esChoferAsignado)
                                 <div class="mt-3">
-                                    <form method="POST" action="{{ route('logistica.asignaciones.en-transporte', $pedido->envioAsignacion) }}" class="mb-0">
-                                        @csrf
-                                        @method('PATCH')
-                                        <button type="submit" class="btn btn-success btn-block btn-lg font-weight-bold">
-                                            <i class="fas fa-shipping-fast mr-1"></i> Confirmar carga e iniciar ruta a planta
-                                        </button>
-                                    </form>
+                                    @include('logistica.partials.accion-empezar-ruta', ['asignacion' => $pedido->envioAsignacion, 'bloque' => true])
                                 </div>
-                            @endcan
+                            @endif
                         @endif
 
                     </div>

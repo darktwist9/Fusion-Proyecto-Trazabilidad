@@ -13,7 +13,9 @@ class InsumoController extends Controller
     public function index()
     {
         $umbral = InsumoCatalogo::UMBRAL_ALERTA_STOCK;
-        $q = Insumo::with(['tipo', 'unidadMedida'])->orderBy('insumoid', 'desc');
+        $q = InsumoCatalogo::aplicarFiltroOperativo(
+            Insumo::with(['tipo', 'unidadMedida'])
+        )->orderBy('insumoid', 'desc');
 
         $stats = [
             'total' => (clone $q)->count(),
@@ -50,6 +52,7 @@ class InsumoController extends Controller
     public function show(Insumo $insumo)
     {
         $this->asegurarInsumoDelAlmacenUsuario($insumo);
+        InsumoCatalogo::asegurarInsumoOperativo($insumo);
         $insumo->load(['tipo', 'unidadMedida']);
 
         return view('insumos.show', [
@@ -61,6 +64,7 @@ class InsumoController extends Controller
     public function edit(Insumo $insumo)
     {
         $this->asegurarInsumoDelAlmacenUsuario($insumo);
+        InsumoCatalogo::asegurarInsumoOperativo($insumo);
         InsumoCatalogo::asegurarCatalogosBase();
         $insumo->load(['tipo', 'unidadMedida']);
 
@@ -74,6 +78,7 @@ class InsumoController extends Controller
     public function update(Request $request, Insumo $insumo)
     {
         $this->asegurarInsumoDelAlmacenUsuario($insumo);
+        InsumoCatalogo::asegurarInsumoOperativo($insumo);
 
         $data = $this->validarInsumo($request);
         $data['stockminimo'] = InsumoCatalogo::UMBRAL_ALERTA_STOCK;
@@ -86,6 +91,7 @@ class InsumoController extends Controller
     public function destroy(Insumo $insumo)
     {
         $this->asegurarInsumoDelAlmacenUsuario($insumo);
+        InsumoCatalogo::asegurarInsumoOperativo($insumo);
 
         $insumo->delete();
 
@@ -103,6 +109,8 @@ class InsumoController extends Controller
             'unidadmedidaid' => 'required|exists:unidadmedida,unidadmedidaid',
             'stock' => 'required|numeric|min:0',
             'descripcion' => 'nullable|string',
+            'dosis_por_ha' => 'nullable|numeric|min:0',
+            'dosis_unidad' => 'nullable|string|max:20',
         ]);
 
         $tipo = InsumoCatalogo::tiposOrdenados()->firstWhere('tipoinsumoid', (int) $data['tipoinsumoid']);
@@ -113,6 +121,14 @@ class InsumoController extends Controller
             throw \Illuminate\Validation\ValidationException::withMessages([
                 'unidadmedidaid' => 'La unidad no corresponde al tipo de insumo seleccionado.',
             ]);
+        }
+
+        if ($slug !== 'material_siembra') {
+            $data['dosis_por_ha'] = null;
+            $data['dosis_unidad'] = null;
+        } elseif (empty($data['dosis_unidad']) && ! empty($data['dosis_por_ha'])) {
+            $um = \App\Models\UnidadMedida::find((int) $data['unidadmedidaid']);
+            $data['dosis_unidad'] = $um?->abreviatura ?? 'kg';
         }
 
         return $data;

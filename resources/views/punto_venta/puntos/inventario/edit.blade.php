@@ -10,8 +10,8 @@
 @section('content')
     <div class="row mb-3">
         <div class="col-12">
-            <a href="{{ route('punto-venta.puntos.show', $punto) }}" class="btn btn-secondary btn-sm">
-                <i class="fas fa-arrow-left mr-1"></i> Volver al punto de venta
+            <a href="{{ request('return') === 'inventario' ? route('punto-venta.inventario.index', ['puntoventaid' => $punto->puntoventaid]) : route('punto-venta.puntos.show', $punto) }}" class="btn btn-secondary btn-sm">
+                <i class="fas fa-arrow-left mr-1"></i> Volver
             </a>
         </div>
     </div>
@@ -32,6 +32,9 @@
                     <form method="POST" action="{{ route('punto-venta.puntos.inventario.update', [$punto, $insumo]) }}">
                         @csrf
                         @method('PUT')
+                        @if(request('return') === 'inventario')
+                            <input type="hidden" name="return" value="inventario">
+                        @endif
 
                         <div class="form-group">
                             <label>Nombre del producto</label>

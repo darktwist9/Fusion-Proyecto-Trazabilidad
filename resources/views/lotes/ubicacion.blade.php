@@ -22,30 +22,31 @@
 
     <div class="card lote-section-card">
         <div class="card-body">
-            <h5 class="mb-3"><i class="fas fa-map mr-2 text-success"></i>Ubicación geográfica</h5>
+            <h5 class="mb-3"><i class="fas fa-map mr-2 text-success"></i>Ubicación del lote</h5>
 
             @if($lote->latitud && $lote->longitud)
-                <div id="map"></div>
-                <div class="row mt-3">
-                    <div class="col-md-4">
-                        <div class="p-3 bg-light rounded">
-                            <strong><i class="fas fa-map-pin mr-1"></i> Latitud</strong><br>{{ $lote->latitud }}
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="p-3 bg-light rounded">
-                            <strong><i class="fas fa-map-pin mr-1"></i> Longitud</strong><br>{{ $lote->longitud }}
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="p-3 bg-light rounded">
-                            <strong><i class="fas fa-ruler-combined mr-1"></i> Superficie</strong><br>{{ $lote->superficie }} ha
+                <div class="p-3 bg-light rounded mb-3">
+                    <div class="d-flex align-items-start">
+                        <i class="fas fa-road text-success fa-lg mr-3 mt-1"></i>
+                        <div>
+                            <strong class="d-block text-muted small text-uppercase mb-1">Dirección / referencia</strong>
+                            <span class="font-weight-bold" style="font-size: 1.05rem;">{{ $lote->ubicacion_visible }}</span>
                         </div>
                     </div>
                 </div>
-                @if($lote->ubicacion)
-                    <p class="text-muted mt-3 mb-0"><i class="fas fa-location-arrow mr-1"></i> {{ $lote->ubicacion }}</p>
-                @endif
+                <div id="map"></div>
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <div class="p-3 bg-light rounded">
+                            <strong><i class="fas fa-ruler-combined mr-1"></i> Superficie</strong><br>{{ $lote->superficie_etiqueta }}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="p-3 bg-light rounded">
+                            <strong><i class="fas fa-seedling mr-1"></i> Cultivo</strong><br>{{ $lote->cultivo->nombre ?? '—' }}
+                        </div>
+                    </div>
+                </div>
             @else
                 <div class="text-center py-5">
                     <i class="fas fa-map-marked-alt fa-4x text-muted mb-3"></i>
@@ -77,7 +78,7 @@
                     attribution: '© OpenStreetMap'
                 }).addTo(map);
                 L.marker([lat, lng]).addTo(map)
-                    .bindPopup({!! json_encode('<strong>'.$lote->nombre.'</strong><br>'.$lote->superficie.' ha') !!})
+                    .bindPopup({!! json_encode('<strong>'.$lote->nombre.'</strong><br>'.$lote->ubicacion_visible.'<br>'.$lote->superficie_etiqueta) !!})
                     .openPopup();
                 if (sup > 0) {
                     L.circle([lat, lng], {

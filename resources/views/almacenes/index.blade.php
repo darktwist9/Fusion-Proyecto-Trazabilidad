@@ -150,7 +150,8 @@
                             $oc = $ocupacionPorId[$a->almacenid] ?? ['porcentaje' => 0, 'ocupado_kg' => 0, 'capacidad_kg' => 0];
                             $pct = $oc['porcentaje'];
                             $ocupacionFiltro = $pct > 85 ? 'alta' : ($pct >= 50 ? 'media' : 'baja');
-                            $searchText = strtolower(trim(($a->nombre ?? '') . ' ' . ($a->ubicacion ?? '')));
+                            $direccionAlmacen = \App\Support\UbicacionGpsParser::resolverAlmacen($a->almacenid, $a->nombre, $a->ubicacion)['direccion'];
+                            $searchText = strtolower(trim(($a->nombre ?? '') . ' ' . ($a->ubicacion ?? '') . ' ' . $direccionAlmacen));
                         @endphp
                         <tr class="search-item-row"
                             data-nombre="{{ $searchText }}"
@@ -161,7 +162,7 @@
                                 <br><small class="text-muted">{{ Str::limit($a->descripcion, 40) }}</small>
                                 @endif
                             </td>
-                            <td>{{ $a->ubicacion ?: '—' }}</td>
+                            <td>{{ $direccionAlmacen ?: '—' }}</td>
                             <td>{{ number_format((float) $a->capacidad, 0) }} kg</td>
                             <td>
                                 <div class="ocupacion-bar mb-1" style="max-width:120px">
@@ -206,7 +207,8 @@
                     $oc = $ocupacionPorId[$a->almacenid] ?? ['porcentaje' => 0, 'ocupado_kg' => 0, 'capacidad_kg' => 0, 'disponible_kg' => 0];
                     $pct = $oc['porcentaje'];
                     $ocupacionFiltro = $pct > 85 ? 'alta' : ($pct >= 50 ? 'media' : 'baja');
-                    $searchText = strtolower(trim(($a->nombre ?? '') . ' ' . ($a->ubicacion ?? '')));
+                    $direccionAlmacen = \App\Support\UbicacionGpsParser::resolverAlmacen($a->almacenid, $a->nombre, $a->ubicacion)['direccion'];
+                    $searchText = strtolower(trim(($a->nombre ?? '') . ' ' . ($a->ubicacion ?? '') . ' ' . $direccionAlmacen));
                 @endphp
                 <div class="col-md-6 col-xl-4 mb-3 search-item"
                     data-nombre="{{ $searchText }}"
@@ -221,8 +223,8 @@
                                     {{ $pct }}% ocupado
                                 </span>
                             </div>
-                            @if($a->ubicacion)
-                            <p class="mb-0 small text-muted"><i class="fas fa-map-marker-alt mr-1"></i>{{ Str::limit($a->ubicacion, 50) }}</p>
+                            @if($direccionAlmacen)
+                            <p class="mb-0 small text-muted"><i class="fas fa-map-marker-alt mr-1"></i>{{ Str::limit($direccionAlmacen, 50) }}</p>
                             @endif
                         </div>
                         <div class="card-body py-3">

@@ -9,14 +9,18 @@ use App\Models\TipoActividad;
 use App\Models\Prioridad;
 use App\Models\Usuario;
 use App\Support\ActividadPermisos;
+use App\Support\EvidenciaFoto;
 use App\Support\LoteEstadoPorActividad;
 use App\Support\LoteTrazabilidadService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use App\Services\ActividadInsumoService;
 use App\Services\NotificacionUsuarioService;
+use App\Support\ActividadDetalleCatalogo;
 use App\Support\UsuarioRol;
 
 class ActividadController extends Controller
@@ -25,6 +29,7 @@ class ActividadController extends Controller
         private LoteEstadoPorActividad $loteEstadoPorActividad,
         private NotificacionUsuarioService $notificaciones,
         private LoteTrazabilidadService $trazabilidad,
+        private ActividadInsumoService $actividadInsumos,
     ) {}
 
     public function index(Request $request)
@@ -119,13 +124,39 @@ class ActividadController extends Controller
 
     public function create(Request $request)
     {
+        if ($request->filled('loteid') && $request->filled('tipo')
+            && str_contains(mb_strtolower(trim((string) $request->tipo)), 'siembra')) {
+            $params = ['lote' => $request->integer('loteid')];
+            $returnUrl = $this->validReturnUrl($request->input('return'));
+            if ($returnUrl) {
+                $params['return'] = $returnUrl;
+            }
+
+            return redirect()->route('lotes.siembra.create', $params);
+        }
+
         $user = $request->user();
-        $tipos = TipoActividad::all();
+        $tipos = TipoActividad::query()
+            ->orderBy('nombre')
+            ->get()
+            ->reject(fn (TipoActividad $t) => in_array(
+                mb_strtolower(trim($t->nombre)),
+                ['cosecha', 'labranza', 'fumigacion', 'fumigación', 'siembra'],
+                true
+            ))
+            ->values();
         $prioridades = Prioridad::all();
 
         $loteid = $request->integer('loteid') ?: old('loteid');
         $lote = $loteid ? Lote::with('usuario')->find($loteid) : null;
         $loteLabel = $lote?->nombre;
+
+        if ($lote) {
+            $faseLote = $this->trazabilidad->resolverFaseActual($lote);
+            $tipos = $tipos->filter(
+                fn (TipoActividad $t) => $this->trazabilidad->tipoActividadPermitidoEnFase($t->nombre, $faseLote)
+            )->values();
+        }
 
         $tipoPreselect = null;
         if ($request->filled('tipo')) {
@@ -177,6 +208,93 @@ class ActividadController extends Controller
         ));
     }
 
+    public function createSiembra(Request $request, Lote $lote)
+    {
+        $this->autorizarLoteParaActividad($request, $lote);
+        $lote->load(['usuario', 'cultivo', 'estadoTipo']);
+
+        $sugerenciaSiembra = $lote->cultivo
+            ? \App\Support\CultivoSiembraCatalogo::sugerenciaParaLote($lote->cultivo, (float) $lote->superficie)
+            : null;
+        $insumosSiembra = $this->actividadInsumos->listarInsumosParaModal('material_siembra', $lote);
+
+        $tipoSiembra = $this->tipoActividadSiembra();
+        $faseActual = $this->trazabilidad->resolverFaseActual($lote);
+        $bloqueo = $this->trazabilidad->mensajeActividadNoPermitida($lote, $tipoSiembra->nombre);
+
+        if ($faseActual !== 'siembra' || $bloqueo !== null) {
+            return redirect()
+                ->route('lotes.trazabilidad', $lote)
+                ->with('error', $bloqueo ?? 'Este lote no está en fase de siembra.');
+        }
+
+        $user = $request->user();
+        $prioridades = Prioridad::all();
+        $returnUrl = $this->validReturnUrl($request->input('return'))
+            ?? route('lotes.trazabilidad', $lote);
+        $puedeDesignarResponsable = $this->puedeDesignarResponsableActividad($user);
+        $responsableSelectorParams = $this->paramsSelectorResponsableActividad($user);
+        $esJefeAgricultorDesignando = $user && UsuarioRol::esJefeAgricultor($user) && ! UsuarioRol::esAdminGlobal($user);
+        $responsableInicial = old('usuarioid');
+        $responsableLabel = '';
+        if ($responsableInicial) {
+            $u = Usuario::find($responsableInicial);
+            $responsableLabel = $u ? trim($u->nombre.' '.($u->apellido ?? '')) : '';
+        } elseif (
+            $lote->usuarioid
+            && $this->puedeAsignarResponsableActividad($user, (int) $lote->usuarioid)
+        ) {
+            $responsableInicial = $lote->usuarioid;
+            $responsableLabel = trim($lote->usuario->nombre.' '.($lote->usuario->apellido ?? ''));
+        } elseif (! $puedeDesignarResponsable && $user) {
+            $responsableInicial = $user->usuarioid;
+            $responsableLabel = trim($user->nombre.' '.($user->apellido ?? ''));
+        }
+
+        return view('lotes.siembra.create', compact(
+            'lote',
+            'tipoSiembra',
+            'prioridades',
+            'returnUrl',
+            'puedeDesignarResponsable',
+            'responsableSelectorParams',
+            'esJefeAgricultorDesignando',
+            'responsableInicial',
+            'responsableLabel',
+            'sugerenciaSiembra',
+            'insumosSiembra',
+        ));
+    }
+
+    public function storeSiembra(Request $request, Lote $lote)
+    {
+        $this->autorizarLoteParaActividad($request, $lote);
+
+        $tipoSiembra = $this->tipoActividadSiembra();
+        $bloqueo = $this->trazabilidad->mensajeActividadNoPermitida($lote, $tipoSiembra->nombre);
+        if ($bloqueo !== null) {
+            return back()->withInput()->with('error', $bloqueo);
+        }
+
+        $data = $request->validate([
+            'fechainicio' => 'nullable|date',
+            'descripcion' => 'nullable|string|max:200',
+            'prioridadid' => 'nullable|exists:prioridad,prioridadid',
+            'observaciones' => 'nullable|string|max:250',
+        ]);
+
+        $request->merge([
+            'loteid' => $lote->loteid,
+            'tipoactividadid' => $tipoSiembra->tipoactividadid,
+            'descripcion' => $data['descripcion'] ?? null,
+            'fechainicio' => $data['fechainicio'] ?? null,
+            'prioridadid' => $data['prioridadid'] ?? null,
+            'observaciones' => $data['observaciones'] ?? null,
+        ]);
+
+        return $this->store($request);
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate([
@@ -187,19 +305,28 @@ class ActividadController extends Controller
             'fechainicio' => 'nullable|date',
             'fechafin' => 'nullable|date|after_or_equal:fechainicio',
             'observaciones' => 'nullable|string|max:250',
+            'detalle_actividad_json' => 'nullable|string',
         ]);
 
         // Obtener el lote para asignar usuario automáticamente
         $lote = Lote::with('actividades.tipoActividad')->findOrFail($data['loteid']);
         $tipo = TipoActividad::find($data['tipoactividadid']);
 
-        $duplicada = $this->trazabilidad->mensajeActividadDuplicada($lote, $tipo->nombre ?? null);
-        if ($duplicada !== null) {
-            return back()->withInput()->with('error', $duplicada);
+        $noPermitida = $this->trazabilidad->mensajeActividadNoPermitida($lote, $tipo->nombre ?? null);
+        if ($noPermitida !== null) {
+            return back()->withInput()->with('error', $noPermitida);
         }
 
-        // Si no hay descripción, usar el tipo de actividad
-        if (empty($data['descripcion'])) {
+        $detalleRaw = $this->actividadInsumos->parseDetalleDesdeRequest($request, $tipo->nombre ?? null);
+        $detalle = [];
+        if (ActividadDetalleCatalogo::requiereInsumos($tipo->nombre) || ActividadDetalleCatalogo::esRiego($tipo->nombre)) {
+            $detalle = $this->actividadInsumos->validarDetalle($detalleRaw, $tipo->nombre ?? null);
+        }
+
+        $resumenDetalle = ActividadDetalleCatalogo::textoResumenDesdeDetalle($tipo->nombre ?? null, $detalle);
+        if ($resumenDetalle !== null) {
+            $data['descripcion'] = $resumenDetalle;
+        } elseif (empty($data['descripcion'])) {
             $data['descripcion'] = $tipo->nombre ?? 'Actividad';
         }
 
@@ -211,10 +338,12 @@ class ActividadController extends Controller
 
         $usuarioid = $this->resolverUsuarioidActividad($request, $lote);
 
-        if (
-            $request->boolean('completar')
-            && (int) $usuarioid === (int) ($request->user()?->usuarioid ?? 0)
-        ) {
+        $marcandoCompletada = $request->boolean('completar')
+            && (int) $usuarioid === (int) ($request->user()?->usuarioid ?? 0);
+
+        $evidenciaPath = $this->guardarEvidenciaSiCompletada($request, $marcandoCompletada);
+
+        if ($marcandoCompletada) {
             $data['fechafin'] = now();
         }
 
@@ -227,7 +356,13 @@ class ActividadController extends Controller
             'tipoactividadid' => $data['tipoactividadid'],
             'prioridadid' => $data['prioridadid'],
             'observaciones' => $data['observaciones'] ?? null,
+            'evidencia_foto_path' => $evidenciaPath,
+            'detalle_json' => $detalle !== [] ? json_encode($detalle, JSON_UNESCAPED_UNICODE) : null,
         ]);
+
+        if (! empty($data['fechafin']) && $detalle !== []) {
+            $this->actividadInsumos->aplicarStockSiCorresponde($actividad, $detalle);
+        }
 
         $actividad->load('lote');
         if ((int) $usuarioid !== (int) ($request->user()?->usuarioid ?? 0)) {
@@ -273,7 +408,15 @@ class ActividadController extends Controller
     public function show(Request $request, Actividad $actividad)
     {
         $this->autorizarActividadAsignada($request, $actividad);
-        $actividad->load(['lote', 'usuario', 'tipoActividad', 'prioridad']);
+        $actividad->load(['lote']);
+
+        if ($actividad->lote) {
+            return redirect()
+                ->route('lotes.trazabilidad', $actividad->lote)
+                ->withFragment('historial-eventos');
+        }
+
+        $actividad->load(['usuario', 'tipoActividad', 'prioridad']);
         $puedeMarcarCompletada = ActividadPermisos::puedeMarcarCompletada($request->user(), $actividad);
 
         return view('actividades.show', compact('actividad', 'puedeMarcarCompletada'));
@@ -357,15 +500,44 @@ class ActividadController extends Controller
     /**
      * Marcar actividad como realizada y cambiar estado del lote según tipo
      */
-    public function marcarRealizada(Actividad $actividad)
+    public function marcarRealizada(Request $request, Actividad $actividad)
     {
-        $this->autorizarMarcarActividadCompletada(request(), $actividad);
+        $this->autorizarMarcarActividadCompletada($request, $actividad);
+
+        if ($actividad->fechafin !== null) {
+            return $this->redirectDespuesDeMarcar($request, $actividad, 'error', 'Esta actividad ya está completada.');
+        }
+
+        $validator = Validator::make($request->all(), [
+            'evidencia_foto' => 'required|image|mimes:jpeg,jpg,png,webp|max:5120',
+        ], [
+            'evidencia_foto.required' => 'Debe subir una foto que demuestre que la actividad fue realizada.',
+            'evidencia_foto.image' => 'El archivo debe ser una imagen.',
+            'evidencia_foto.max' => 'La imagen no puede superar 5 MB.',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->redirectDespuesDeMarcar($request, $actividad)
+                ->withErrors($validator)
+                ->withInput();
+        }
 
         DB::beginTransaction();
 
         try {
+            $actividad->evidencia_foto_path = EvidenciaFoto::guardar(
+                $request->file('evidencia_foto'),
+                'actividades_evidencia'
+            );
             $actividad->fechafin = now();
             $actividad->save();
+
+            if ($actividad->detalle_json) {
+                $detalle = json_decode($actividad->detalle_json, true);
+                if (is_array($detalle)) {
+                    $this->actividadInsumos->aplicarStockSiCorresponde($actividad, $detalle);
+                }
+            }
 
             $estadoAplicado = $this->loteEstadoPorActividad->aplicarDesdeActividad($actividad);
             $this->notificaciones->descartarActividadAsignada((int) $actividad->actividadid);
@@ -375,11 +547,69 @@ class ActividadController extends Controller
 
             DB::commit();
 
-            return back()->with('success', "Actividad marcada como realizada.{$mensajeEstado}");
+            return $this->redirectDespuesDeMarcar(
+                $request,
+                $actividad,
+                'success',
+                "Actividad marcada como realizada.{$mensajeEstado}"
+            );
 
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Error: '.$e->getMessage());
+            return $this->redirectDespuesDeMarcar($request, $actividad, 'error', 'Error: '.$e->getMessage());
+        }
+    }
+
+    private function redirectDespuesDeMarcar(Request $request, Actividad $actividad, ?string $flashKey = null, ?string $message = null)
+    {
+        $actividad->loadMissing('lote');
+
+        if ($request->input('scroll_to') === 'historial-eventos' && $actividad->lote) {
+            $response = redirect()->to(route('lotes.trazabilidad', $actividad->lote).'#historial-eventos');
+        } else {
+            $response = back();
+        }
+
+        if ($flashKey !== null && $message !== null) {
+            $response = $response->with($flashKey, $message);
+        }
+
+        return $response;
+    }
+
+    private function guardarEvidenciaSiCompletada(Request $request, bool $marcandoCompletada): ?string
+    {
+        if (! $marcandoCompletada) {
+            return null;
+        }
+
+        $request->validate([
+            'evidencia_foto' => 'required|image|mimes:jpeg,jpg,png,webp|max:5120',
+        ], [
+            'evidencia_foto.required' => 'Debe subir una foto que demuestre que la actividad fue realizada.',
+            'evidencia_foto.image' => 'El archivo debe ser una imagen.',
+            'evidencia_foto.max' => 'La imagen no puede superar 5 MB.',
+        ]);
+
+        return EvidenciaFoto::guardar($request->file('evidencia_foto'), 'actividades_evidencia');
+    }
+
+    private function tipoActividadSiembra(): TipoActividad
+    {
+        return TipoActividad::query()
+            ->whereRaw('LOWER(TRIM(nombre)) LIKE ?', ['%siembra%'])
+            ->orderBy('tipoactividadid')
+            ->firstOrFail();
+    }
+
+    private function autorizarLoteParaActividad(Request $request, Lote $lote): void
+    {
+        $permitido = $this->queryLotesParaActividad($request)
+            ->where('loteid', $lote->loteid)
+            ->exists();
+
+        if (! $permitido) {
+            abort(403, 'No tienes acceso a este lote.');
         }
     }
 

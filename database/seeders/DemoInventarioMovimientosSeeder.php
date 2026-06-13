@@ -22,6 +22,9 @@ class DemoInventarioMovimientosSeeder extends Seeder
 
     public function run(): void
     {
+        // Obsoleto: los productos cosechados ya no se registran como insumos.
+        return;
+
         if (! Schema::hasTable('insumo')
             || ! Schema::hasTable('almacen_movimiento')
             || ! Schema::hasTable('tipo_movimiento_almacen')) {

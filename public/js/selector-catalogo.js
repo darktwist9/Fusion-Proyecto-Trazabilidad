@@ -18,8 +18,12 @@
             document.body.appendChild(this.modalEl);
         },
 
+        modalesVisibles() {
+            return document.querySelectorAll('.modal.show').length;
+        },
+
         cleanupModalArtifacts() {
-            if (document.querySelector('.modal.show')) {
+            if (this.modalesVisibles() > 0) {
                 return;
             }
             document.body.classList.remove('modal-open');
@@ -31,11 +35,19 @@
             if (!this.modalEl) {
                 return;
             }
-            const zIndex = 1060;
+            const visibleCount = this.modalesVisibles();
+            const zIndex = 1050 + (10 * Math.max(visibleCount, 1));
             this.modalEl.style.zIndex = String(zIndex);
-            document.querySelectorAll('.modal-backdrop').forEach((el) => {
-                el.style.zIndex = String(zIndex - 10);
-            });
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            if (backdrops.length) {
+                backdrops[backdrops.length - 1].style.zIndex = String(zIndex - 1);
+            }
+        },
+
+        restaurarModalPadre() {
+            if (this.modalesVisibles() > 0) {
+                document.body.classList.add('modal-open');
+            }
         },
 
         init() {
@@ -156,19 +168,14 @@
 
             window.jQuery(this.modalEl).on('hidden.bs.modal', () => {
                 this.activeId = null;
-                window.setTimeout(() => this.cleanupModalArtifacts(), 80);
+                window.setTimeout(() => {
+                    this.restaurarModalPadre();
+                    this.cleanupModalArtifacts();
+                }, 80);
             });
 
             window.jQuery(this.modalEl).on('show.bs.modal', () => {
                 this.ensureModalOnBody();
-                const backdrops = document.querySelectorAll('.modal-backdrop');
-                if (backdrops.length > 1) {
-                    backdrops.forEach((el, index) => {
-                        if (index < backdrops.length - 1) {
-                            el.remove();
-                        }
-                    });
-                }
                 window.requestAnimationFrame(() => this.syncModalStacking());
             });
 

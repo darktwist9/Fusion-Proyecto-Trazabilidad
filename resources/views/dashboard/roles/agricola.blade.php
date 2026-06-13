@@ -142,9 +142,9 @@
                         <span class="role-acc-tile__icon role-acc-tile__icon--adm"><i class="fas fa-flask"></i></span>
                         <span><span class="role-acc-tile__lbl">Insumos</span><span class="role-acc-tile__sub">Stock de insumos</span></span>
                     </a>
-                    <a href="{{ route('lote-insumos.index') }}" class="role-acc-tile">
-                        <span class="role-acc-tile__icon role-acc-tile__icon--adm"><i class="fas fa-spray-can"></i></span>
-                        <span><span class="role-acc-tile__lbl">Aplicación de insumos</span><span class="role-acc-tile__sub">Uso en lotes</span></span>
+                    <a href="{{ route('actividades.create') }}" class="role-acc-tile">
+                        <span class="role-acc-tile__icon role-acc-tile__icon--adm"><i class="fas fa-tasks"></i></span>
+                        <span><span class="role-acc-tile__lbl">Actividades</span><span class="role-acc-tile__sub">Aplicar insumos en lotes</span></span>
                     </a>
                 </div>
             </div>

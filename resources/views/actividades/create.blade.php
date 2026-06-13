@@ -9,7 +9,7 @@
         <h3 class="card-title"><i class="fas fa-tasks mr-2"></i>Registrar Actividad</h3>
     </div>
 
-    <form action="{{ route('actividades.store') }}" method="POST">
+    <form action="{{ route('actividades.store') }}" method="POST" enctype="multipart/form-data" id="formActividad">
         @csrf
         @if(!empty($returnUrl))
             <input type="hidden" name="return" value="{{ $returnUrl }}">
@@ -63,21 +63,25 @@
 
                     <div class="form-group">
                         <label><i class="fas fa-clipboard-list mr-1"></i> Tipo de Actividad <span class="text-danger">*</span></label>
-                        <select name="tipoactividadid" class="form-control" required>
-                            <option value="">-- Seleccione tipo --</option>
+                        <select name="tipoactividadid" id="tipoactividadid" class="form-control" required>
+                            <option value="">— Elija el tipo —</option>
                             @foreach($tipos as $t)
                                 <option value="{{ $t->tipoactividadid }}"
-                                    @selected(old('tipoactividadid', $tipoPreselect?->tipoactividadid) == $t->tipoactividadid)>
+                                    @selected(old('tipoactividadid') == $t->tipoactividadid)>
                                     {{ ucfirst($t->nombre) }}
                                 </option>
                             @endforeach
                         </select>
+                        <small class="text-muted">Al elegir el tipo se abrirá un cuadro para indicar insumos o tipo de riego.</small>
                     </div>
 
+                    @include('actividades.partials.detalle-actividad', ['modoSiembra' => false, 'sugerenciaSiembra' => null, 'insumosSiembra' => []])
+
                     <div class="form-group">
-                        <label><i class="fas fa-align-left mr-1"></i> Descripcion <span class="text-danger">*</span></label>
-                        <input type="text" name="descripcion" class="form-control" required maxlength="200"
-                               placeholder="Describa brevemente la actividad" value="{{ old('descripcion', $tipoPreselect?->nombre ?? '') }}">
+                        <label><i class="fas fa-align-left mr-1"></i> Descripción</label>
+                        <input type="text" name="descripcion" class="form-control" maxlength="200"
+                               value="{{ old('descripcion') }}">
+                        <small class="form-text text-muted">Opcional. Si la deja vacía, se usará el tipo de actividad.</small>
                     </div>
 
                     <div class="form-group">
@@ -107,6 +111,16 @@
                             <small class="form-text text-muted">
                                 Si solo la registra para después, déjela sin marcar; quedará pendiente en su panel.
                             </small>
+                            <div id="actividadEvidenciaWrap" class="mt-3 p-3 border rounded bg-light" style="{{ old('completar', request()->boolean('completar')) ? '' : 'display:none;' }}">
+                                <label class="font-weight-bold d-block mb-1">
+                                    <i class="fas fa-camera mr-1 text-success"></i> Foto de evidencia <span class="text-danger">*</span>
+                                </label>
+                                <input type="file" name="evidencia_foto" id="actividadEvidenciaFoto"
+                                       accept="image/jpeg,image/jpg,image/png,image/webp">
+                                @error('evidencia_foto')
+                                    <small class="text-danger d-block mt-1">{{ $message }}</small>
+                                @enderror
+                            </div>
                         </div>
                     @else
                         <div class="alert alert-light border small mb-0">
@@ -144,16 +158,32 @@
 
                     <div class="card mt-3 border-info">
                         <div class="card-header bg-info text-white">
-                            <h6 class="mb-0"><i class="fas fa-list mr-1"></i> Tipos de Actividad</h6>
+                            <h6 class="mb-0"><i class="fas fa-list mr-1"></i> Tipos disponibles</h6>
                         </div>
                         <div class="card-body small">
                             <ul class="list-unstyled mb-0">
-                                <li class="mb-1"><i class="fas fa-seedling text-success mr-1"></i> Siembra</li>
-                                <li class="mb-1"><i class="fas fa-tint text-primary mr-1"></i> Riego</li>
-                                <li class="mb-1"><i class="fas fa-spray-can text-warning mr-1"></i> Fumigacion</li>
-                                <li class="mb-1"><i class="fas fa-truck-loading text-info mr-1"></i> Cosecha</li>
-                                <li><i class="fas fa-tractor text-secondary mr-1"></i> Labranza</li>
+                                @php
+                                    $iconosTipo = [
+                                        'siembra' => ['fa-seedling', 'text-success'],
+                                        'riego' => ['fa-tint', 'text-primary'],
+                                        'fertilización' => ['fa-flask', 'text-teal'],
+                                        'fertilizacion' => ['fa-flask', 'text-teal'],
+                                        'control de plagas' => ['fa-bug', 'text-warning'],
+                                    ];
+                                @endphp
+                                @forelse($tipos as $t)
+                                    @php
+                                        $clave = mb_strtolower(trim($t->nombre));
+                                        $icono = $iconosTipo[$clave] ?? ['fa-tasks', 'text-secondary'];
+                                    @endphp
+                                    <li class="mb-1">
+                                        <i class="fas {{ $icono[0] }} {{ $icono[1] }} mr-1"></i> {{ ucfirst($t->nombre) }}
+                                    </li>
+                                @empty
+                                    <li class="text-muted">No hay tipos configurados.</li>
+                                @endforelse
                             </ul>
+                            <p class="text-muted mb-0 mt-2"><i class="fas fa-info-circle mr-1"></i> La cosecha se registra desde la trazabilidad del lote, no como actividad.</p>
                         </div>
                     </div>
                 </div>
@@ -176,6 +206,19 @@
 
 @push('scripts')
 <script>
+(function () {
+    var check = document.getElementById('completar_ahora');
+    var wrap = document.getElementById('actividadEvidenciaWrap');
+    var input = document.getElementById('actividadEvidenciaFoto');
+    function toggle() {
+        if (!wrap || !check) return;
+        wrap.style.display = check.checked ? '' : 'none';
+        if (input) input.required = check.checked;
+    }
+    check?.addEventListener('change', toggle);
+    toggle();
+})();
+
 document.getElementById('selector_wrap_actividad_lote')?.addEventListener('selector-catalogo:change', function (e) {
     const extra = e.detail.extra || {};
     @if(!empty($puedeDesignarResponsable))

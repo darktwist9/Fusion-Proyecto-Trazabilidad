@@ -26,7 +26,6 @@ use App\Http\Controllers\Api\LoteInsumoController;
 use App\Http\Controllers\Api\ActividadController;
 
 use App\Http\Controllers\Api\ClimaController;
-use App\Http\Controllers\Api\VentaController;
 use App\Http\Controllers\Api\CertificacionController;
 
 use App\Http\Controllers\Api\AuthController;
@@ -125,18 +124,6 @@ Route::name('api.')->group(function () {
 
     // CLIMA
     Route::apiResource('climas', ClimaController::class);
-
-    // VENTAS (control granular API)
-    Route::get('ventas', [VentaController::class, 'index'])
-        ->middleware(['auth:sanctum', 'action.permission:ventas,read']);
-    Route::post('ventas', [VentaController::class, 'store'])
-        ->middleware(['auth:sanctum', 'action.permission:ventas,create']);
-    Route::get('ventas/{venta}', [VentaController::class, 'show'])
-        ->middleware(['auth:sanctum', 'action.permission:ventas,read']);
-    Route::match(['put', 'patch'], 'ventas/{venta}', [VentaController::class, 'update'])
-        ->middleware(['auth:sanctum', 'action.permission:ventas,update']);
-    Route::delete('ventas/{venta}', [VentaController::class, 'destroy'])
-        ->middleware(['auth:sanctum', 'action.permission:ventas,delete']);
 
     // ========================================================
     // GRUPO: PEDIDOS (CLIENTE EXTERNO) - control granular API

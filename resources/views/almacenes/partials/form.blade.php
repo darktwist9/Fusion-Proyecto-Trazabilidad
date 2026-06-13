@@ -1,11 +1,13 @@
 @php
     $campos = $guias['campos'] ?? [];
     $esEdicion = isset($almacen);
-    $ubicacionValor = old('ubicacion', $almacen->ubicacion ?? '');
+    $ubicacionRaw = old('ubicacion', $almacen->ubicacion ?? '');
+    $ubicacionValor = preg_replace('/\s*·\s*GPS\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*$/iu', '', trim((string) $ubicacionRaw));
+    $ubicacionValor = \App\Support\UbicacionGpsParser::direccionLegible($ubicacionValor) ?? $ubicacionValor;
     $nombreValor = old('nombre', $almacen->nombre ?? '');
     $descValor = old('descripcion', $almacen->descripcion ?? '');
     $capValor = old('capacidad', $almacen->capacidad ?? '');
-    $coordsInicial = \App\Support\UbicacionGpsParser::fromTexto($ubicacionValor);
+    $coordsInicial = \App\Support\UbicacionGpsParser::fromTexto($ubicacionRaw);
     $tieneGps = $coordsInicial !== null;
 @endphp
 
@@ -235,18 +237,8 @@
             <div id="mapaAlmacenUbicacion"></div>
         </div>
 
-        <div class="alm-ubicacion-panel__coords">
-            <span id="coord_chip" class="alm-ubicacion-coord-chip {{ $tieneGps ? '' : 'is-empty' }}">
-                <i class="fas fa-crosshairs"></i>
-                <span id="coord_chip_text">
-                    @if($tieneGps)
-                        GPS {{ number_format($coordsInicial['lat'], 5) }}, {{ number_format($coordsInicial['lng'], 5) }}
-                    @else
-                        Sin punto marcado
-                    @endif
-                </span>
-            </span>
-            <button type="button" id="btn-centrar-scz" class="btn btn-outline-secondary btn-centrar ml-auto">
+        <div class="alm-ubicacion-panel__coords d-flex justify-content-end py-2 px-3">
+            <button type="button" id="btn-centrar-scz" class="btn btn-outline-secondary btn-centrar">
                 <i class="fas fa-location-arrow mr-1"></i> Centrar en Santa Cruz
             </button>
         </div>
@@ -275,7 +267,7 @@
     <div class="form-group mb-0">
         <label for="capacidad">Capacidad máxima (kg)</label>
         <div class="input-group">
-            <input type="number" step="0.01" min="0" name="capacidad" id="capacidad"
+            <input type="number" step="0.01" min="0.01" name="capacidad" id="capacidad" required
                    class="form-control @error('capacidad') is-invalid @enderror"
                    value="{{ $capValor }}" placeholder="Ej: 50000">
             <div class="input-group-append">
@@ -293,8 +285,6 @@
 $(function () {
     const inputUbic = document.getElementById('ubicacion');
     const hint = document.getElementById('ubicacion_detalle_hint');
-    const coordChip = document.getElementById('coord_chip');
-    const coordChipText = document.getElementById('coord_chip_text');
     const DEFAULT_LAT = -17.7833;
     const DEFAULT_LNG = -63.1821;
 
@@ -313,22 +303,70 @@ $(function () {
         return 'GPS ' + Number(lat).toFixed(5) + ', ' + Number(lng).toFixed(5);
     }
 
-    function actualizarChip(lat, lng) {
-        if (!coordChip || !coordChipText) return;
-        coordChip.classList.remove('is-empty');
-        coordChipText.textContent = formatoGps(lat, lng);
+    let geocodeTimer = null;
+
+    function textoDireccionDesdeRespuesta(data) {
+        const addr = data && data.address ? data.address : {};
+        const partes = [
+            addr.road || addr.pedestrian || addr.footway || addr.path,
+            addr.suburb || addr.neighbourhood || addr.quarter,
+            addr.city || addr.town || addr.municipality || 'Santa Cruz de la Sierra',
+        ].filter(Boolean);
+        if (partes.length) {
+            return partes.slice(0, 2).join(', ');
+        }
+        if (data && data.display_name) {
+            return String(data.display_name).split(',').slice(0, 2).join(',').trim();
+        }
+        return '';
     }
 
     function actualizarCampo(lat, lng) {
         latActual = lat;
         lngActual = lng;
         if (inputUbic) {
-            inputUbic.value = formatoGps(lat, lng);
+            inputUbic.placeholder = 'Buscando dirección…';
         }
-        actualizarChip(lat, lng);
         if (hint) {
-            hint.textContent = 'Ubicación GPS fijada desde el mapa. Podés editar el texto si necesitás agregar una referencia.';
+            hint.textContent = 'Obteniendo calle desde el mapa…';
         }
+
+        clearTimeout(geocodeTimer);
+        geocodeTimer = setTimeout(function () {
+            fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lng + '&zoom=18&addressdetails=1', {
+                headers: { 'Accept-Language': 'es' },
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    const calle = textoDireccionDesdeRespuesta(data);
+                    if (inputUbic) {
+                        inputUbic.value = calle;
+                        inputUbic.placeholder = 'Dirección o referencia';
+                    }
+                    if (hint) {
+                        hint.textContent = calle
+                            ? 'Dirección sugerida desde el mapa. Podés editar el texto si necesitás agregar una referencia.'
+                            : 'Punto marcado en el mapa. Escribí una referencia si la calle no se detectó.';
+                    }
+                })
+                .catch(function () {
+                    if (inputUbic) {
+                        inputUbic.placeholder = 'Dirección o referencia';
+                    }
+                    if (hint) {
+                        hint.textContent = 'Punto marcado en el mapa. Escribí la dirección o una referencia.';
+                    }
+                });
+        }, 350);
+    }
+
+    function ubicacionParaGuardar() {
+        const calle = (inputUbic?.value || '').trim();
+        const gps = formatoGps(latActual, lngActual);
+        if (!marcadorAlmacen) {
+            return calle;
+        }
+        return calle ? (calle + ' · ' + gps) : gps;
     }
 
     function colocarMarcador(lat, lng, actualizarInput) {
@@ -398,18 +436,24 @@ $(function () {
             if (parsed && mapaAlmacen) {
                 mapaAlmacen.setView([parsed.lat, parsed.lng], 14);
                 colocarMarcador(parsed.lat, parsed.lng, false);
-                actualizarChip(parsed.lat, parsed.lng);
                 if (hint) {
                     hint.textContent = 'Coordenadas reconocidas en el texto.';
                 }
             } else if (hint && inputUbic.value.trim() === '') {
-                coordChip.classList.add('is-empty');
-                coordChipText.textContent = 'Sin punto marcado';
                 hint.textContent = 'El mapa guardará las coordenadas automáticamente al marcar el punto.';
                 if (marcadorAlmacen && mapaAlmacen) {
                     mapaAlmacen.removeLayer(marcadorAlmacen);
                     marcadorAlmacen = null;
                 }
+            }
+        });
+    }
+
+    const formAlmacen = inputUbic?.closest('form');
+    if (formAlmacen) {
+        formAlmacen.addEventListener('submit', function () {
+            if (inputUbic) {
+                inputUbic.value = ubicacionParaGuardar();
             }
         });
     }

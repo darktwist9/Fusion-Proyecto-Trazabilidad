@@ -6,10 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Models\Lote;
 use App\Models\Usuario;
 use App\Models\Cultivo;
+use App\Models\Insumo;
 use App\Models\EstadoLoteTipo;
 use App\Models\Produccion;
+use App\Support\CultivoSiembraCatalogo;
 use App\Support\EstadoLoteCatalogo;
+use App\Support\InsumoCatalogo;
 use App\Support\LoteDefaults;
+use App\Support\SuperficieFormato;
+use App\Support\UbicacionGpsParser;
 use App\Support\LoteEstadoPorActividad;
 use App\Support\LoteTrazabilidadService;
 use App\Services\NotificacionUsuarioService;
@@ -34,7 +39,7 @@ class LoteController extends Controller
     public function index(Request $request)
     {
         $query = Lote::query()
-            ->with(['usuario', 'cultivo', 'estadoTipo']);
+            ->with(['usuario', 'cultivo', 'insumoSemilla', 'estadoTipo']);
 
         if (UsuarioRol::debeAcotarPorAsignacion($request->user())) {
             $query->where('usuarioid', (int) $request->user()->usuarioid);
@@ -54,7 +59,9 @@ class LoteController extends Controller
             });
         }
 
-        if ($request->filled('cultivoid')) {
+        if ($request->filled('insumosemillaid')) {
+            $query->where('insumosemillaid', (int) $request->insumosemillaid);
+        } elseif ($request->filled('cultivoid')) {
             $query->where('cultivoid', (int) $request->cultivoid);
         }
 
@@ -64,16 +71,6 @@ class LoteController extends Controller
 
         if ($request->filled('usuarioid')) {
             $query->where('usuarioid', (int) $request->usuarioid);
-        }
-
-        if ($request->filled('con_mapa')) {
-            if ($request->con_mapa === '1') {
-                $query->whereNotNull('latitud')->whereNotNull('longitud');
-            } elseif ($request->con_mapa === '0') {
-                $query->where(function ($q) {
-                    $q->whereNull('latitud')->orWhereNull('longitud');
-                });
-            }
         }
 
         $stats = [
@@ -89,8 +86,7 @@ class LoteController extends Controller
 
         $lotes = $query->orderByDesc('loteid')->paginate(15)->withQueryString();
 
-        $filtros = $request->only(['q', 'cultivoid', 'estadolotetipoid', 'usuarioid', 'con_mapa']);
-        $cultivos = Cultivo::orderBy('nombre')->get();
+        $filtros = $request->only(['q', 'insumosemillaid', 'cultivoid', 'estadolotetipoid', 'usuarioid']);
         $estados = EstadoLoteCatalogo::paraSelect();
         $usuarios = Usuario::query()
             ->where('activo', true)
@@ -98,7 +94,7 @@ class LoteController extends Controller
             ->orderBy('nombre')
             ->get();
 
-        return view('lotes.index', compact('lotes', 'stats', 'filtros', 'cultivos', 'estados', 'usuarios'));
+        return view('lotes.index', compact('lotes', 'stats', 'filtros', 'estados', 'usuarios'));
     }
 
     /**
@@ -119,7 +115,7 @@ class LoteController extends Controller
         ];
 
         // Lotes con coordenadas para el mapa
-        $lotesConCoordenadas = Lote::with(['usuario', 'cultivo', 'estadoTipo'])
+        $lotesConCoordenadas = Lote::with(['usuario', 'cultivo', 'insumoSemilla', 'estadoTipo'])
             ->whereNotNull('latitud')
             ->whereNotNull('longitud')
             ->get()
@@ -130,12 +126,15 @@ class LoteController extends Controller
                     'latitud' => (float) $lote->latitud,
                     'longitud' => (float) $lote->longitud,
                     'superficie' => (float) $lote->superficie,
-                    'ubicacion' => $lote->ubicacion,
+                    'superficie_etiqueta' => SuperficieFormato::etiqueta($lote->superficie),
+                    'ubicacion' => $lote->ubicacion_visible,
+                    'ubicacion_visible' => $lote->ubicacion_visible,
                     'propietario' => ($lote->usuario->nombre ?? '') . ' ' . ($lote->usuario->apellido ?? ''),
-                    'cultivo' => $lote->cultivo->nombre ?? null,
+                    'cultivo' => $lote->cultivo_etiqueta,
                     'estado' => $lote->estadoTipo->nombre ?? 'disponible',
                     'usuarioid' => $lote->usuarioid,
                     'cultivoid' => $lote->cultivoid,
+                    'insumosemillaid' => $lote->insumosemillaid,
                     'estadoid' => $lote->estadolotetipoid,
                 ];
             });
@@ -206,16 +205,19 @@ class LoteController extends Controller
             $usuarioidInicial = 0;
         }
 
-        $cultivoidInicial = old('cultivoid', request()->query('cultivoid'));
-        $cultivoLabel = $cultivoidInicial ? Cultivo::find($cultivoidInicial)?->nombre : null;
+        $insumoSemillaId = old('insumosemillaid', request()->query('insumosemillaid'));
+        $insumoSemillaLabel = null;
+        if ($insumoSemillaId) {
+            $insumoSemillaLabel = Insumo::find($insumoSemillaId)?->nombre;
+        }
 
         return view('lotes.create', compact(
             'mostrarSelectorPropietario',
             'propietarioPorDefecto',
             'usuarioidInicial',
             'responsableLabel',
-            'cultivoidInicial',
-            'cultivoLabel',
+            'insumoSemillaId',
+            'insumoSemillaLabel',
             'responsableSelectorParams',
             'esJefeAgricultorDesignando'
         ));
@@ -228,21 +230,21 @@ class LoteController extends Controller
             'nombre' => 'required|string|max:100',
             'ubicacion' => 'nullable|string|max:200',
             'superficie' => 'required|numeric|min:0.01',
-            'cultivoid' => 'nullable|exists:cultivo,cultivoid',
+            'insumosemillaid' => 'nullable|exists:insumo,insumoid',
             'latitud' => 'nullable|numeric|between:-90,90',
             'longitud' => 'nullable|numeric|between:-180,180',
             'imagen' => 'nullable|image|max:2048',
         ]);
 
         $data['usuarioid'] = $this->resolverUsuarioidLote($request, $data['usuarioid'] ?? null);
+        $data['insumosemillaid'] = $this->resolverInsumoSemilla($data['insumosemillaid'] ?? null);
+        $data['cultivoid'] = null;
 
-        if (empty($data['ubicacion']) && ! empty($data['latitud']) && ! empty($data['longitud'])) {
-            $data['ubicacion'] = sprintf(
-                'Parcela GPS %.5f, %.5f',
-                (float) $data['latitud'],
-                (float) $data['longitud']
-            );
-        }
+        $data['ubicacion'] = UbicacionGpsParser::normalizarUbicacionLote(
+            $data['ubicacion'] ?? null,
+            isset($data['latitud']) ? (float) $data['latitud'] : null,
+            isset($data['longitud']) ? (float) $data['longitud'] : null
+        );
 
         // SUPABASE UPLOAD
         if ($request->hasFile('imagen')) {
@@ -365,7 +367,13 @@ class LoteController extends Controller
         $user = $request->user();
         $this->autorizarLoteAsignado($request, $lote);
 
-        $lote->load(['usuario', 'cultivo', 'estadoTipo']);
+        $lote->load(['usuario', 'cultivo', 'insumoSemilla', 'estadoTipo']);
+
+        if (EstadoLoteCatalogo::loteEsCerrado($lote->estadoTipo?->nombre)) {
+            return redirect()
+                ->route('lotes.trazabilidad', $lote)
+                ->with('info', 'Este lote ya fue cosechado y no puede editarse.');
+        }
 
         $puedeDesignarResponsable = $this->puedeDesignarResponsableLote($user);
         $responsableSelectorParams = $this->paramsSelectorResponsable($user);
@@ -374,13 +382,21 @@ class LoteController extends Controller
         $responsableLabel = ($lote->usuario && $this->puedeSerResponsableDeLote((int) $lote->usuarioid))
             ? trim($lote->usuario->nombre.' '.($lote->usuario->apellido ?? ''))
             : null;
-        $cultivoLabel = $lote->cultivo?->nombre;
+        $insumoSemillaLabel = $lote->insumoSemilla?->nombre;
+        $dosisInicial = null;
+        if ($lote->insumoSemilla && (float) $lote->superficie > 0) {
+            $dosisInicial = CultivoSiembraCatalogo::sugerenciaParaInsumo(
+                $lote->insumoSemilla,
+                (float) $lote->superficie
+            );
+        }
         $mostrarFechaSiembra = (bool) $lote->fechasiembra;
 
         return view('lotes.edit', compact(
             'lote',
             'responsableLabel',
-            'cultivoLabel',
+            'insumoSemillaLabel',
+            'dosisInicial',
             'mostrarFechaSiembra',
             'puedeDesignarResponsable',
             'responsableSelectorParams',
@@ -391,18 +407,33 @@ class LoteController extends Controller
     public function update(Request $request, Lote $lote)
     {
         $this->autorizarLoteAsignado($request, $lote);
+        $lote->loadMissing('estadoTipo');
+
+        if (EstadoLoteCatalogo::loteEsCerrado($lote->estadoTipo?->nombre)) {
+            return redirect()
+                ->route('lotes.trazabilidad', $lote)
+                ->with('info', 'Este lote ya fue cosechado y no puede modificarse.');
+        }
 
         $data = $request->validate([
             'usuarioid' => ['required', 'exists:usuario,usuarioid', $this->reglaResponsableLote($request->user())],
             'nombre' => 'required|string|max:100',
             'ubicacion' => 'nullable|string|max:200',
             'superficie' => 'required|numeric|min:0',
-            'cultivoid' => 'nullable|exists:cultivo,cultivoid',
+            'insumosemillaid' => 'nullable|exists:insumo,insumoid',
             'latitud' => 'nullable|numeric|between:-90,90',
             'longitud' => 'nullable|numeric|between:-180,180',
         ]);
 
         $anteriorUsuarioid = (int) $lote->usuarioid;
+        $data['insumosemillaid'] = $this->resolverInsumoSemilla($data['insumosemillaid'] ?? null);
+        $data['cultivoid'] = null;
+        $data['ubicacion'] = UbicacionGpsParser::normalizarUbicacionLote(
+            $data['ubicacion'] ?? null,
+            isset($data['latitud']) ? (float) $data['latitud'] : null,
+            isset($data['longitud']) ? (float) $data['longitud'] : null,
+            $lote->loteid
+        );
         $lote->update(LoteDefaults::enrich($data, false));
         $lote->refresh();
         $this->notificaciones->loteAsignado($lote, $anteriorUsuarioid);
@@ -556,5 +587,27 @@ class LoteController extends Controller
         throw ValidationException::withMessages([
             'usuarioid' => 'Debe asignar un agricultor como responsable del lote. El administrador solo supervisa.',
         ]);
+    }
+
+    private function resolverInsumoSemilla(mixed $insumoid): ?int
+    {
+        if (blank($insumoid)) {
+            return null;
+        }
+
+        $insumo = Insumo::query()->with('tipo')->find((int) $insumoid);
+        if ($insumo === null || ! InsumoCatalogo::esInsumoOperativo($insumo)) {
+            throw ValidationException::withMessages([
+                'insumosemillaid' => 'Seleccione una semilla válida del inventario de insumos.',
+            ]);
+        }
+
+        if (InsumoCatalogo::slugFromNombreTipo($insumo->tipo?->nombre) !== 'material_siembra') {
+            throw ValidationException::withMessages([
+                'insumosemillaid' => 'Solo puede asignar insumos de tipo material de siembra.',
+            ]);
+        }
+
+        return (int) $insumo->insumoid;
     }
 }

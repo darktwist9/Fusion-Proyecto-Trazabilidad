@@ -17,12 +17,13 @@
 <div class="modulo-env">
     @include('envios.partials.alertas')
 
-    <div class="mb-3">
+    <div class="veh-det-toolbar d-flex flex-wrap justify-content-between align-items-center mb-3">
         <a href="{{ route('envios.transportistas') }}" class="btn btn-outline-secondary btn-sm">
             <i class="fas fa-arrow-left mr-1"></i> Volver al listado
         </a>
+        <div class="veh-det-toolbar__acciones d-flex flex-wrap">
         @can('transportistas.update')
-        <a href="{{ route('envios.transportistas.edit', $transportista) }}" class="btn btn-primary btn-sm">
+        <a href="{{ route('envios.transportistas.edit', $transportista) }}" class="btn btn-success btn-sm">
             <i class="fas fa-edit mr-1"></i> Editar
         </a>
         @endcan
@@ -33,6 +34,7 @@
             <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-trash mr-1"></i> Eliminar</button>
         </form>
         @endcan
+        </div>
     </div>
 
     <div class="card card-modulo-main">
@@ -54,6 +56,22 @@
                 <dd class="col-sm-9">{{ $transportista->nombreusuario ?? '—' }}</dd>
                 <dt class="col-sm-3">Teléfono</dt>
                 <dd class="col-sm-9">{{ $transportista->telefono ?? '—' }}</dd>
+                @php
+                    $tipoLic = $transportista->tipo_licencia ?? $transportista->perfilTransportista?->tipo_licencia;
+                    $numLic = $transportista->perfilTransportista?->licencia;
+                @endphp
+                <dt class="col-sm-3">Licencia</dt>
+                <dd class="col-sm-9">
+                    @if($tipoLic)
+                        <span class="badge badge-info">{{ $tipoLic }}</span>
+                        {{ \App\Support\TiposLicenciaBolivia::etiqueta($tipoLic) }}
+                        @if($numLic)
+                            <span class="d-block small text-muted mt-1">Nº {{ $numLic }}</span>
+                        @endif
+                    @else
+                        —
+                    @endif
+                </dd>
                 <dt class="col-sm-3">Estado</dt>
                 <dd class="col-sm-9">
                     @if($transportista->activo)

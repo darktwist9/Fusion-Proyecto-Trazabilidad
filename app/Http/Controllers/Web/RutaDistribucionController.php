@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Almacen;
 use App\Models\RutaDistribucion;
 use App\Services\DistribucionRutaService;
+use App\Services\SimulacionRutaService;
 use App\Support\AlmacenAmbito;
 use App\Support\RutaDistribucionCatalogo;
 use App\Support\RutaPorCallesService;
@@ -24,6 +25,19 @@ class RutaDistribucionController extends Controller
     private function autorizarPlanificador(): void
     {
         abort_unless(UsuarioRol::puedeGestionarDistribucionPlanta(auth()->user()), 403);
+    }
+
+    private function autorizarVerRuta(RutaDistribucion $ruta): void
+    {
+        $user = auth()->user();
+        if (UsuarioRol::puedeGestionarDistribucionPlanta($user)) {
+            return;
+        }
+        if (UsuarioRol::esTransportista($user) && (int) $ruta->transportista_usuarioid === (int) $user->usuarioid) {
+            return;
+        }
+
+        abort(403);
     }
 
     public function index(Request $request): View
@@ -99,10 +113,19 @@ class RutaDistribucionController extends Controller
         AlmacenAmbito::asegurarAmbitosEnRegistros();
 
         $pedidosListos = $this->rutas->pedidosListosParaRuta();
+        $almacenesIdsConPedidos = $pedidosListos
+            ->pluck('almacen_planta_origenid')
+            ->filter()
+            ->unique()
+            ->values();
+
         $almacenesPlanta = AlmacenAmbito::scope(
             Almacen::query()->where('activo', true),
             AlmacenAmbito::PLANTA
-        )->orderBy('nombre')->get();
+        )
+            ->whereIn('almacenid', $almacenesIdsConPedidos)
+            ->orderBy('nombre')
+            ->get();
 
         $almacenesMapa = $almacenesPlanta->map(function (Almacen $almacen) use ($pedidosListos) {
             $resuelto = UbicacionGpsParser::resolverAlmacen(
@@ -128,7 +151,10 @@ class RutaDistribucionController extends Controller
                     'pedidos' => $pedidosEnAlmacen,
                 ],
             ];
-        })->values()->all();
+        })
+            ->filter(fn (array $item) => ($item['extra']['pedidos'] ?? 0) > 0)
+            ->values()
+            ->all();
 
         $pdvsMapa = [];
         foreach ($pedidosListos as $pedido) {
@@ -161,6 +187,7 @@ class RutaDistribucionController extends Controller
         return view('punto_venta.rutas.create', [
             'pedidosListos' => $pedidosListos,
             'almacenesMapa' => $almacenesMapa,
+            'almacenesIdsConPedidos' => $almacenesIdsConPedidos->implode(','),
             'puntosMapaDisponibles' => array_merge($almacenesMapa, array_values($pdvsMapa)),
             'oldAlmacenLabel' => $oldAlmacenLabel,
             'hubLat' => RutaPorCallesService::HUB_LAT,
@@ -176,6 +203,7 @@ class RutaDistribucionController extends Controller
             'almacen_planta_origenid' => 'required|integer|exists:almacen,almacenid',
             'transportista_usuarioid' => 'required|integer|exists:usuario,usuarioid',
             'vehiculoid' => 'required|integer|exists:vehiculo,vehiculoid',
+            'costo_bs' => 'required|numeric|min:0.01|max:99999999.99',
             'pedidos' => 'required|array|min:1',
             'pedidos.*' => 'integer|exists:pedido_distribucion,pedidodistribucionid',
         ]);
@@ -190,7 +218,8 @@ class RutaDistribucionController extends Controller
                 (int) $data['transportista_usuarioid'],
                 (int) $data['vehiculoid'],
                 (int) auth()->id(),
-                null
+                null,
+                (float) $data['costo_bs']
             );
         } catch (\InvalidArgumentException $e) {
             return back()->withInput()->with('error', $e->getMessage());
@@ -198,12 +227,29 @@ class RutaDistribucionController extends Controller
 
         return redirect()
             ->route('punto-venta.rutas.show', $ruta)
-            ->with('success', 'Ruta de distribución creada. Los pedidos seleccionados están en tránsito.');
+            ->with('success', 'Ruta de distribución creada. El transportista debe iniciar la ruta cuando esté listo.');
+    }
+
+    public function empezarRuta(RutaDistribucion $ruta, SimulacionRutaService $simulacion): RedirectResponse
+    {
+        $user = auth()->user();
+        if (! UsuarioRol::puedeGestionarDistribucionPlanta($user)
+            && (int) $ruta->transportista_usuarioid !== (int) $user?->usuarioid) {
+            abort(403);
+        }
+
+        try {
+            $simulacion->empezarDistribucion($ruta);
+        } catch (\InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Ruta iniciada. El recorrido simulado está en marcha.');
     }
 
     public function show(RutaDistribucion $ruta): View
     {
-        $this->autorizarPlanificador();
+        $this->autorizarVerRuta($ruta);
 
         $ruta->load([
             'paradas.pedido.detalles',

@@ -363,7 +363,7 @@
                         </div>
                         <div class="lot-detail">
                             <span class="lot-detail-label">Superficie</span>
-                            <span class="lot-detail-value" id="panelSuperficie">- Ha</span>
+                            <span class="lot-detail-value" id="panelSuperficie">—</span>
                         </div>
                         <div class="lot-detail">
                             <span class="lot-detail-label">Ubicacion</span>
@@ -414,7 +414,7 @@
                                 {{ number_format($lote->total_produccion, 0) }} kg
                             </span>
                             <br>
-                            <small style="color: var(--text-light);">{{ $lote->superficie }} Ha</small>
+                            <small style="color: var(--text-light);">{{ $lote->superficie_etiqueta }}</small>
                         </div>
                     </div>
                 @empty
@@ -445,7 +445,7 @@
                         <div style="flex: 1;">
                             <h6 style="margin: 0; font-size: 13px; font-weight: 600; color: var(--text-dark);">Sin ubicacion: {{ $lote->nombre }}</h6>
                             <small style="color: var(--text-light); font-size: 11px;">
-                                <i class="fas fa-user mr-1"></i>{{ $lote->usuario->nombre ?? 'Sin asignar' }} - {{ $lote->superficie }} Ha
+                                <i class="fas fa-user mr-1"></i>{{ $lote->usuario->nombre ?? 'Sin asignar' }} — {{ $lote->superficie_etiqueta }}
                             </small>
                         </div>
                         @can('lotes.update')
@@ -488,11 +488,7 @@
                         <div style="flex: 1;">
                             <h6 style="margin: 0; font-size: 13px; font-weight: 600; color: var(--text-dark);">Requiere insumos: {{ $lote->nombre }}</h6>
                             <small style="color: var(--text-light); font-size: 11px;">
-                                @if($lote->latitud && $lote->longitud)
-                                    <i class="fas fa-map-marker-alt mr-1"></i>{{ number_format($lote->latitud, 4) }}, {{ number_format($lote->longitud, 4) }}
-                                @else
-                                    <i class="fas fa-info-circle mr-1"></i>Sin coordenadas
-                                @endif
+                                <i class="fas fa-road mr-1"></i>{{ $lote->ubicacion_visible }}
                             </small>
                         </div>
                         @if($lote->latitud && $lote->longitud)
@@ -627,7 +623,7 @@ function cargarLotes(lotes) {
         markers.push(marker);
 
         // Popup básico
-        marker.bindPopup('<b>' + lote.nombre + '</b><br>' + (lote.cultivo || 'Sin cultivo') + '<br>' + lote.superficie + ' Ha');
+        marker.bindPopup('<b>' + lote.nombre + '</b><br>' + (lote.ubicacion_visible || lote.ubicacion || '') + '<br>' + (lote.superficie_etiqueta || lote.superficie + ' hectáreas'));
 
         // Click para mostrar panel
         marker.on('click', function() {
@@ -651,8 +647,8 @@ function mostrarPanelLote(lote) {
     document.getElementById('panelLoteName').textContent = lote.nombre;
     document.getElementById('panelPropietario').textContent = lote.propietario || '-';
     document.getElementById('panelCultivo').textContent = lote.cultivo || 'Sin cultivo';
-    document.getElementById('panelSuperficie').textContent = lote.superficie + ' Ha';
-    document.getElementById('panelUbicacion').textContent = lote.ubicacion || 'Sin ubicación';
+    document.getElementById('panelSuperficie').textContent = lote.superficie_etiqueta || (lote.superficie + ' hectáreas');
+    document.getElementById('panelUbicacion').textContent = lote.ubicacion_visible || lote.ubicacion || 'Sin ubicación';
     
     var estado = lote.estado ? lote.estado.toLowerCase() : 'disponible';
     var estadoClass = 'status-' + estado.replace('en ', '').replace('ó', 'o');

@@ -138,6 +138,46 @@ class EstadoLoteCatalogo
         return self::slugFromNombre($nombreEstado) === $slugEsperado;
     }
 
+    /** Lote que ya completó cosecha (y fases posteriores): no editable como parcela activa. */
+    public static function loteEsCerrado(?string $nombreEstado): bool
+    {
+        if ($nombreEstado === null || trim($nombreEstado) === '') {
+            return false;
+        }
+
+        $slug = self::slugFromNombre($nombreEstado);
+        if (in_array($slug, ['cosechado', 'finalizado'], true)) {
+            return true;
+        }
+
+        return in_array(mb_strtolower(trim($nombreEstado)), ['certificado', 'no conforme'], true);
+    }
+
+    /** @return array<int> */
+    public static function idsLoteSoloCosechado(): array
+    {
+        $id = self::idPorSlug('cosechado');
+
+        return $id ? [$id] : [];
+    }
+
+    /** @return array<int> */
+    public static function idsLotePostCosecha(): array
+    {
+        $porNombre = \App\Models\EstadoLoteTipo::query()
+            ->whereIn(\Illuminate\Support\Facades\DB::raw('LOWER(TRIM(nombre))'), [
+                'cosechado', 'finalizado', 'certificado', 'no conforme',
+            ])
+            ->pluck('estadolotetipoid')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        return array_values(array_unique(array_merge(
+            self::idsPorSlugs(['cosechado', 'finalizado']),
+            $porNombre
+        )));
+    }
+
     public static function filtrosPanelAbierto(\Illuminate\Http\Request $request, bool $tieneFiltrosActivos): bool
     {
         return $request->boolean('filtros_abiertos') || $tieneFiltrosActivos;
@@ -148,9 +188,8 @@ class EstadoLoteCatalogo
         $return = route('lotes.trazabilidad', $lote).'#historial-eventos';
 
         return match ($slug) {
-            'sembrado' => route('actividades.create', [
-                'loteid' => $lote->loteid,
-                'tipo' => 'Siembra',
+            'sembrado' => route('lotes.siembra.create', [
+                'lote' => $lote->loteid,
                 'return' => $return,
             ]),
             'en_crecimiento' => route('actividades.create', [

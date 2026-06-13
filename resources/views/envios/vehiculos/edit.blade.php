@@ -31,5 +31,7 @@
             </div>
         </form>
     </div>
+
+    @include('envios.partials.tipos-vehiculo-catalogo', ['tipos' => $tiposCatalogo ?? collect()])
 </div>
 @endsection

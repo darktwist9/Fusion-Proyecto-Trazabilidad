@@ -19,75 +19,108 @@
     $pctCompletadas = $stats['total'] > 0
         ? round(($stats['completadas'] / $stats['total']) * 100)
         : 0;
+    $urlTrazabilidadActividad = fn ($act) => $act->lote
+        ? route('lotes.trazabilidad', $act->lote).'#historial-eventos'
+        : null;
 @endphp
 
 @push('styles')
 @include('partials.modulo-lotes-actividades-styles')
 <style>
+.page-actividades .consulta-banner {
+    background: linear-gradient(90deg, #f0f7f1 0%, #fff 100%);
+    border-bottom: 1px solid #e3ebe4;
+    padding: .65rem 1.25rem;
+    font-size: .85rem;
+    color: #5a6c5c;
+}
+.page-actividades .consulta-banner i { color: #28a745; }
 .page-actividades .table-actividades thead th {
     background: #f4f6f9;
     border-bottom: 2px solid #dee2e6;
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     text-transform: uppercase;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.04em;
     color: #6c757d;
     font-weight: 600;
     white-space: nowrap;
 }
 .page-actividades .table-actividades tbody td {
     vertical-align: middle;
-    padding: 0.85rem 0.75rem;
-    font-size: 0.9rem;
+    padding: 0.9rem 0.75rem;
+    font-size: 0.875rem;
 }
 .page-actividades .table-actividades tbody tr:hover { background: #f8fbf8; }
 .page-actividades .act-tipo {
     font-weight: 600;
     color: #2c5530;
+    display: inline-block;
 }
 .page-actividades .act-tipo:hover { color: #1e3d22; text-decoration: none; }
-.page-actividades .meta-chip {
-    display: inline-block;
-    font-size: 0.75rem;
+.page-actividades .act-desc {
+    margin: .35rem 0 0;
+    padding-left: 1.35rem;
+    font-size: .8rem;
     color: #6c757d;
-    background: #fff;
-    border: 1px solid #e9ecef;
-    border-radius: 4px;
-    padding: 2px 8px;
-    margin: 2px 4px 2px 0;
+    line-height: 1.35;
+    position: relative;
+}
+.page-actividades .act-desc i {
+    position: absolute;
+    left: 0;
+    top: .15rem;
+    opacity: .7;
+}
+.page-actividades .act-lote {
+    font-weight: 500;
+    color: #343a40;
+}
+.page-actividades .act-evidencia-thumb {
+    display: block;
+    width: 52px;
+    height: 52px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+    margin-top: .35rem;
+    cursor: pointer;
+    transition: box-shadow .15s ease;
+}
+.page-actividades .act-evidencia-thumb:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,.12);
 }
 .page-actividades .act-row-card {
     display: flex;
-    align-items: center;
-    padding: 0.85rem 1.25rem;
+    align-items: flex-start;
+    padding: 1rem 1.25rem;
     border-bottom: 1px solid #f1f3f4;
     transition: background 0.15s ease;
+    gap: .85rem;
 }
 .page-actividades .act-row-card:hover { background: #f8fbf8; }
 .page-actividades .act-avatar {
-    width: 42px;
-    height: 42px;
-    border-radius: 8px;
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    margin-right: 1rem;
 }
 .page-actividades .act-avatar.pendiente { background: #fff8e1; color: #f39c12; }
 .page-actividades .act-avatar.completada { background: #e8f5e9; color: #28a745; }
 .page-actividades .btn-actions .btn {
-    padding: 0.2rem 0.45rem;
+    padding: 0.25rem 0.5rem;
     line-height: 1.2;
 }
-.page-actividades .btn-realizada {
-    background: #28a745;
-    border: none;
-    color: #fff;
-    font-size: 0.75rem;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
+.page-actividades .act-card-evidencia {
+    width: 64px;
+    height: 64px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    flex-shrink: 0;
 }
-.page-actividades .btn-realizada:hover { color: #fff; background: #218838; }
 </style>
 @endpush
 
@@ -135,10 +168,12 @@
             filtros-target="#filtrosActividadesPanel"
             :view-toggle="true"
             view-default="table"
-            :nuevo-href="route('actividades.create')"
-            nuevo-text="Nueva"
-            nuevo-can="lotes.update"
         />
+
+        <div class="consulta-banner">
+            <i class="fas fa-info-circle mr-1"></i>
+            Vista de <strong>consulta</strong>. Para registrar o completar actividades, use la trazabilidad del lote correspondiente.
+        </div>
 
         <div id="filtrosActividadesPanel" class="filtros-panel collapse {{ $filtrosActivos->isNotEmpty() ? 'show' : '' }}">
             <form method="GET" action="{{ route('actividades.index') }}">
@@ -187,7 +222,6 @@
             </form>
         </div>
 
-        {{-- Tabla (por defecto) --}}
         <div id="tableView" class="table-responsive">
             <table class="table table-actividades table-hover mb-0">
                 <thead>
@@ -198,25 +232,38 @@
                         <th>Inicio</th>
                         <th title="La fecha fin se registra al marcar la actividad como realizada">Fin</th>
                         <th>Estado</th>
-                        <th class="text-center" style="min-width: 140px;">Acciones</th>
+                        <th class="text-center" style="width: 72px;">Ver</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($actividades as $act)
-                        @php $esCompletada = $act->fechafin !== null; @endphp
+                        @php
+                            $esCompletada = $act->fechafin !== null;
+                            $trzUrl = $urlTrazabilidadActividad($act);
+                            $evidenciaUrl = $esCompletada && $act->evidencia_foto_path
+                                ? asset('storage/'.$act->evidencia_foto_path)
+                                : null;
+                        @endphp
                         <tr>
                             <td>
-                                <a href="{{ route('actividades.show', $act) }}" class="act-tipo d-block">
-                                    {{ $act->tipoActividad->nombre ?? '—' }}
-                                </a>
+                                @if($trzUrl)
+                                    <a href="{{ $trzUrl }}" class="act-tipo">{{ $act->tipoActividad->nombre ?? '—' }}</a>
+                                @else
+                                    <span class="act-tipo">{{ $act->tipoActividad->nombre ?? '—' }}</span>
+                                @endif
                                 @if($act->prioridad)
-                                <span class="badge badge-{{ $prioridadBadge($act->prioridad->nombre) }} badge-sm">
+                                <span class="badge badge-{{ $prioridadBadge($act->prioridad->nombre) }} badge-sm ml-1">
                                     {{ $act->prioridad->nombre }}
                                 </span>
                                 @endif
+                                @if($act->descripcion)
+                                <p class="act-desc mb-0">
+                                    <i class="fas fa-comment-alt"></i>{{ Str::limit($act->descripcion, 120) }}
+                                </p>
+                                @endif
                             </td>
                             <td>
-                                <span class="text-dark">{{ $act->lote->nombre ?? '—' }}</span>
+                                <span class="act-lote">{{ $act->lote->nombre ?? '—' }}</span>
                                 @if($act->lote?->cultivo)
                                 <br><small class="text-muted">{{ $act->lote->cultivo->nombre }}</small>
                                 @endif
@@ -225,7 +272,14 @@
                             <td>{{ $act->fechainicio ? \Carbon\Carbon::parse($act->fechainicio)->format('d/m/Y') : '—' }}</td>
                             <td>
                                 @if($esCompletada)
-                                    {{ \Carbon\Carbon::parse($act->fechafin)->format('d/m/Y') }}
+                                    <span class="d-block">{{ \Carbon\Carbon::parse($act->fechafin)->format('d/m/Y') }}</span>
+                                    @if($evidenciaUrl)
+                                        <img src="{{ $evidenciaUrl }}" alt="Evidencia"
+                                             class="act-evidencia-thumb btn-ver-evidencia"
+                                             data-url="{{ $evidenciaUrl }}"
+                                             data-titulo="{{ $act->tipoActividad->nombre ?? 'Actividad' }}"
+                                             title="Ver evidencia fotográfica">
+                                    @endif
                                 @else
                                     <span class="badge badge-light border text-muted font-weight-normal">Pendiente</span>
                                 @endif
@@ -236,50 +290,20 @@
                                 </span>
                             </td>
                             <td class="text-center">
-                                <div class="btn-group btn-group-sm btn-actions">
-                                    @if(!$esCompletada && (auth()->user()?->can('lotes.update') || (int) $act->usuarioid === (int) auth()->id()))
-                                        <form action="{{ route('actividades.marcar-realizada', $act) }}" method="POST" class="d-inline form-realizada">
-                                            @csrf
-                                            <button type="button" class="btn btn-realizada btn-marcar-realizada"
-                                                data-tipo="{{ $act->tipoActividad->nombre ?? 'Actividad' }}"
-                                                data-lote="{{ $act->lote->nombre ?? 'Sin lote' }}"
-                                                title="Marcar realizada">
-                                                <i class="fas fa-check"></i>
-                                            </button>
-                                        </form>
-                                    @endif
-                                    <a href="{{ route('actividades.show', $act) }}" class="btn btn-default" title="Ver">
-                                        <i class="fas fa-eye text-info"></i>
-                                    </a>
-                                    @can('lotes.update')
-                                    <a href="{{ route('actividades.edit', $act) }}" class="btn btn-default" title="Editar">
-                                        <i class="fas fa-edit text-warning"></i>
-                                    </a>
-                                    <form action="{{ route('actividades.destroy', $act) }}" method="POST" class="d-inline form-eliminar">
-                                        @csrf @method('DELETE')
-                                        <button type="button" class="btn btn-default btn-eliminar" title="Eliminar">
-                                            <i class="fas fa-trash text-danger"></i>
-                                        </button>
-                                    </form>
-                                    @endcan
-                                </div>
+                                @if($trzUrl)
+                                <a href="{{ $trzUrl }}" class="btn btn-default btn-sm btn-actions" title="Ver en trazabilidad del lote">
+                                    <i class="fas fa-eye text-info"></i>
+                                </a>
+                                @else
+                                <span class="text-muted">—</span>
+                                @endif
                             </td>
                         </tr>
-                        @if($act->descripcion)
-                        <tr class="bg-light">
-                            <td colspan="7" class="py-2 pl-4 text-muted small border-0">
-                                <i class="fas fa-comment-alt mr-1"></i>{{ Str::limit($act->descripcion, 120) }}
-                            </td>
-                        </tr>
-                        @endif
                     @empty
                         <tr>
                             <td colspan="7" class="text-center text-muted py-5">
                                 <i class="fas fa-tasks fa-2x mb-2 text-light d-block"></i>
                                 No hay actividades que coincidan.
-                                @can('lotes.update')
-                                <a href="{{ route('actividades.create') }}" class="d-block mt-2">Registrar actividad</a>
-                                @endcan
                             </td>
                         </tr>
                     @endforelse
@@ -287,55 +311,67 @@
             </table>
         </div>
 
-        {{-- Tarjetas (alternativa) --}}
         <div id="cardView" style="display: none;">
             @forelse($actividades as $act)
-                @php $esCompletada = $act->fechafin !== null; @endphp
+                @php
+                    $esCompletada = $act->fechafin !== null;
+                    $trzUrl = $urlTrazabilidadActividad($act);
+                    $evidenciaUrl = $esCompletada && $act->evidencia_foto_path
+                        ? asset('storage/'.$act->evidencia_foto_path)
+                        : null;
+                @endphp
                 <div class="act-row-card">
                     <div class="act-avatar {{ $esCompletada ? 'completada' : 'pendiente' }}">
                         <i class="fas fa-{{ $esCompletada ? 'check' : 'clock' }}"></i>
                     </div>
-                    <div class="flex-grow-1 min-width-0 mr-2">
-                        <a href="{{ route('actividades.show', $act) }}" class="act-tipo">
-                            {{ $act->tipoActividad->nombre ?? 'Sin tipo' }}
-                        </a>
+                    <div class="flex-grow-1 min-width-0">
+                        @if($trzUrl)
+                            <a href="{{ $trzUrl }}" class="act-tipo">{{ $act->tipoActividad->nombre ?? 'Sin tipo' }}</a>
+                        @else
+                            <span class="act-tipo">{{ $act->tipoActividad->nombre ?? 'Sin tipo' }}</span>
+                        @endif
                         <div class="mt-1">
-                            <span class="meta-chip">{{ $act->lote->nombre ?? '—' }}</span>
-                            @if($act->lote?->cultivo)
-                            <span class="meta-chip">{{ $act->lote->cultivo->nombre }}</span>
-                            @endif
-                            <span class="meta-chip">{{ $act->usuario->nombre ?? '—' }}</span>
-                            <span class="meta-chip">
-                                {{ $act->fechainicio ? \Carbon\Carbon::parse($act->fechainicio)->format('d/m/Y') : '—' }}
+                            <span class="badge badge-{{ $esCompletada ? 'success' : 'warning' }} badge-sm mr-1">
+                                {{ $esCompletada ? 'Completada' : 'Pendiente' }}
                             </span>
+                            @if($act->prioridad)
+                            <span class="badge badge-{{ $prioridadBadge($act->prioridad->nombre) }} badge-sm">
+                                {{ $act->prioridad->nombre }}
+                            </span>
+                            @endif
+                        </div>
+                        <div class="mt-2 small text-muted">
+                            <span><i class="fas fa-map-marker-alt mr-1"></i>{{ $act->lote->nombre ?? '—' }}</span>
+                            @if($act->lote?->cultivo)
+                            <span class="mx-1">·</span>
+                            <span>{{ $act->lote->cultivo->nombre }}</span>
+                            @endif
+                        </div>
+                        <div class="small text-muted mt-1">
+                            <i class="fas fa-user mr-1"></i>{{ $act->usuario->nombre ?? '—' }}
+                            <span class="mx-1">·</span>
+                            <i class="far fa-calendar mr-1"></i>
+                            {{ $act->fechainicio ? \Carbon\Carbon::parse($act->fechainicio)->format('d/m/Y') : '—' }}
+                            @if($esCompletada)
+                            <span class="mx-1">→</span>
+                            {{ \Carbon\Carbon::parse($act->fechafin)->format('d/m/Y') }}
+                            @endif
                         </div>
                         @if($act->descripcion)
-                        <small class="text-muted d-block mt-1">{{ Str::limit($act->descripcion, 80) }}</small>
+                        <p class="act-desc mb-0 mt-2">{{ Str::limit($act->descripcion, 100) }}</p>
                         @endif
                     </div>
-                    <span class="badge badge-{{ $esCompletada ? 'success' : 'warning' }} mr-2 d-none d-md-inline">
-                        {{ $esCompletada ? 'Completada' : 'Pendiente' }}
-                    </span>
-                    <div class="btn-group btn-group-sm btn-actions flex-shrink-0">
-                        @if(!$esCompletada && (auth()->user()?->can('lotes.update') || (int) $act->usuarioid === (int) auth()->id()))
-                            <form action="{{ route('actividades.marcar-realizada', $act) }}" method="POST" class="d-inline form-realizada">
-                                @csrf
-                                <button type="button" class="btn btn-realizada btn-marcar-realizada"
-                                    data-tipo="{{ $act->tipoActividad->nombre ?? 'Actividad' }}"
-                                    data-lote="{{ $act->lote->nombre ?? 'Sin lote' }}">
-                                    <i class="fas fa-check mr-1"></i> Hecha
-                                </button>
-                            </form>
-                        @endif
-                        <a href="{{ route('actividades.show', $act) }}" class="btn btn-default"><i class="fas fa-eye text-info"></i></a>
-                        @can('lotes.update')
-                        <a href="{{ route('actividades.edit', $act) }}" class="btn btn-default"><i class="fas fa-edit text-warning"></i></a>
-                        <form action="{{ route('actividades.destroy', $act) }}" method="POST" class="d-inline form-eliminar">
-                            @csrf @method('DELETE')
-                            <button type="button" class="btn btn-default btn-eliminar"><i class="fas fa-trash text-danger"></i></button>
-                        </form>
-                        @endcan
-                    </div>
+                    @if($evidenciaUrl)
+                        <img src="{{ $evidenciaUrl }}" alt="Evidencia"
+                             class="act-card-evidencia btn-ver-evidencia"
+                             data-url="{{ $evidenciaUrl }}"
+                             data-titulo="{{ $act->tipoActividad->nombre ?? 'Actividad' }}">
+                    @endif
+                    @if($trzUrl)
+                    <a href="{{ $trzUrl }}" class="btn btn-default btn-sm btn-actions flex-shrink-0 align-self-center" title="Ver en trazabilidad">
+                        <i class="fas fa-eye text-info"></i>
+                    </a>
+                    @endif
                 </div>
             @empty
                 <div class="text-center text-muted py-5">No hay actividades registradas.</div>
@@ -350,10 +386,11 @@
     </div>
 
 </div>
+
+@include('partials.modal-ver-evidencia')
 @endsection
 
 @push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 $(function () {
     $('#btnCardView').on('click', function () {
@@ -366,58 +403,6 @@ $(function () {
         $('#tableView').show();
         $('#cardView').hide();
     });
-
-    $(document).on('click', '.btn-marcar-realizada', function (e) {
-        e.preventDefault();
-        var form = $(this).closest('form');
-        var tipo = $(this).data('tipo');
-        var lote = $(this).data('lote');
-        Swal.fire({
-            title: '¿Marcar como realizada?',
-            html: '<p class="mb-1"><strong>' + tipo + '</strong></p><p class="text-muted small mb-0">Lote: ' + lote + '</p>',
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonColor: '#28a745',
-            cancelButtonColor: '#6c757d',
-            confirmButtonText: 'Sí, marcar',
-            cancelButtonText: 'Cancelar'
-        }).then(function (result) {
-            if (result.isConfirmed) {
-                Swal.fire({
-                    title: 'Procesando...',
-                    allowOutsideClick: false,
-                    showConfirmButton: false,
-                    didOpen: function () { Swal.showLoading(); }
-                });
-                form.submit();
-            }
-        });
-    });
-
-    $(document).on('click', '.btn-eliminar', function (e) {
-        e.preventDefault();
-        var form = $(this).closest('form');
-        Swal.fire({
-            title: '¿Eliminar actividad?',
-            text: 'Esta acción no se puede deshacer',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#dc3545',
-            confirmButtonText: 'Sí, eliminar',
-            cancelButtonText: 'Cancelar'
-        }).then(function (result) {
-            if (result.isConfirmed) form.submit();
-        });
-    });
-
-@if(session('error'))
-    Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: @json(session('error')),
-        confirmButtonColor: '#dc3545'
-    });
-    @endif
 });
 </script>
 @endpush

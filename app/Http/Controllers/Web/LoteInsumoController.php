@@ -8,6 +8,7 @@ use App\Models\Lote;
 use App\Models\Insumo;
 use App\Models\EstadoLoteInsumo;
 use App\Services\OperacionAgricolaAutomaticaService;
+use App\Support\InsumoCatalogo;
 use App\Support\RegistroDemo;
 use App\Support\UsuarioRol;
 use Illuminate\Http\Request;
@@ -76,6 +77,12 @@ class LoteInsumoController extends Controller
         try {
             $insumo = Insumo::findOrFail($data['insumoid']);
 
+            if (! InsumoCatalogo::esInsumoOperativo($insumo)) {
+                return back()->withErrors([
+                    'insumoid' => 'Seleccione un insumo válido (semillas, fertilizantes, pesticidas o riego).',
+                ])->withInput();
+            }
+
             if ($insumo->stock < $data['cantidadusada']) {
                 return back()->withErrors([
                     'cantidadusada' => "Stock insuficiente. Disponible: {$insumo->stock} {$insumo->unidadMedida->abreviatura}",
@@ -128,7 +135,9 @@ class LoteInsumoController extends Controller
         $this->autorizarLoteInsumoRegistro($request, $loteInsumo);
 
         $lotes = $this->queryLotesParaInsumo($request)->get();
-        $insumos = Insumo::with('unidadMedida')->get();
+        $insumos = InsumoCatalogo::aplicarFiltroOperativo(
+            Insumo::with('unidadMedida')
+        )->get();
         $estados = EstadoLoteInsumo::all();
         $usuarios = \App\Models\Usuario::all();
 
@@ -154,6 +163,12 @@ class LoteInsumoController extends Controller
 
         try {
             $insumo = Insumo::findOrFail($data['insumoid']);
+
+            if (! InsumoCatalogo::esInsumoOperativo($insumo)) {
+                return back()->withErrors([
+                    'insumoid' => 'Seleccione un insumo válido (semillas, fertilizantes, pesticidas o riego).',
+                ])->withInput();
+            }
 
             if ($loteInsumo->insumoid != $data['insumoid']) {
                 $insumoAnterior = Insumo::find($loteInsumo->insumoid);

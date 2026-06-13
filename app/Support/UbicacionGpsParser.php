@@ -30,6 +30,79 @@ final class UbicacionGpsParser
         return self::fromTexto($ubicacion) ?? ['lat' => -17.7833, 'lng' => -63.1821];
     }
 
+    public static function direccionLegible(?string $direccion): ?string
+    {
+        if ($direccion === null || trim($direccion) === '') {
+            return null;
+        }
+
+        $trim = trim($direccion);
+        if (preg_match('/^PDV\s*GPS/i', $trim)) {
+            return null;
+        }
+        if (preg_match('/^(?:Parcela\s+)?GPS\s/i', $trim)) {
+            return null;
+        }
+        if (preg_match('/^GPS\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/i', $trim)) {
+            return null;
+        }
+        if (preg_match('/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/', $trim)) {
+            return null;
+        }
+
+        return $trim;
+    }
+
+    /**
+     * Quita coordenadas y prefijos GPS del texto de ubicación.
+     */
+    public static function limpiarCoordenadasDeTexto(?string $texto): ?string
+    {
+        if ($texto === null || trim($texto) === '') {
+            return null;
+        }
+
+        $t = trim($texto);
+        $t = preg_replace('/^(?:Parcela\s+)?GPS\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*$/iu', '', $t);
+        $t = preg_replace('/\s*·\s*GPS\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*$/iu', '', $t);
+        $t = preg_replace('/\s*GPS\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?/iu', '', $t);
+        $t = preg_replace('/\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*$/', '', $t);
+        $t = trim($t);
+
+        if ($t === '' || self::fromTexto($t) !== null) {
+            return null;
+        }
+
+        return $t;
+    }
+
+    /**
+     * Texto de dirección para mostrar al usuario (sin coordenadas GPS).
+     */
+    public static function textoDireccionVisible(?string $ubicacion, ?string $nombreAlmacen = null, ?int $almacenId = null): ?string
+    {
+        if ($ubicacion === null || trim($ubicacion) === '') {
+            return null;
+        }
+
+        $sinGps = preg_replace(
+            '/\s*·\s*GPS\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*$/iu',
+            '',
+            trim($ubicacion)
+        );
+
+        $legible = self::direccionLegible(trim($sinGps));
+        if ($legible !== null) {
+            return $legible;
+        }
+
+        if ($almacenId !== null) {
+            return self::fallbackSantaCruz($almacenId, $nombreAlmacen)['direccion'];
+        }
+
+        return null;
+    }
+
     /**
      * Coordenadas de respaldo dentro de Santa Cruz de la Sierra (determinísticas por id).
      *
@@ -66,11 +139,15 @@ final class UbicacionGpsParser
     {
         $coords = self::fromTexto($ubicacion);
         if ($coords !== null) {
+            $direccion = self::textoDireccionVisible($ubicacion, $nombre, $almacenId);
+            $estimada = $direccion === null
+                || $direccion === self::fallbackSantaCruz($almacenId, $nombre)['direccion'];
+
             return [
                 'lat' => $coords['lat'],
                 'lng' => $coords['lng'],
-                'direccion' => trim($ubicacion) !== '' ? trim($ubicacion) : ($nombre ?? 'Santa Cruz de la Sierra'),
-                'estimada' => false,
+                'direccion' => $direccion ?? ($nombre ?? 'Santa Cruz de la Sierra'),
+                'estimada' => $estimada,
             ];
         }
 
@@ -82,5 +159,62 @@ final class UbicacionGpsParser
             'direccion' => $fallback['direccion'],
             'estimada' => true,
         ];
+    }
+
+    /**
+     * Dirección legible de un lote agrícola (nunca coordenadas crudas).
+     */
+    public static function textoLoteVisible(
+        ?string $ubicacion,
+        ?int $loteId = null,
+        ?float $lat = null,
+        ?float $lng = null
+    ): string {
+        $limpia = self::limpiarCoordenadasDeTexto($ubicacion);
+        if ($limpia !== null) {
+            $legible = self::direccionLegible($limpia);
+            if ($legible !== null) {
+                return $legible;
+            }
+
+            return $limpia;
+        }
+
+        $seed = $loteId ?? (($lat !== null && $lng !== null) ? self::seedDesdeCoords($lat, $lng) : null);
+        if ($seed !== null) {
+            return self::fallbackSantaCruz($seed)['direccion'];
+        }
+
+        return 'Sin ubicación registrada';
+    }
+
+    /**
+     * Normaliza el texto a guardar en lote.ubicacion (sin coordenadas GPS).
+     */
+    public static function normalizarUbicacionLote(
+        ?string $ubicacion,
+        ?float $lat = null,
+        ?float $lng = null,
+        ?int $loteId = null
+    ): ?string {
+        $limpia = self::limpiarCoordenadasDeTexto($ubicacion);
+        if ($limpia !== null) {
+            return self::direccionLegible($limpia) ?? $limpia;
+        }
+
+        if ($lat !== null && $lng !== null) {
+            return self::fallbackSantaCruz(self::seedDesdeCoords($lat, $lng))['direccion'];
+        }
+
+        if ($loteId !== null) {
+            return self::fallbackSantaCruz($loteId)['direccion'];
+        }
+
+        return null;
+    }
+
+    private static function seedDesdeCoords(float $lat, float $lng): int
+    {
+        return (int) abs((int) round($lat * 10000) ^ (int) round($lng * 10000));
     }
 }

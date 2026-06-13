@@ -20,10 +20,17 @@ use App\Models\PerfilTransportista;
 use App\Models\Usuario;
 use App\Models\Vehiculo;
 use App\Support\AlmacenAmbito;
-use App\Support\CultivoCatalogo;
+use App\Services\ActividadInsumoService;
+use App\Support\ActividadDetalleCatalogo;
+use App\Support\CultivoSiembraCatalogo;
+use App\Support\InsumoCatalogo;
 use App\Support\PedidoCatalogo;
 use App\Support\ProcesoPlantaCatalogo;
 use App\Support\PuntoVentaAccess;
+use App\Services\TransporteCapacidadService;
+use App\Services\VehiculoFlotaEstadoService;
+use App\Support\EstadoVehiculoCatalogo;
+use App\Support\LicenciaConduccionCatalogo;
 use App\Support\TransportistaFlotaCatalogo;
 use Illuminate\Support\Facades\Schema;
 use App\Support\UbicacionGpsParser;
@@ -37,7 +44,11 @@ class CatalogoSelectorController extends Controller
 {
     public function usuarios(Request $request): JsonResponse
     {
-        $query = Usuario::query()->where('activo', true);
+        if ($request->boolean('operarios_planta')) {
+            $query = UsuarioRol::queryOperariosPlanta();
+        } else {
+            $query = Usuario::query()->where('activo', true);
+        }
         $esTransportista = $request->filled('roles') && str_contains((string) $request->roles, 'transportista');
 
         if ($request->filled('roles')) {
@@ -127,22 +138,58 @@ class CatalogoSelectorController extends Controller
     public function vehiculos(Request $request): JsonResponse
     {
         $query = Vehiculo::query()
-            ->with(['tipoVehiculo'])
+            ->with(['tipoVehiculo', 'estadoVehiculo'])
             ->where('activo', true);
 
+        $excluirEstados = array_filter([
+            EstadoVehiculoCatalogo::idMantenimiento(),
+            EstadoVehiculoCatalogo::idPorNombre(EstadoVehiculoCatalogo::BAJA),
+        ]);
+        if ($excluirEstados !== []) {
+            $query->where(function (Builder $w) use ($excluirEstados) {
+                $w->whereNotIn('estadovehiculoid', $excluirEstados)
+                    ->orWhereNull('estadovehiculoid');
+            });
+        }
+
+        $mapaRuta = app(VehiculoFlotaEstadoService::class)->mapaEnRuta();
+        $placasRuta = array_keys($mapaRuta['placas']);
+        $idsRuta = array_keys($mapaRuta['ids']);
+        if ($placasRuta !== []) {
+            $query->whereNotIn(DB::raw('UPPER(placa)'), $placasRuta);
+        }
+        if ($idsRuta !== []) {
+            $query->whereNotIn('vehiculoid', $idsRuta);
+        }
+
         if ($request->boolean('solo_transportista') && $request->filled('transportista_usuarioid')) {
+            $transportistaId = (int) $request->transportista_usuarioid;
             $ambito = PerfilTransportista::query()
-                ->where('usuarioid', (int) $request->transportista_usuarioid)
+                ->where('usuarioid', $transportistaId)
                 ->value('ambito_flota') ?? TransportistaFlotaCatalogo::AGRICOLA;
 
             if (Schema::hasColumn('vehiculo', 'ambito_flota')) {
                 $query->where('ambito_flota', $ambito);
             } else {
                 $vehiculoIds = PerfilTransportista::query()
-                    ->where('usuarioid', (int) $request->transportista_usuarioid)
+                    ->where('usuarioid', $transportistaId)
                     ->whereNotNull('vehiculoid')
                     ->pluck('vehiculoid');
                 $query->whereIn('vehiculoid', $vehiculoIds->isNotEmpty() ? $vehiculoIds : [-1]);
+            }
+
+            $transportista = Usuario::query()->find($transportistaId);
+            if ($transportista) {
+                $licencia = app(TransporteCapacidadService::class)->licenciaTransportista($transportista);
+                $codigos = LicenciaConduccionCatalogo::codigosAutorizados($licencia);
+                if ($codigos === []) {
+                    $query->whereRaw('1 = 0');
+                } else {
+                    $query->whereHas('tipoVehiculo', function (Builder $t) use ($codigos) {
+                        $t->whereIn('licencia_requerida', $codigos)
+                            ->orWhereNull('licencia_requerida');
+                    });
+                }
             }
         }
 
@@ -157,12 +204,16 @@ class CatalogoSelectorController extends Controller
             });
         }
 
-        return $this->respuestaPaginada($request, $query->orderBy('placa'), function (Vehiculo $v) {
+        $capacidadSvc = app(TransporteCapacidadService::class);
+
+        return $this->respuestaPaginada($request, $query->orderBy('placa'), function (Vehiculo $v) use ($capacidadSvc) {
             $nombre = trim(collect([$v->marca, $v->modelo])->filter()->implode(' '));
 
             $categoria = Schema::hasColumn('vehiculo', 'ambito_flota')
                 ? TransportistaFlotaCatalogo::categoriaCorta($v->ambito_flota)
                 : null;
+
+            $capTexto = $capacidadSvc->etiquetaCapacidad($v);
 
             return [
                 'id' => $v->vehiculoid,
@@ -170,8 +221,10 @@ class CatalogoSelectorController extends Controller
                 'meta' => trim(collect([
                     $nombre !== '' ? $nombre : null,
                     $v->tipoVehiculo?->nombre ?? 'Vehículo',
+                    $capTexto,
                     $categoria ? 'Flota '.$categoria : null,
                 ])->filter()->implode(' · ')),
+                'extra' => $capacidadSvc->capacidadEfectiva($v),
             ];
         });
     }
@@ -323,9 +376,12 @@ class CatalogoSelectorController extends Controller
         }
 
         return $this->respuestaPaginada($request, $query->orderBy('nombre'), function (Lote $l) {
+            $l->loadMissing('insumoSemilla', 'cultivo');
+            $cultivoEtiqueta = $l->cultivo_etiqueta;
+
             $meta = [];
-            if ($l->cultivo?->nombre) {
-                $meta[] = $l->cultivo->nombre;
+            if ($cultivoEtiqueta) {
+                $meta[] = $cultivoEtiqueta;
             }
             if ($l->codigo_trazabilidad) {
                 $meta[] = $l->codigo_trazabilidad;
@@ -342,7 +398,7 @@ class CatalogoSelectorController extends Controller
                 'extra' => [
                     'responsable' => $responsable,
                     'usuarioid' => $l->usuarioid,
-                    'cultivo' => $l->cultivo?->nombre ?? 'Sin cultivo',
+                    'cultivo' => $cultivoEtiqueta ?? 'Sin cultivo',
                     'superficie' => $l->superficie,
                 ],
             ];
@@ -353,7 +409,19 @@ class CatalogoSelectorController extends Controller
     {
         AlmacenAmbito::asegurarAmbitosEnRegistros();
 
-        $query = Insumo::query()->with(['unidadMedida', 'almacen']);
+        $query = InsumoCatalogo::aplicarFiltroOperativo(
+            Insumo::query()->with(['tipo', 'unidadMedida', 'almacen'])
+        );
+
+        if ($request->filled('tipo_slug')) {
+            $slug = trim((string) $request->tipo_slug);
+            $tipoIds = InsumoCatalogo::tiposOrdenados()
+                ->filter(fn ($t) => InsumoCatalogo::slugFromNombreTipo($t->nombre) === $slug)
+                ->pluck('tipoinsumoid')
+                ->all();
+
+            $query->whereIn('tipoinsumoid', $tipoIds === [] ? [-1] : $tipoIds);
+        }
 
         if ($request->boolean('solo_con_stock')) {
             $query->where('stock', '>', 0);
@@ -380,6 +448,7 @@ class CatalogoSelectorController extends Controller
             $unidad = $i->unidadMedida?->abreviatura ?? $i->unidadMedida?->nombre ?? 'ud';
             $alm = $i->almacen?->nombre;
             $stock = (float) ($i->stock ?? 0);
+            $esSemilla = InsumoCatalogo::slugFromNombreTipo($i->tipo?->nombre) === 'material_siembra';
 
             return [
                 'id' => $i->insumoid,
@@ -394,6 +463,9 @@ class CatalogoSelectorController extends Controller
                     'almacen' => $alm,
                     'precio' => $i->preciounitario ?? 0,
                     'sin_stock' => $stock <= 0,
+                    'dosis_por_ha' => $esSemilla ? (float) ($i->dosis_por_ha ?? 0) : null,
+                    'dosis_unidad' => $esSemilla ? ($i->dosis_unidad ?? $unidad) : null,
+                    'cultivo' => $esSemilla ? PedidoCatalogo::cultivoDesdeInsumo($i) : null,
                 ],
             ];
         });
@@ -464,8 +536,35 @@ class CatalogoSelectorController extends Controller
 
         $query = Almacen::query()->where('activo', true);
 
+        if (! $request->boolean('incluir_sin_capacidad')) {
+            $query->where('capacidad', '>', 0);
+        }
+
         if ($request->filled('ambito') && AlmacenAmbito::esValido($request->string('ambito')->toString())) {
             $query = AlmacenAmbito::scope($query, $request->string('ambito')->toString());
+        }
+
+        $pedidosListosPorAlmacen = collect();
+        if ($request->filled('almacenids_pedidos')) {
+            $idsPedidos = collect(explode(',', (string) $request->almacenids_pedidos))
+                ->map(fn (string $id) => (int) trim($id))
+                ->filter(fn (int $id) => $id > 0)
+                ->unique()
+                ->values()
+                ->all();
+
+            if ($idsPedidos !== []) {
+                $query->whereIn('almacenid', $idsPedidos);
+                $pedidosListosPorAlmacen = \App\Models\PedidoDistribucion::query()
+                    ->where('estado', \App\Support\PedidoDistribucionCatalogo::ESTADO_CONFIRMADO)
+                    ->whereNull('rutadistribucionid')
+                    ->whereIn('almacen_planta_origenid', $idsPedidos)
+                    ->selectRaw('almacen_planta_origenid, count(*) as total')
+                    ->groupBy('almacen_planta_origenid')
+                    ->pluck('total', 'almacen_planta_origenid');
+            } else {
+                $query->whereRaw('1 = 0');
+            }
         }
 
         if ($request->boolean('con_stock')) {
@@ -474,25 +573,33 @@ class CatalogoSelectorController extends Controller
 
         $this->aplicarBusqueda($query, (string) $request->q, ['nombre', 'ubicacion']);
 
-        return $this->respuestaPaginada($request, $query->orderBy('nombre'), function (Almacen $a) {
+        return $this->respuestaPaginada($request, $query->orderBy('nombre'), function (Almacen $a) use ($pedidosListosPorAlmacen, $request) {
             $resuelto = UbicacionGpsParser::resolverAlmacen(
                 (int) $a->almacenid,
                 $a->nombre,
                 $a->ubicacion
             );
 
+            $meta = $resuelto['estimada']
+                ? $resuelto['direccion'].' (ubicación referencial)'
+                : \Illuminate\Support\Str::limit($resuelto['direccion'], 80);
+
+            if ($request->filled('almacenids_pedidos')) {
+                $n = (int) ($pedidosListosPorAlmacen[$a->almacenid] ?? 0);
+                $meta = $n.' pedido'.($n === 1 ? '' : 's').' listo'.($n === 1 ? '' : 's');
+            }
+
             return [
                 'id' => $a->almacenid,
                 'label' => $a->nombre,
-                'meta' => $resuelto['estimada']
-                    ? $resuelto['direccion'].' (ubicación referencial)'
-                    : \Illuminate\Support\Str::limit($resuelto['direccion'], 80),
+                'meta' => $meta,
                 'extra' => [
                     'lat' => $resuelto['lat'],
                     'lng' => $resuelto['lng'],
                     'direccion' => $resuelto['direccion'],
                     'ambito' => $a->ambito ?? AlmacenAmbito::AGRICOLA,
                     'ubicacion_estimada' => $resuelto['estimada'],
+                    'pedidos_listos' => (int) ($pedidosListosPorAlmacen[$a->almacenid] ?? 0),
                 ],
             ];
         });
@@ -534,13 +641,14 @@ class CatalogoSelectorController extends Controller
                 'label' => $pv->nombre,
                 'meta' => trim(collect([
                     $minorista !== '' ? $minorista : null,
-                    $pv->direccion ? \Illuminate\Support\Str::limit($pv->direccion, 60) : null,
+                    $pv->resumenUbicacion(),
                     $pv->activo ? null : 'Inactivo',
                 ])->filter()->implode(' · ')),
                 'extra' => [
                     'lat' => $pv->latitud,
                     'lng' => $pv->longitud,
-                    'direccion' => $pv->direccion,
+                    'direccion' => $pv->direccionParaMostrar(),
+                    'ubicacion_resumen' => $pv->resumenUbicacion(),
                     'minorista' => $minorista,
                     'activo' => (bool) $pv->activo,
                 ],
@@ -558,6 +666,9 @@ class CatalogoSelectorController extends Controller
 
         foreach (PedidoCatalogo::insumosMaterialSiembraGlobales() as $insumo) {
             if ($almacenId && (int) $insumo->almacenid !== $almacenId) {
+                continue;
+            }
+            if ((float) $insumo->stock <= 0) {
                 continue;
             }
 
@@ -616,7 +727,7 @@ class CatalogoSelectorController extends Controller
             ]);
         }
 
-        if ($items->isEmpty()) {
+        if ($items->isEmpty() && ! $almacenId) {
             foreach (\App\Models\Cultivo::query()->orderBy('nombre')->get() as $cultivo) {
                 $label = $cultivo->nombre;
                 $meta = 'Cultivo de producción agrícola';
@@ -770,11 +881,29 @@ class CatalogoSelectorController extends Controller
             $query->where('activo', $request->boolean('activo'));
         }
 
+        if ($request->filled('procesoplantaid')) {
+            $procesoId = (int) $request->procesoplantaid;
+            $maquinaIds = \App\Models\ProcesoMaquinaPlanta::query()
+                ->where('procesoplantaid', $procesoId)
+                ->pluck('maquinaplantaid');
+            if ($maquinaIds->isEmpty()) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereIn('maquinaplantaid', $maquinaIds);
+            }
+        }
+
         return $this->respuestaPaginada($request, $query->orderBy('nombre'), function (MaquinaPlanta $m) {
             return [
                 'id' => $m->maquinaplantaid,
                 'label' => $m->nombre,
                 'meta' => $m->codigo ?: ($m->activo ? 'Activa' : 'Mantenimiento'),
+                'extra' => [
+                    'codigo' => $m->codigo,
+                    'descripcion' => $m->descripcionMostrar(),
+                    'imagen' => $m->imagenSrc(),
+                    'activo' => (bool) $m->activo,
+                ],
             ];
         });
     }
@@ -880,6 +1009,49 @@ class CatalogoSelectorController extends Controller
                 });
             }
         });
+    }
+
+    public function insumosActividad(Request $request, ActividadInsumoService $actividadInsumos): JsonResponse
+    {
+        $tipoSlug = trim((string) $request->input('tipo_slug', ''));
+        if ($tipoSlug === '') {
+            return response()->json(['data' => [], 'meta' => ['total' => 0]]);
+        }
+
+        $lote = null;
+        if ($request->filled('loteid')) {
+            $lote = Lote::query()->with(['cultivo', 'insumoSemilla.unidadMedida'])->find((int) $request->loteid);
+        }
+
+        $items = $actividadInsumos->listarInsumosParaModal($tipoSlug, $lote);
+        $sugerencia = null;
+        if ($tipoSlug === 'material_siembra' && $lote) {
+            if ($lote->insumoSemilla) {
+                $sugerencia = CultivoSiembraCatalogo::sugerenciaParaInsumo(
+                    $lote->insumoSemilla,
+                    (float) $lote->superficie
+                );
+            } elseif ($lote->cultivo) {
+                $sugerencia = CultivoSiembraCatalogo::sugerenciaParaLote($lote->cultivo, (float) $lote->superficie);
+            }
+        }
+
+        return response()->json([
+            'data' => $items,
+            'meta' => [
+                'total' => count($items),
+                'max_insumos' => ActividadDetalleCatalogo::maxInsumosPorTipo(
+                    match ($tipoSlug) {
+                        'fertilizantes' => 'Fertilización',
+                        'pesticidas' => 'Control de plagas',
+                        'material_siembra' => 'Siembra',
+                        default => '',
+                    }
+                ),
+                'sugerencia_siembra' => $sugerencia,
+                'tipos_riego' => ActividadDetalleCatalogo::TIPOS_RIEGO,
+            ],
+        ]);
     }
 
     private function respuestaPaginada(Request $request, Builder $query, callable $mapper): JsonResponse

@@ -13,11 +13,9 @@ class CultivoController extends Controller
 
     public function index(Request $request)
     {
-        $query = Cultivo::query();
-        $this->aplicarFiltroBuscar($query, $request, ['nombre', 'detalle']);
-        $cultivos = $query->orderByDesc('cultivoid')->paginate(15)->withQueryString();
-
-        return view('cultivos.index', compact('cultivos'));
+        return redirect()
+            ->route('insumos.index')
+            ->with('info', 'El cultivo se define por la semilla del inventario de insumos al crear o editar un lote. El catálogo de cultivos ya no se usa.');
     }
 
     public function create(Request $request)

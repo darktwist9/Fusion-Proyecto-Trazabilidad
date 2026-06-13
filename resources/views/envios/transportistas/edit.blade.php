@@ -61,6 +61,7 @@
                             <input type="password" name="password" class="form-control" placeholder="Dejar vacío para no cambiar">
                         </div>
                     </div>
+                    @include('envios.partials.campo-licencia-transportista', ['transportista' => $transportista])
                     <div class="col-md-12">
                         <input type="hidden" name="activo" value="0">
                         <div class="custom-control custom-checkbox">

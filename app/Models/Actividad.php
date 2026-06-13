@@ -22,6 +22,8 @@ class Actividad extends Model
         'tipoactividadid',
         'prioridadid',
         'observaciones',
+        'evidencia_foto_path',
+        'detalle_json',
     ];
 
     protected $casts = [

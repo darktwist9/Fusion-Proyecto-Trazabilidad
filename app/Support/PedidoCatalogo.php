@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Cultivo;
+use App\Models\EnvioAsignacionMultiple;
 use App\Models\Insumo;
 use App\Models\Pedido;
 use App\Models\ProduccionAlmacenamiento;
@@ -12,6 +13,12 @@ use Illuminate\Support\Collection;
 
 final class PedidoCatalogo
 {
+    public const EDICION_ASIGNACION_COMPLETA = 'completa';
+
+    public const EDICION_ASIGNACION_SOLO_TRANSPORTISTA = 'solo_transportista';
+
+    public const EDICION_ASIGNACION_NINGUNA = 'ninguna';
+
     public const ESTADO_INICIAL = 'sin asignacion';
 
     public const ESTADO_CONFIRMADO = 'confirmado';
@@ -50,6 +57,54 @@ final class PedidoCatalogo
     public static function puedeAsignarTransportista(Pedido $pedido): bool
     {
         return self::listoParaLogistica($pedido);
+    }
+
+    /**
+     * Nivel de edición permitido en logística/asignaciones/edit según pedido y envío.
+     */
+    public static function nivelEdicionAsignacionEnvio(EnvioAsignacionMultiple $asignacion): string
+    {
+        if (EnvioAsignacionEstadoCatalogo::llegoADestino($asignacion)) {
+            return self::EDICION_ASIGNACION_NINGUNA;
+        }
+
+        $estadoEnvio = strtolower(trim((string) ($asignacion->estado ?? '')));
+        if (in_array($estadoEnvio, ['en_transporte_planta', 'en_ruta', 'en_transito'], true)) {
+            return self::EDICION_ASIGNACION_NINGUNA;
+        }
+
+        $pedido = $asignacion->pedido;
+        if ($pedido !== null) {
+            if (self::pendienteAprobacionAgricola($pedido)) {
+                return self::EDICION_ASIGNACION_COMPLETA;
+            }
+
+            if (self::listoParaLogistica($pedido)) {
+                return self::EDICION_ASIGNACION_SOLO_TRANSPORTISTA;
+            }
+
+            return self::EDICION_ASIGNACION_NINGUNA;
+        }
+
+        if (in_array($estadoEnvio, ['asignado', 'asignada'], true)) {
+            return self::EDICION_ASIGNACION_SOLO_TRANSPORTISTA;
+        }
+
+        return self::EDICION_ASIGNACION_COMPLETA;
+    }
+
+    public static function puedeEditarAsignacionEnvio(EnvioAsignacionMultiple $asignacion): bool
+    {
+        return self::nivelEdicionAsignacionEnvio($asignacion) !== self::EDICION_ASIGNACION_NINGUNA;
+    }
+
+    public static function etiquetaNivelEdicionAsignacion(string $nivel): string
+    {
+        return match ($nivel) {
+            self::EDICION_ASIGNACION_COMPLETA => 'Puede modificar transportista, vehículo, fecha y puntos de recogida.',
+            self::EDICION_ASIGNACION_SOLO_TRANSPORTISTA => 'Solo puede cambiar el transportista (pedido listo para envío).',
+            default => '',
+        };
     }
 
     /**
@@ -339,6 +394,81 @@ final class PedidoCatalogo
         }
 
         throw new \InvalidArgumentException('Producto de pedido no válido.');
+    }
+
+    /**
+     * Stock disponible del producto en un almacén (null si no aplica, p. ej. cultivo genérico).
+     */
+    public static function stockDisponibleProductoPedido(string $productoRef, ?int $almacenId = null): ?float
+    {
+        if (str_starts_with($productoRef, 'insumo:')) {
+            $insumo = Insumo::query()->find((int) substr($productoRef, 7));
+            if ($insumo === null) {
+                return null;
+            }
+            if ($almacenId !== null && (int) $insumo->almacenid !== $almacenId) {
+                return 0.0;
+            }
+
+            return (float) $insumo->stock;
+        }
+
+        if (str_starts_with($productoRef, 'cosecha:')) {
+            $cosecha = ProduccionAlmacenamiento::query()->find((int) substr($productoRef, 8));
+            if ($cosecha === null) {
+                return null;
+            }
+            if ($almacenId !== null && (int) $cosecha->almacenid !== $almacenId) {
+                return 0.0;
+            }
+
+            return (float) $cosecha->cantidad;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $detalles
+     * @param  array<int, array<string, mixed>>  $recogidasExtra
+     * @return array<string, string>|null
+     */
+    public static function validarStockDetallesPedido(
+        array $detalles,
+        ?int $origenAlmacenId,
+        array $recogidasExtra = []
+    ): ?array {
+        foreach ($detalles as $idx => $detalle) {
+            $productoRef = (string) ($detalle['producto_ref'] ?? '');
+            $cantidad = (float) ($detalle['cantidad'] ?? 0);
+            $almacenId = $idx === 0
+                ? ($origenAlmacenId !== null && $origenAlmacenId > 0 ? $origenAlmacenId : null)
+                : (isset($recogidasExtra[$idx - 1]['almacenid'])
+                    ? (int) $recogidasExtra[$idx - 1]['almacenid']
+                    : null);
+
+            $stock = self::stockDisponibleProductoPedido($productoRef, $almacenId);
+
+            if ($stock === null) {
+                if ($almacenId !== null) {
+                    return [
+                        'detalles.'.$idx.'.producto_ref' => 'Seleccione un producto con stock registrado en el almacén de recogida.',
+                    ];
+                }
+
+                continue;
+            }
+
+            if ($cantidad > $stock + 0.0001) {
+                $etiqueta = $idx === 0 ? 'recogida 1' : 'recogida '.($idx + 1);
+
+                return [
+                    'detalles.'.$idx.'.cantidad' => 'La cantidad supera el stock disponible ('.number_format($stock, 2, '.', '').' kg) en la '.$etiqueta.'.',
+                ];
+            }
+        }
+
+        return null;
     }
 
     /** Cultivo de producción agrícola vinculado al insumo de material de siembra. */

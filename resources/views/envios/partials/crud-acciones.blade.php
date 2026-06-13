@@ -7,7 +7,7 @@
     'updatePermission' => null,
     'deletePermission' => null,
 ])
-<div class="btn-group btn-group-sm" role="group">
+<div class="crud-acciones crud-acciones--inline d-inline-flex align-items-center flex-nowrap" role="group">
     @if(!$readPermission || auth()->user()?->can($readPermission))
         <a href="{{ $showRoute }}" class="btn btn-outline-info" title="Ver detalle">
             <i class="fas fa-eye"></i>

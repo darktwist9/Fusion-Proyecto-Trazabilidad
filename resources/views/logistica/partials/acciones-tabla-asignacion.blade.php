@@ -1,16 +1,18 @@
 @php
     use App\Support\EnvioAsignacionEstadoCatalogo;
+    use App\Support\PedidoCatalogo;
     $llegoDestino = EnvioAsignacionEstadoCatalogo::llegoADestino($asignacion);
     $puedeGestionar = EnvioAsignacionEstadoCatalogo::puedeGestionarAdmin($asignacion);
+    $puedeEditar = PedidoCatalogo::puedeEditarAsignacionEnvio($asignacion);
 @endphp
 
-<div class="d-flex flex-wrap align-items-center" style="gap:.35rem;">
+<div class="d-flex flex-wrap align-items-center logistica-acciones-row" style="gap:.35rem;">
     <a href="{{ route('logistica.asignaciones.show', $asignacion) }}"
        class="btn btn-sm btn-outline-info" title="Ver detalle">
         <i class="fas fa-eye"></i>
     </a>
 
-    @if($puedeGestionar)
+    @if($puedeEditar)
         @can('asignaciones.update')
         <a href="{{ route('logistica.asignaciones.edit', $asignacion) }}"
            class="btn btn-sm btn-outline-warning" title="Editar">
@@ -31,21 +33,16 @@
         </form>
         @endcan
     @endif
-</div>
 
-@if(! $llegoDestino)
-    <div class="mt-1">
+    @if(! $llegoDestino)
         @if(in_array($asignacion->estado, ['en_transporte_planta', 'en_ruta', 'en_transito'], true))
-            @include('logistica.partials.accion-llegada-destino', ['asignacion' => $asignacion])
+            @include('logistica.partials.accion-llegada-destino', ['asignacion' => $asignacion, 'compacto' => true])
         @elseif(in_array($asignacion->estado, ['asignado', 'asignada', 'pendiente', 'creada'], true))
-            @include('logistica.partials.accion-iniciar-transporte', ['asignacion' => $asignacion])
+            @include('logistica.partials.accion-empezar-ruta', ['asignacion' => $asignacion, 'compacto' => true])
         @endif
-    </div>
-@else
-    <div class="mt-1">
-        <span class="text-success small"><i class="fas fa-check mr-1"></i>Recibido en planta</span>
-        @if($asignacion->fecha_recepcion_planta)
-            <br><small class="text-muted">{{ $asignacion->fecha_recepcion_planta->format('d/m/Y H:i') }}</small>
-        @endif
-    </div>
-@endif
+    @else
+        <span class="text-success small ml-1" title="Recibido en planta">
+            <i class="fas fa-check"></i>
+        </span>
+    @endif
+</div>

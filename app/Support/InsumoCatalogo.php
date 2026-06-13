@@ -163,6 +163,30 @@ class InsumoCatalogo
         return self::tiposOrdenados()->pluck('tipoinsumoid')->map(fn ($id) => (int) $id)->all();
     }
 
+    /** Solo insumos operativos del campo (excluye tipos obsoletos como «Producto agrícola»). */
+    public static function aplicarFiltroOperativo(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        $ids = self::tiposValidosIds();
+
+        return $ids === [] ? $query->whereRaw('1 = 0') : $query->whereIn('tipoinsumoid', $ids);
+    }
+
+    public static function esInsumoOperativo(?\App\Models\Insumo $insumo): bool
+    {
+        if ($insumo === null) {
+            return false;
+        }
+
+        return in_array((int) $insumo->tipoinsumoid, self::tiposValidosIds(), true);
+    }
+
+    public static function asegurarInsumoOperativo(\App\Models\Insumo $insumo): void
+    {
+        if (! self::esInsumoOperativo($insumo)) {
+            abort(404, 'El registro no corresponde al catálogo de insumos operativos.');
+        }
+    }
+
     /**
      * Elimina insumos cuyo tipo no es uno de los cuatro oficiales y sus aplicaciones en lote.
      */

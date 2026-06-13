@@ -93,11 +93,11 @@ final class DashboardPresentacion
                 'hint' => 'Ítems en inventario',
             ],
             [
-                'icon' => 'fa-coins',
-                'tone' => 'gold',
-                'value' => 'Bs.'.number_format((float) ($stats['ventas_mes'] ?? 0), 0),
-                'label' => 'Ventas',
-                'hint' => 'Ventas del mes',
+                'icon' => 'fa-truck',
+                'tone' => 'teal',
+                'value' => 'Bs.'.number_format((float) ($stats['transporte_costo_mes'] ?? 0), 0),
+                'label' => 'Transporte',
+                'hint' => 'Costo de envíos del mes',
             ],
         ];
     }

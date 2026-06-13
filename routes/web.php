@@ -18,7 +18,6 @@ use App\Http\Controllers\Web\ProduccionController;
 use App\Http\Controllers\Web\TipoActividadController;
 use App\Http\Controllers\Web\TipoInsumoController;
 use App\Http\Controllers\Web\UnidadMedidaController;
-use App\Http\Controllers\Web\VentaController;
 use App\Http\Controllers\Web\GestionUsuariosController;
 use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\Web\PedidoController;
@@ -56,6 +55,8 @@ use App\Http\Controllers\Web\ProcesoPlantaController;
 use App\Http\Controllers\Web\MaquinaPlantaController;
 use App\Http\Controllers\Web\PlantillaTransformacionController;
 use App\Http\Controllers\Web\AsignacionMultipleController;
+use App\Http\Controllers\Web\TransportistaIngresoController;
+use App\Http\Controllers\Web\RutaTiempoRealController;
 use App\Http\Controllers\Web\LogisticaHubController;
 use App\Http\Controllers\Web\RutaMultiEntregaController;
 use App\Http\Controllers\Web\IncidenteEnvioController;
@@ -111,6 +112,7 @@ Route::middleware(['auth', 'cuenta.aprobada'])->group(function () {
         Route::get('/cultivos', [CatalogoSelectorController::class, 'cultivos'])->name('cultivos');
         Route::get('/lotes', [CatalogoSelectorController::class, 'lotes'])->name('lotes');
         Route::get('/insumos', [CatalogoSelectorController::class, 'insumos'])->name('insumos');
+        Route::get('/insumos-actividad', [CatalogoSelectorController::class, 'insumosActividad'])->name('insumos-actividad');
         Route::get('/pedidos', [CatalogoSelectorController::class, 'pedidos'])->name('pedidos');
         Route::get('/actores', [CatalogoSelectorController::class, 'actores'])->name('actores');
         Route::get('/almacenes', [CatalogoSelectorController::class, 'almacenes'])->name('almacenes');
@@ -162,6 +164,8 @@ Route::middleware(['auth', 'cuenta.aprobada'])->group(function () {
     Route::post('lotes/sincronizar-operacion', [LoteController::class, 'sincronizarOperacion'])->name('lotes.sincronizar-operacion')->middleware('action.permission:lotes,update');
     Route::post('lotes', [LoteController::class, 'store'])->name('lotes.store')->middleware('action.permission:lotes,create');
     Route::get('lotes/{lote}/trazabilidad', [LoteController::class, 'trazabilidad'])->name('lotes.trazabilidad')->middleware('action.permission:lotes,read');
+    Route::get('lotes/{lote}/siembra', [ActividadController::class, 'createSiembra'])->name('lotes.siembra.create')->middleware('action.permission:lotes,update');
+    Route::post('lotes/{lote}/siembra', [ActividadController::class, 'storeSiembra'])->name('lotes.siembra.store')->middleware('action.permission:lotes,update');
     Route::get('lotes/{lote}/cambiar-estado', [LoteController::class, 'cambiarEstadoForm'])->name('lotes.cambiar-estado')->middleware('action.permission:lotes,update');
     Route::post('lotes/{lote}/cambiar-estado', [LoteController::class, 'cambiarEstadoStore'])->name('lotes.cambiar-estado.store')->middleware('action.permission:lotes,update');
     Route::get('lotes/{lote}/ubicacion', [LoteController::class, 'ubicacion'])->name('lotes.ubicacion')->middleware('action.permission:lotes,read');
@@ -169,13 +173,13 @@ Route::middleware(['auth', 'cuenta.aprobada'])->group(function () {
     Route::get('lotes/{lote}/edit', [LoteController::class, 'edit'])->name('lotes.edit')->middleware('action.permission:lotes,update');
     Route::put('lotes/{lote}', [LoteController::class, 'update'])->name('lotes.update')->middleware('action.permission:lotes,update');
     Route::delete('lotes/{lote}', [LoteController::class, 'destroy'])->name('lotes.destroy')->middleware('action.permission:lotes,delete');
-    Route::get('lote-insumos', [LoteInsumoController::class, 'index'])->name('lote-insumos.index')->middleware('action.permission:inventario,read');
-    Route::get('lote-insumos/create', [LoteInsumoController::class, 'create'])->name('lote-insumos.create')->middleware('action.permission:inventario,create');
-    Route::post('lote-insumos', [LoteInsumoController::class, 'store'])->name('lote-insumos.store')->middleware('action.permission:inventario,create');
-    Route::get('lote-insumos/{lote_insumo}', [LoteInsumoController::class, 'show'])->name('lote-insumos.show')->middleware('action.permission:inventario,read');
-    Route::get('lote-insumos/{lote_insumo}/edit', [LoteInsumoController::class, 'edit'])->name('lote-insumos.edit')->middleware('action.permission:inventario,update');
-    Route::put('lote-insumos/{lote_insumo}', [LoteInsumoController::class, 'update'])->name('lote-insumos.update')->middleware('action.permission:inventario,update');
-    Route::delete('lote-insumos/{lote_insumo}', [LoteInsumoController::class, 'destroy'])->name('lote-insumos.destroy')->middleware('action.permission:inventario,delete');
+    Route::get('lote-insumos', fn () => redirect()->route('actividades.create')->with('info', 'Las aplicaciones de insumos se registran al crear una actividad en el lote.'))->name('lote-insumos.index')->middleware('action.permission:inventario,read');
+    Route::get('lote-insumos/create', fn () => redirect()->route('actividades.create'))->name('lote-insumos.create')->middleware('action.permission:inventario,create');
+    Route::post('lote-insumos', fn () => redirect()->route('actividades.create')->with('info', 'Registre la aplicación desde Actividades.'))->name('lote-insumos.store')->middleware('action.permission:inventario,create');
+    Route::get('lote-insumos/{lote_insumo}', fn () => redirect()->route('actividades.index'))->name('lote-insumos.show')->middleware('action.permission:inventario,read');
+    Route::get('lote-insumos/{lote_insumo}/edit', fn () => redirect()->route('actividades.index'))->name('lote-insumos.edit')->middleware('action.permission:inventario,update');
+    Route::put('lote-insumos/{lote_insumo}', fn () => redirect()->route('actividades.index'))->name('lote-insumos.update')->middleware('action.permission:inventario,update');
+    Route::delete('lote-insumos/{lote_insumo}', fn () => redirect()->route('actividades.index'))->name('lote-insumos.destroy')->middleware('action.permission:inventario,delete');
     Route::resource('prioridades', PrioridadController::class)
         ->parameters(['prioridades' => 'prioridad']);
     Route::resource('producciones', ProduccionController::class)
@@ -240,13 +244,6 @@ Route::middleware(['auth', 'cuenta.aprobada'])->group(function () {
     Route::resource('tipo-insumos', TipoInsumoController::class);
     Route::resource('unidades-medida', UnidadMedidaController::class)
         ->parameters(['unidades-medida' => 'unidad']);
-    Route::get('ventas', [VentaController::class, 'index'])->name('ventas.index')->middleware('action.permission:ventas,read');
-    Route::get('ventas/create', [VentaController::class, 'create'])->name('ventas.create')->middleware('action.permission:ventas,create');
-    Route::post('ventas', [VentaController::class, 'store'])->name('ventas.store')->middleware('action.permission:ventas,create');
-    Route::get('ventas/{venta}', [VentaController::class, 'show'])->name('ventas.show')->middleware('action.permission:ventas,read');
-    Route::get('ventas/{venta}/edit', [VentaController::class, 'edit'])->name('ventas.edit')->middleware('action.permission:ventas,update');
-    Route::put('ventas/{venta}', [VentaController::class, 'update'])->name('ventas.update')->middleware('action.permission:ventas,update');
-    Route::delete('ventas/{venta}', [VentaController::class, 'destroy'])->name('ventas.destroy')->middleware('action.permission:ventas,delete');
     Route::resource('tipoalmacenes', TipoAlmacenController::class)
         ->parameters(['tipoalmacenes' => 'tipoalmacen']);
     Route::redirect('almacenes', '/almacen-agricola');
@@ -351,6 +348,7 @@ Route::middleware(['auth', 'cuenta.aprobada'])->group(function () {
         Route::put('puntos/{punto}', [PuntoVentaController::class, 'update'])->name('puntos.update')->middleware('action.permission:punto_venta,update');
         Route::delete('puntos/{punto}', [PuntoVentaController::class, 'destroy'])->name('puntos.destroy')->middleware('action.permission:punto_venta,delete');
 
+        Route::get('inventario', [PuntoVentaInventarioController::class, 'index'])->name('inventario.index')->middleware('action.permission:punto_venta,read');
         Route::get('puntos/{punto}/inventario/{insumo}/edit', [PuntoVentaInventarioController::class, 'edit'])->name('puntos.inventario.edit')->middleware('action.permission:punto_venta,update');
         Route::put('puntos/{punto}/inventario/{insumo}', [PuntoVentaInventarioController::class, 'update'])->name('puntos.inventario.update')->middleware('action.permission:punto_venta,update');
         Route::delete('puntos/{punto}/inventario/{insumo}', [PuntoVentaInventarioController::class, 'destroy'])->name('puntos.inventario.destroy')->middleware('action.permission:punto_venta,delete');
@@ -453,6 +451,8 @@ Route::middleware(['auth', 'cuenta.aprobada'])->group(function () {
                 'update' => 'vehiculos.update',
                 'destroy' => 'vehiculos.destroy',
             ]);
+        Route::patch('vehiculos/{vehiculo}/mantenimiento', [EnvioVehiculoController::class, 'toggleMantenimiento'])
+            ->name('vehiculos.toggle-mantenimiento');
         Route::resource('direcciones', EnvioDireccionController::class)
             ->parameters(['direcciones' => 'direccion'])
             ->names([
@@ -520,6 +520,28 @@ Route::middleware(['auth', 'cuenta.aprobada'])->group(function () {
             ->middleware('action.permission:asignaciones,read');
         Route::get('/asignaciones/listado', [AsignacionMultipleController::class, 'listado'])
             ->name('asignaciones.listado');
+        Route::get('/mis-ingresos', [TransportistaIngresoController::class, 'index'])
+            ->name('transportista.ingresos');
+        Route::get('/rutas-tiempo-real', [RutaTiempoRealController::class, 'index'])
+            ->name('rutas-tiempo-real.index')
+            ->middleware('action.permission:asignaciones,read');
+        Route::get('/rutas-tiempo-real/{tipo}/{id}', [RutaTiempoRealController::class, 'show'])
+            ->name('rutas-tiempo-real.show')
+            ->whereIn('tipo', ['agricola', 'distribucion'])
+            ->middleware('action.permission:asignaciones,read');
+        Route::get('/simulacion/{tipo}/{id}/estado', [RutaTiempoRealController::class, 'estado'])
+            ->name('simulacion.estado')
+            ->whereIn('tipo', ['agricola', 'distribucion']);
+        Route::patch('/simulacion/{tipo}/{id}/completar-manual', [RutaTiempoRealController::class, 'completarManual'])
+            ->name('simulacion.completar-manual')
+            ->whereIn('tipo', ['agricola', 'distribucion'])
+            ->middleware('action.permission:asignaciones,update');
+        Route::patch('/asignaciones/{asignacion}/empezar-ruta', [AsignacionMultipleController::class, 'empezarRuta'])
+            ->name('asignaciones.empezar-ruta')
+            ->whereNumber('asignacion');
+        Route::patch('/rutas-distribucion/{ruta}/empezar-ruta', [\App\Http\Controllers\Web\RutaDistribucionController::class, 'empezarRuta'])
+            ->name('rutas-distribucion.empezar-ruta')
+            ->whereNumber('ruta');
         Route::get('/asignaciones/create', [AsignacionMultipleController::class, 'create'])
             ->name('asignaciones.create')
             ->middleware('action.permission:asignaciones,create');

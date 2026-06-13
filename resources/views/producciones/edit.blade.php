@@ -150,7 +150,7 @@
                                             @if($l->cultivo)
                                                 - {{ $l->cultivo->nombre }}
                                             @endif
-                                            ({{ $l->superficie }} ha)
+                                            (@superficie($l->superficie))
                                         </option>
                                     @endforeach
                                 </select>
@@ -201,8 +201,10 @@
                         </div>
                         <div class="col-md-4">
                             <div class="form-group">
-                                <label class="required-field"><i class="fas fa-warehouse mr-1"></i> Almacén</label>
-                                <select name="almacenid" class="form-control" required>
+                                <label @class(['required-field' => $puedeEnviarAlmacen && ! $esNoConforme])>
+                                    <i class="fas fa-warehouse mr-1"></i> Almacén
+                                </label>
+                                <select name="almacenid" class="form-control" @disabled($esNoConforme) @required($puedeEnviarAlmacen && ! $esNoConforme)>
                                     <option value="">Seleccionar almacén...</option>
                                     @foreach($almacenes as $a)
                                         @php
@@ -215,7 +217,19 @@
                                         </option>
                                     @endforeach
                                 </select>
-                                <small class="text-muted">Indica dónde está almacenada esta cosecha. Puede moverla a otro almacén agrícola.</small>
+                                @if($esNoConforme)
+                                    <small class="text-danger d-block mt-1">
+                                        <i class="fas fa-ban mr-1"></i>{{ $mensajeBloqueoAlmacen }}
+                                    </small>
+                                @elseif(! $puedeEnviarAlmacen)
+                                    <div class="alert alert-light border small mt-2 mb-0">
+                                        <i class="fas fa-certificate text-success mr-1"></i>
+                                        El envío al almacén requiere que el lote esté <strong>certificado</strong> en Certificaciones.
+                                        Puede guardar la cosecha sin almacén y almacenar después de certificar.
+                                    </div>
+                                @else
+                                    <small class="text-muted">Indica dónde está almacenada esta cosecha. Puede moverla a otro almacén agrícola.</small>
+                                @endif
                             </div>
                         </div>
                     </div>
@@ -265,7 +279,7 @@
                     <h5><i class="fas fa-info-circle mr-2"></i>Información</h5>
                     <small class="text-muted">
                         <p><i class="fas fa-asterisk text-danger"></i> Campos obligatorios</p>
-                        <p class="mb-0">Los cambios en la cantidad pueden afectar el inventario disponible para ventas.</p>
+                        <p class="mb-0">Los cambios en la cantidad pueden afectar el inventario disponible en almacén.</p>
                     </small>
                 </div>
             </div>

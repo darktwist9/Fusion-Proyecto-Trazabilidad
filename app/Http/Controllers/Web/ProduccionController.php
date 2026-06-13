@@ -11,8 +11,12 @@ use App\Models\HistorialEstadoLote;
 use App\Models\Almacen;
 use App\Support\AlmacenAmbito;
 use App\Models\ProduccionAlmacenamiento;
+use App\Support\CertificacionCampoService;
 use App\Support\EstadoLoteCatalogo;
+use App\Support\EvidenciaFoto;
 use App\Support\LoteTrazabilidadService;
+use App\Support\UbicacionGpsParser;
+use Illuminate\Support\Collection;
 use App\Services\AlmacenCapacidadService;
 use App\Services\OperacionAgricolaAutomaticaService;
 use Illuminate\Http\Request;
@@ -23,6 +27,7 @@ class ProduccionController extends Controller
     public function __construct(
         private readonly AlmacenCapacidadService $capacidadService,
         private readonly LoteTrazabilidadService $trazabilidadService,
+        private readonly CertificacionCampoService $certificacionCampo,
     ) {
         $this->middleware(function ($request, $next) {
             if ($request->user()?->hasRole('transportista')) {
@@ -71,12 +76,12 @@ class ProduccionController extends Controller
 
     public function index(Request $request)
     {
-        $query = $this->produccionesFilteredQuery($request);
+        $query = $this->cosechasCompletadasQuery($request);
 
         $stats = [
             'total' => (clone $query)->count(),
             'kg_total' => (float) (clone $query)->sum('cantidad'),
-            'lotes' => (clone $query)->distinct('loteid')->count('loteid'),
+            'lotes' => (clone $query)->count(),
             'promedio' => 0,
         ];
         if ($stats['total'] > 0) {
@@ -84,13 +89,19 @@ class ProduccionController extends Controller
         }
 
         $producciones = $query
-            ->with(['lote.usuario', 'lote.cultivo', 'destino', 'unidadMedida', 'procesoPlanta', 'maquinaPlanta', 'almacenamientos.almacen'])
-            ->orderBy('produccionid', 'desc')
+            ->with(['lote.usuario', 'lote.insumoSemilla', 'lote.cultivo', 'destino', 'unidadMedida', 'almacenamientos.almacen'])
+            ->orderByDesc('fechacosecha')
+            ->orderByDesc('produccionid')
             ->paginate(15)
             ->withQueryString();
 
-        $lotesFiltro = Lote::query()->orderBy('nombre')->get(['loteid', 'nombre']);
+        $lotesFiltro = Lote::query()
+            ->whereIn('estadolotetipoid', EstadoLoteCatalogo::idsLoteSoloCosechado() ?: [-1])
+            ->orderBy('nombre')
+            ->get(['loteid', 'nombre']);
+
         $destinosFiltro = DestinoProduccion::query()->orderBy('nombre')->get(['destinoproduccionid', 'nombre']);
+
         return view('producciones.index', compact(
             'producciones',
             'stats',
@@ -99,9 +110,19 @@ class ProduccionController extends Controller
         ));
     }
 
-    private function produccionesFilteredQuery(Request $request)
+    /**
+     * Una cosecha por lote: solo el registro más reciente de lotes en estado Cosechado.
+     */
+    private function cosechasCompletadasQuery(Request $request)
     {
-        $query = Produccion::query();
+        $estadoIds = EstadoLoteCatalogo::idsLoteSoloCosechado();
+
+        $ultimasPorLote = Produccion::query()
+            ->selectRaw('MAX(produccionid) as produccionid')
+            ->whereHas('lote', fn ($q) => $q->whereIn('estadolotetipoid', $estadoIds === [] ? [-1] : $estadoIds))
+            ->groupBy('loteid');
+
+        $query = Produccion::query()->whereIn('produccionid', $ultimasPorLote);
 
         if ($request->filled('loteid')) {
             $query->where('loteid', (int) $request->loteid);
@@ -124,6 +145,7 @@ class ProduccionController extends Controller
             $query->where(function ($q) use ($buscar) {
                 $q->whereHas('lote', fn ($l) => $l->where('nombre', 'like', $buscar))
                     ->orWhereHas('lote.cultivo', fn ($c) => $c->where('nombre', 'like', $buscar))
+                    ->orWhereHas('lote.insumoSemilla', fn ($i) => $i->where('nombre', 'like', $buscar))
                     ->orWhereHas('destino', fn ($d) => $d->where('nombre', 'like', $buscar))
                     ->orWhere('observaciones', 'like', $buscar);
             });
@@ -153,10 +175,14 @@ class ProduccionController extends Controller
         }
 
         $unidades = UnidadMedida::where('categoria', 'peso')->get();
-        $almacenes = AlmacenAmbito::scope(
-            Almacen::with(['tipoAlmacen', 'unidadMedida', 'almacenamientos'])->where('activo', true),
+        $almacenesTodos = AlmacenAmbito::scope(
+            Almacen::with(['tipoAlmacen', 'unidadMedida', 'almacenamientos'])
+                ->where('activo', true)
+                ->where('capacidad', '>', 0),
             AlmacenAmbito::AGRICOLA
         )->get();
+        $almacenes = $this->almacenesDestacadosParaCosecha($almacenesTodos);
+        $almacenesCatalogo = $this->catalogoAlmacenesCosecha($almacenesTodos);
         $lotePreseleccionado = $loteidParam
             ?? (old('loteid') ?: ($lotes->count() === 1 ? $lotes->first()->loteid : null));
         $lotePreseleccionadoLabel = null;
@@ -171,6 +197,8 @@ class ProduccionController extends Controller
             'lotes',
             'unidades',
             'almacenes',
+            'almacenesTodos',
+            'almacenesCatalogo',
             'lotePreseleccionado',
             'lotePreseleccionadoLabel',
             'returnUrl'
@@ -184,7 +212,12 @@ class ProduccionController extends Controller
             'cantidad' => 'required|numeric|min:0.01',
             'unidadmedidaid' => 'required|exists:unidadmedida,unidadmedidaid',
             'observaciones' => 'nullable|string',
-            'almacenid' => 'required|exists:almacen,almacenid',
+            'almacenid' => 'nullable|exists:almacen,almacenid',
+            'evidencia_foto' => 'required|image|mimes:jpeg,jpg,png,webp|max:5120',
+        ], [
+            'evidencia_foto.required' => 'Debe subir una foto de la cosecha realizada.',
+            'evidencia_foto.image' => 'El archivo debe ser una imagen.',
+            'evidencia_foto.max' => 'La imagen no puede superar 5 MB.',
         ]);
 
         DB::beginTransaction();
@@ -205,6 +238,8 @@ class ProduccionController extends Controller
             $unidadProduccion = UnidadMedida::find($data['unidadmedidaid']);
             $cantidadBaseKg = $this->capacidadService->convertirAKg((float) $data['cantidad'], $unidadProduccion);
 
+            $rutaEvidencia = EvidenciaFoto::guardar($request->file('evidencia_foto'), 'producciones_evidencia');
+
             $produccion = Produccion::create([
                 'loteid' => $data['loteid'],
                 'cantidad' => $data['cantidad'],
@@ -213,16 +248,23 @@ class ProduccionController extends Controller
                 'fechacosecha' => now()->toDateString(),
                 'destinoproduccionid' => $destinoAlmacenamiento->destinoproduccionid ?? null,
                 'observaciones' => $data['observaciones'] ?? null,
+                'imagenurl' => 'storage/'.$rutaEvidencia,
             ]);
 
             $mensajeAlmacen = '';
-            $almacen = AlmacenAmbito::scope(Almacen::query(), AlmacenAmbito::AGRICOLA)
-                ->where('almacenid', $data['almacenid'])
-                ->firstOrFail();
+            if (! empty($data['almacenid'])) {
+                $bloqueo = $this->certificacionCampo->mensajeBloqueoAlmacen($lote);
+                if ($bloqueo !== null) {
+                    return back()->withErrors(['almacenid' => $bloqueo])->withInput();
+                }
 
-            // ================================
-            // 1) Capacidad del almacén en KG
-            // ================================
+                $almacen = AlmacenAmbito::scope(Almacen::query(), AlmacenAmbito::AGRICOLA)
+                    ->where('almacenid', $data['almacenid'])
+                    ->firstOrFail();
+
+                // ================================
+                // 1) Capacidad del almacén en KG
+                // ================================
                 $unidadAlmacen = $almacen->unidadMedida; // relación unidadMedida en modelo Almacen
                 $resumenAlmacen = $this->capacidadService->resumen($almacen);
                 $capacidadKg = $resumenAlmacen['capacidad_kg'];
@@ -254,7 +296,8 @@ class ProduccionController extends Controller
                     'observaciones' => "Cosecha del lote {$lote->nombre}",
                 ]);
 
-            $mensajeAlmacen = " y almacenado en {$almacen->nombre}";
+                $mensajeAlmacen = " y almacenado en {$almacen->nombre}";
+            }
 
             // Cambiar estado del lote a "Cosechado"
             $estadoCosechadoId = EstadoLoteCatalogo::idPorSlug('cosechado');
@@ -284,7 +327,12 @@ class ProduccionController extends Controller
 
             $unidad = UnidadMedida::find($data['unidadmedidaid']);
             $mensaje = "¡Cosecha registrada! {$data['cantidad']} {$unidad->abreviatura} de {$lote->cultivo->nombre}"
-                . $mensajeAlmacen.'. El ingreso aparece en Movimientos de almacén agrícola.';
+                .$mensajeAlmacen.'.';
+            if ($mensajeAlmacen === '') {
+                $mensaje .= ' Certifique el lote en Certificaciones antes de enviarlo al almacén.';
+            } else {
+                $mensaje .= ' El ingreso aparece en Movimientos de almacén agrícola.';
+            }
 
             $returnUrl = $this->validReturnUrl($request->input('return'));
             if ($returnUrl) {
@@ -303,177 +351,79 @@ class ProduccionController extends Controller
 
     public function show(Produccion $produccion)
     {
-        $produccion->load(['lote.usuario', 'lote.cultivo', 'lote.estadoTipo', 'destino', 'unidadMedida', 'procesoPlanta', 'maquinaPlanta', 'almacenamientos.almacen', 'ventas']);
+        $produccion->load(['lote.usuario', 'lote.insumoSemilla', 'lote.cultivo', 'destino', 'unidadMedida', 'almacenamientos.almacen', 'ventas']);
 
         return view('producciones.show', compact('produccion'));
     }
 
     public function edit(Produccion $produccion)
     {
-        $produccion->load(['almacenamientos.almacen', 'almacenamientos.unidadMedida']);
+        $produccion->load('lote');
 
-        $lotes = Lote::with(['usuario', 'cultivo'])->get();
-        $unidades = UnidadMedida::where('categoria', 'peso')->get();
-        $almacenes = AlmacenAmbito::scope(
-            Almacen::with(['unidadMedida'])->where('activo', true),
-            AlmacenAmbito::AGRICOLA
-        )->orderBy('nombre')->get();
-
-        $resumenesAlmacen = $almacenes->mapWithKeys(
-            fn (Almacen $a) => [$a->almacenid => $this->capacidadService->resumen($a)]
-        );
-
-        $almacenamientoActivo = $produccion->almacenamientos
-            ->whereNull('fechasalida')
-            ->sortByDesc('fechaentrada')
-            ->first();
-
-        $almacenActualId = $almacenamientoActivo?->almacenid ?? old('almacenid');
-
-        if ($almacenamientoActivo && $resumenesAlmacen->has($almacenamientoActivo->almacenid)) {
-            $ocupacionActualKg = $this->capacidadService->convertirAKg(
-                (float) $almacenamientoActivo->cantidad,
-                $almacenamientoActivo->unidadMedida
-            );
-            $resumenActual = $resumenesAlmacen[$almacenamientoActivo->almacenid];
-            $resumenActual['disponible_kg'] += $ocupacionActualKg;
-            $resumenesAlmacen[$almacenamientoActivo->almacenid] = $resumenActual;
-        }
-
-        return view('producciones.edit', compact(
-            'produccion',
-            'lotes',
-            'unidades',
-            'almacenes',
-            'resumenesAlmacen',
-            'almacenActualId',
-        ));
+        return redirect()
+            ->route('lotes.trazabilidad', $produccion->loteid)
+            ->with('info', 'La cosecha se consulta aquí; para gestionar el ciclo use el lote.');
     }
 
     public function update(Request $request, Produccion $produccion)
     {
-        $data = $request->validate([
-            'loteid' => 'required|exists:lote,loteid',
-            'cantidad' => 'required|numeric|min:0.01',
-            'unidadmedidaid' => 'required|exists:unidadmedida,unidadmedidaid',
-            'fechacosecha' => 'required|date',
-            'almacenid' => 'required|exists:almacen,almacenid',
-        ]);
-
-        DB::beginTransaction();
-
-        try {
-            $unidad = UnidadMedida::findOrFail($data['unidadmedidaid']);
-            $cantidadBaseKg = $this->capacidadService->convertirAKg((float) $data['cantidad'], $unidad);
-
-            $almacen = AlmacenAmbito::scope(Almacen::query(), AlmacenAmbito::AGRICOLA)
-                ->where('almacenid', $data['almacenid'])
-                ->firstOrFail();
-
-            $almacenamientoActivo = $produccion->almacenamientos()
-                ->whereNull('fechasalida')
-                ->with('unidadMedida')
-                ->orderByDesc('fechaentrada')
-                ->first();
-
-            $ocupacionActualKg = $almacenamientoActivo
-                ? $this->capacidadService->convertirAKg((float) $almacenamientoActivo->cantidad, $almacenamientoActivo->unidadMedida)
-                : 0.0;
-
-            $resumen = $this->capacidadService->resumen($almacen);
-            $disponibleKg = $resumen['disponible_kg'];
-
-            if ($almacenamientoActivo && (int) $almacenamientoActivo->almacenid === (int) $almacen->almacenid) {
-                $disponibleKg += $ocupacionActualKg;
-            }
-
-            if ($cantidadBaseKg > $disponibleKg) {
-                throw new \Exception(
-                    'La cantidad indicada excede la capacidad disponible del almacén seleccionado. Disponible: '
-                    .round($disponibleKg, 2).' kg'
-                );
-            }
-
-            $destinoAlmacenamientoId = DestinoProduccion::whereRaw('LOWER(TRIM(nombre)) = ?', ['almacenamiento'])
-                ->value('destinoproduccionid');
-
-            $produccion->update([
-                'loteid' => $data['loteid'],
-                'cantidad' => $data['cantidad'],
-                'unidadmedidaid' => $data['unidadmedidaid'],
-                'cantidad_base' => $cantidadBaseKg,
-                'fechacosecha' => $data['fechacosecha'],
-                'destinoproduccionid' => $destinoAlmacenamientoId,
-            ]);
-
-            if ($almacenamientoActivo) {
-                $almacenamientoActivo->update([
-                    'almacenid' => $almacen->almacenid,
-                    'cantidad' => $data['cantidad'],
-                    'unidadmedidaid' => $data['unidadmedidaid'],
-                ]);
-            } else {
-                ProduccionAlmacenamiento::create([
-                    'produccionid' => $produccion->produccionid,
-                    'almacenid' => $almacen->almacenid,
-                    'cantidad' => $data['cantidad'],
-                    'unidadmedidaid' => $data['unidadmedidaid'],
-                    'fechaentrada' => now(),
-                    'observaciones' => 'Asignación desde edición de cosecha',
-                ]);
-            }
-
-            DB::commit();
-
-            return redirect()
-                ->route('producciones.show', $produccion)
-                ->with('success', "Cosecha actualizada. Almacenada en {$almacen->nombre}.");
-        } catch (\Exception $e) {
-            DB::rollBack();
-
-            return back()
-                ->withErrors(['error' => $e->getMessage()])
-                ->withInput();
-        }
+        return redirect()
+            ->route('lotes.trazabilidad', $produccion->loteid)
+            ->with('info', 'La cosecha no se edita desde este módulo. Use el lote correspondiente.');
     }
 
     public function destroy(Produccion $produccion)
     {
-        DB::beginTransaction();
+        return redirect()
+            ->route('producciones.index')
+            ->with('info', 'Las cosechas completadas no se eliminan desde este listado. Gestione el lote si necesita corregir datos.');
+    }
 
-        try {
-            // Si tiene ventas asociadas, no permitir eliminar
-            if ($produccion->ventas()->count() > 0) {
-                return back()->withErrors([
-                    'error' => 'No se puede eliminar esta producción porque tiene ventas asociadas.'
-                ]);
-            }
-
-            // Eliminar almacenamientos asociados
-            $produccion->almacenamientos()->delete();
-
-            $lote = $produccion->lote;
-            $produccion->delete();
-
-            // Opcional: volver el lote a "en producción" si no tiene otras producciones
-            $otrasProducciones = Produccion::where('loteid', $lote->loteid)->count();
-            if ($otrasProducciones == 0 && $lote) {
-                $estadoCrecimientoId = EstadoLoteCatalogo::idPorSlug('en_crecimiento');
-                if ($estadoCrecimientoId) {
-                    $lote->update(['estadolotetipoid' => $estadoCrecimientoId]);
-                }
-            }
-
-            DB::commit();
-
-            return redirect()
-                ->route('producciones.index')
-                ->with('success', 'Producción y almacenamiento eliminados.');
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return back()->withErrors(['error' => 'Error al eliminar: ' . $e->getMessage()]);
+    /** @return Collection<int, Almacen> */
+    private function almacenesDestacadosParaCosecha(Collection $almacenes): Collection
+    {
+        if ($almacenes->count() <= 4) {
+            return $almacenes->values();
         }
+
+        $usoPorAlmacen = ProduccionAlmacenamiento::query()
+            ->selectRaw('almacenid, COUNT(*) as total')
+            ->groupBy('almacenid')
+            ->pluck('total', 'almacenid');
+
+        return $almacenes
+            ->sortByDesc(fn (Almacen $almacen) => (int) ($usoPorAlmacen[$almacen->almacenid] ?? 0))
+            ->take(4)
+            ->values();
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function catalogoAlmacenesCosecha(Collection $almacenes): array
+    {
+        return $almacenes->map(function (Almacen $almacen) {
+            $usado = $almacen->almacenamientos->whereNull('fechasalida')->sum('cantidad');
+            $disponible = $almacen->capacidad - $usado;
+            $resuelto = UbicacionGpsParser::resolverAlmacen(
+                (int) $almacen->almacenid,
+                $almacen->nombre,
+                $almacen->ubicacion
+            );
+
+            return [
+                'id' => $almacen->almacenid,
+                'nombre' => $almacen->nombre,
+                'tipo' => $almacen->tipoAlmacen->nombre ?? 'General',
+                'ubicacion' => $almacen->ubicacion,
+                'disponible' => $disponible,
+                'capacidad' => (float) $almacen->capacidad,
+                'um' => $almacen->unidadMedida->abreviatura ?? 'kg',
+                'tags' => strtolower($almacen->nombre.' '.($almacen->tipoAlmacen->nombre ?? '').' '.($almacen->ubicacion ?? '')),
+                'lat' => $resuelto['lat'],
+                'lng' => $resuelto['lng'],
+                'direccion' => $resuelto['direccion'],
+                'ubicacion_estimada' => $resuelto['estimada'],
+            ];
+        })->values()->all();
     }
 
     private function validReturnUrl(mixed $return): ?string

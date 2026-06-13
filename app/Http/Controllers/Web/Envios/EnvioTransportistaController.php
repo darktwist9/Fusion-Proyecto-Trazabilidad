@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\PerfilTransportista;
 use App\Models\Usuario;
 use App\Support\TelefonoBolivia;
+use App\Support\TiposLicenciaBolivia;
 use App\Support\TransportistaFlotaCatalogo;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -93,6 +94,8 @@ class EnvioTransportistaController extends Controller
             'telefono' => ['nullable', 'string', 'max:50', 'regex:'.TelefonoBolivia::PATTERN],
             'password' => 'nullable|string|min:4|max:60',
             'ambito_flota' => 'required|in:'.implode(',', TransportistaFlotaCatalogo::valores()),
+            'tipo_licencia' => 'required|in:'.implode(',', TiposLicenciaBolivia::codigos()),
+            'licencia' => 'nullable|string|max:50',
         ], [
             'telefono.regex' => 'El teléfono debe usar el formato +591 seguido del número (ej. +591 76202982).',
         ]);
@@ -106,6 +109,7 @@ class EnvioTransportistaController extends Controller
             'passwordhash' => Hash::make($data['password'] ?? '12345'),
             'role' => 'transportista',
             'activo' => true,
+            'tipo_licencia' => $data['tipo_licencia'],
             'fecharegistro' => now(),
         ]);
 
@@ -115,6 +119,8 @@ class EnvioTransportistaController extends Controller
         PerfilTransportista::create([
             'usuarioid' => $usuario->usuarioid,
             'ambito_flota' => $data['ambito_flota'],
+            'tipo_licencia' => $data['tipo_licencia'],
+            'licencia' => $data['licencia'] ?? null,
             'disponible' => true,
         ]);
 
@@ -139,6 +145,8 @@ class EnvioTransportistaController extends Controller
             'telefono' => ['nullable', 'string', 'max:50', 'regex:'.TelefonoBolivia::PATTERN],
             'activo' => 'nullable|boolean',
             'password' => 'nullable|string|min:4|max:60',
+            'tipo_licencia' => 'required|in:'.implode(',', TiposLicenciaBolivia::codigos()),
+            'licencia' => 'nullable|string|max:50',
         ], [
             'telefono.regex' => 'El teléfono debe usar el formato +591 seguido del número (ej. +591 76202982).',
         ]);
@@ -149,6 +157,7 @@ class EnvioTransportistaController extends Controller
         $transportista->nombreusuario = $data['nombreusuario'] ?? $transportista->nombreusuario;
         $transportista->telefono = $data['telefono'] ?? null;
         $transportista->activo = $request->boolean('activo');
+        $transportista->tipo_licencia = $data['tipo_licencia'];
         $transportista->fechamodificacion = now();
 
         if (! empty($data['password'])) {
@@ -156,6 +165,14 @@ class EnvioTransportistaController extends Controller
         }
 
         $transportista->save();
+
+        PerfilTransportista::updateOrCreate(
+            ['usuarioid' => $transportista->usuarioid],
+            [
+                'tipo_licencia' => $data['tipo_licencia'],
+                'licencia' => $data['licencia'] ?? null,
+            ]
+        );
 
         return redirect()
             ->route('envios.transportistas.show', $transportista)

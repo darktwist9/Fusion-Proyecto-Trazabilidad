@@ -54,20 +54,20 @@
                             @if($step['estado'] === 'next')
                                 <span class="d-block small mt-1"><i class="fas fa-arrow-right"></i> Siguiente</span>
                             @endif
-                            @if(!empty($step['fase_unica']) && !empty($step['completada']))
+                            @if(!empty($step['completada']) && !empty($step['fase_unica']))
                                 <span class="d-block small mt-1"><i class="fas fa-check"></i></span>
-                            @elseif($step['eventos'] > 0)
-                                <span class="badge badge-light">{{ $step['eventos'] }}</span>
+                            @elseif(!empty($step['mostrar_contador']))
+                                <span class="badge badge-fase-count">{{ $step['eventos'] }}</span>
                             @endif
                         </a>
                     @else
                         <div class="fase-step {{ $step['estado'] }}" title="{{ $titulo }}">
                             <i class="fas fa-{{ $step['icon'] }} d-block mb-1"></i>
                             {{ $step['label'] }}
-                            @if(!empty($step['fase_unica']) && !empty($step['completada']))
+                            @if(!empty($step['completada']) && !empty($step['fase_unica']))
                                 <span class="d-block small mt-1"><i class="fas fa-check"></i></span>
-                            @elseif($step['eventos'] > 0)
-                                <span class="badge badge-light">{{ $step['eventos'] }}</span>
+                            @elseif(!empty($step['mostrar_contador']))
+                                <span class="badge badge-fase-count">{{ $step['eventos'] }}</span>
                             @endif
                         </div>
                     @endif
@@ -80,11 +80,30 @@
                         <i class="fas fa-tasks mr-1"></i> Asignar actividad
                     </a>
                     @if(!empty($url_siguiente_fase) && !empty($siguiente_fase_label))
-                    <a href="{{ $url_siguiente_fase }}" class="btn btn-success btn-sm">
-                        <i class="fas fa-forward mr-1"></i> Ir a {{ $siguiente_fase_label }}
-                    </a>
+                        @if(!empty($puede_ir_a_cosecha))
+                        <a href="{{ $url_siguiente_fase }}" class="btn btn-success btn-sm">
+                            <i class="fas fa-forward mr-1"></i> Ir a {{ $siguiente_fase_label }}
+                        </a>
+                        @else
+                        <span class="d-inline-block" tabindex="0"
+                              title="Complete todas las actividades pendientes antes de registrar la cosecha">
+                            <button type="button" class="btn btn-success btn-sm" disabled>
+                                <i class="fas fa-forward mr-1"></i> Ir a {{ $siguiente_fase_label }}
+                            </button>
+                        </span>
+                        @endif
                     @endif
                 </div>
+                @if($fase_actual === 'en_crecimiento' && !empty($url_siguiente_fase) && empty($puede_ir_a_cosecha))
+                <p class="text-center small text-muted mb-3">
+                    <i class="fas fa-lock mr-1"></i>
+                    @if(($actividades_pendientes_count ?? 0) > 0)
+                        Hay {{ $actividades_pendientes_count }} actividad(es) pendiente(s). Complételas para habilitar «Ir a {{ $siguiente_fase_label }}».
+                    @else
+                        Complete riego, control de plagas y fertilización para habilitar «Ir a {{ $siguiente_fase_label }}».
+                    @endif
+                </p>
+                @endif
             @elseif(!empty($url_siguiente_fase) && !empty($siguiente_fase_label))
                 <div class="text-center mb-3">
                     <a href="{{ $url_siguiente_fase }}" class="btn btn-success btn-sm">
@@ -93,18 +112,70 @@
                 </div>
             @endif
 
-            @php $pend = $pendiente ?? []; @endphp
+            @php
+                $pend = $pendiente ?? [];
+                $panel = $panel_pendientes ?? [];
+            @endphp
             @if(empty($pend['completo']))
                 <div class="alert alert-light border trz-pasos-panel mb-0 mt-3">
-                    <h6 class="text-success mb-2"><i class="fas fa-list-check mr-1"></i> Qué falta para llegar al 100 %</h6>
-                    <p class="small text-muted mb-2">{{ $pend['resumen'] ?? '' }}</p>
-                    @if(!empty($pend['acciones']))
-                        <ol class="mb-0 pl-3 small">
-                            @foreach($pend['acciones'] as $paso)
-                                <li class="mb-1">{{ $paso }}</li>
-                            @endforeach
-                        </ol>
+                    <h6 class="text-success mb-2"><i class="fas fa-route mr-1"></i> Qué falta para continuar</h6>
+
+                    @if(!empty($panel['meta_label']))
+                    <div class="trz-meta-siguiente mb-3">
+                        <span class="text-muted small d-block mb-1">Próxima etapa del recorrido</span>
+                        <strong class="text-dark">{{ $panel['meta_label'] }}</strong>
+                        @if(!empty($panel['meta_progreso']))
+                            <span class="badge badge-success ml-1">{{ $panel['meta_progreso'] }} %</span>
+                        @endif
+                        @if(!empty($panel['fases_despues']))
+                            <p class="small text-muted mb-0 mt-1">
+                                Después: {{ implode(' → ', $panel['fases_despues']) }}
+                            </p>
+                        @endif
+                    </div>
                     @endif
+
+                    @if(!empty($panel['hitos']))
+                    <p class="small font-weight-bold text-muted mb-2">Hitos de crecimiento</p>
+                    <ul class="list-unstyled trz-checklist mb-3">
+                        @foreach($panel['hitos'] as $hito)
+                        <li class="{{ !empty($hito['ok']) ? 'is-done' : 'is-pending' }}">
+                            <i class="fas {{ !empty($hito['ok']) ? 'fa-check-circle text-success' : 'fa-circle text-muted' }} mr-2"></i>
+                            {{ $hito['label'] }}
+                        </li>
+                        @endforeach
+                    </ul>
+                    @endif
+
+                    @if(!empty($panel['actividades_abiertas']))
+                    <p class="small font-weight-bold text-warning mb-2">
+                        <i class="fas fa-exclamation-circle mr-1"></i>
+                        Actividades pendientes ({{ count($panel['actividades_abiertas']) }})
+                    </p>
+                    <ul class="list-unstyled trz-checklist mb-3">
+                        @foreach($panel['actividades_abiertas'] as $actPend)
+                        <li class="is-pending d-flex flex-wrap align-items-center justify-content-between" style="gap:.35rem;">
+                            <span>
+                                <i class="fas fa-hourglass-half text-warning mr-2"></i>
+                                {{ $actPend['titulo'] }}
+                                @if(!empty($actPend['responsable']))
+                                    <span class="text-muted">— {{ $actPend['responsable'] }}</span>
+                                @endif
+                            </span>
+                            @if(!empty($actPend['actividadid']) && in_array((int) $actPend['actividadid'], $actividades_marcables_ids ?? [], true))
+                                <button type="button" class="btn btn-success btn-sm btn-completar-evidencia"
+                                        data-action="{{ route('actividades.marcar-realizada', $actPend['actividadid']) }}"
+                                        data-titulo="{{ $actPend['titulo'] }}"
+                                        data-lote="{{ $lote->nombre }}"
+                                        data-scroll-to="historial-eventos">
+                                    <i class="fas fa-camera mr-1"></i> Completar
+                                </button>
+                            @endif
+                        </li>
+                        @endforeach
+                    </ul>
+                    @endif
+
                 </div>
             @else
                 <p class="small text-success mb-0 mt-3"><i class="fas fa-check-circle mr-1"></i> {{ $pend['resumen'] ?? 'Trazabilidad completa' }}</p>
@@ -136,48 +207,77 @@
                 </div>
                 <div class="card-body timeline-trz" id="trz-timeline">
                     @forelse($trazabilidad as $evento)
-                        <div class="evento-trz"
-                            data-tipo="{{ $evento['tipo'] }}"
-                            data-fase="{{ $evento['fase'] }}"
-                            style="border-left-color: {{ ($fases_evento[$evento['fase']] ?? $fases[$evento['fase']])['color'] ?? '#dee2e6' }}">
-                            <div class="d-flex justify-content-between flex-wrap">
-                                <div>
-                                    <span class="badge badge-fase mr-1" style="background:{{ ($fases_evento[$evento['fase']] ?? $fases[$evento['fase']])['color'] ?? '#6c757d' }}">
-                                        {{ $evento['fase_label'] }}
-                                    </span>
-                                    <span class="badge badge-light text-uppercase">{{ $evento['tipo'] }}</span>
-                                </div>
-                                <small class="text-muted"><i class="fas fa-calendar-alt mr-1"></i>{{ $evento['fecha_fmt'] }}</small>
-                            </div>
-                            <strong class="d-block mt-2">{{ $evento['titulo'] }}</strong>
-                            <p class="mb-1 small text-muted">{{ $evento['descripcion'] }}</p>
-                            @if(!empty($evento['usuario']))
-                                <small class="text-muted"><i class="fas fa-user mr-1"></i>{{ $evento['usuario'] }}</small>
-                            @endif
-                            @if(isset($evento['completada']))
-                                <span class="badge badge-{{ $evento['completada'] ? 'success' : 'warning' }} ml-1">
-                                    {{ $evento['completada'] ? 'Completada' : 'Pendiente' }}
-                                </span>
-                            @endif
-                            @if(
-                                !empty($evento['actividadid'])
+                        @php
+                            $puedeCompletarEvento = !empty($evento['actividadid'])
                                 && isset($evento['completada'])
                                 && ! $evento['completada']
-                                && in_array((int) $evento['actividadid'], $actividades_marcables_ids ?? [], true)
-                            )
-                                <form action="{{ route('actividades.marcar-realizada', $evento['actividadid']) }}" method="POST"
-                                      class="d-inline ml-2">
-                                    @csrf
-                                    <button type="button" class="btn btn-success btn-sm py-0 px-2"
-                                            data-confirm-modal
-                                            data-confirm-title="¿Marcar como completada?"
-                                            data-confirm-message="Se completará «{{ $evento['titulo'] }}» y se quitará la alerta del agricultor asignado."
-                                            data-confirm-tone="success"
-                                            title="Marcar como completada">
+                                && in_array((int) $evento['actividadid'], $actividades_marcables_ids ?? [], true);
+                            $tieneEvidencia = !empty($evento['evidencia_url']);
+                            $colorFaseEvento = ($fases_evento[$evento['fase']] ?? $fases[$evento['fase']])['color'] ?? '#6c757d';
+                        @endphp
+                        <div class="evento-trz-wrap" style="--paso-color: {{ $colorFaseEvento }};">
+                            <div class="evento-trz-paso" aria-hidden="true">
+                                <span class="evento-trz-paso__num">{{ $loop->iteration }}</span>
+                            </div>
+                        <div class="evento-trz{{ $puedeCompletarEvento ? ' tiene-accion' : '' }}"
+                            data-tipo="{{ $evento['tipo'] }}"
+                            data-fase="{{ $evento['fase'] }}"
+                            data-paso="{{ $loop->iteration }}"
+                            style="border-left-color: {{ $colorFaseEvento }}">
+                            <div class="evento-trz-cuerpo">
+                                <div class="d-flex justify-content-between flex-wrap">
+                                    <div>
+                                        <span class="badge badge-fase mr-1" style="background:{{ ($fases_evento[$evento['fase']] ?? $fases[$evento['fase']])['color'] ?? '#6c757d' }}">
+                                            {{ $evento['fase_label'] }}
+                                        </span>
+                                        <span class="badge badge-light text-uppercase">{{ $evento['tipo'] }}</span>
+                                    </div>
+                                    <small class="text-muted"><i class="fas fa-calendar-alt mr-1"></i>{{ $evento['fecha_fmt'] }}</small>
+                                </div>
+                                <strong class="d-block mt-2">{{ $evento['titulo'] }}</strong>
+                                @if(!empty($evento['descripcion']))
+                                    <p class="mb-1 small text-muted">{{ $evento['descripcion'] }}</p>
+                                @endif
+                                @if($tieneEvidencia)
+                                    <div class="evento-trz-evidencia mt-2">
+                                        <button type="button" class="evento-trz-evidencia__link btn-ver-evidencia border-0 p-0 bg-transparent"
+                                                data-url="{{ $evento['evidencia_url'] }}"
+                                                data-titulo="{{ $evento['titulo'] }}"
+                                                title="Ver evidencia en tamaño completo">
+                                            <img src="{{ $evento['evidencia_url'] }}"
+                                                 alt="Evidencia: {{ $evento['titulo'] }}"
+                                                 class="evento-trz-evidencia__img"
+                                                 loading="lazy" decoding="async">
+                                            <span class="evento-trz-evidencia__caption small text-muted">
+                                                <i class="fas fa-camera mr-1"></i> Evidencia fotográfica
+                                            </span>
+                                        </button>
+                                    </div>
+                                @endif
+                                <div class="d-flex flex-wrap align-items-center" style="gap: .35rem;">
+                                    @if(!empty($evento['usuario']))
+                                        <small class="text-muted"><i class="fas fa-user mr-1"></i>{{ $evento['usuario'] }}</small>
+                                    @endif
+                                    @if(isset($evento['completada']))
+                                        <span class="badge badge-{{ $evento['completada'] ? 'success' : 'warning' }}">
+                                            {{ $evento['completada'] ? 'Completada' : 'Pendiente' }}
+                                        </span>
+                                    @endif
+                                </div>
+                            </div>
+                            @if($puedeCompletarEvento)
+                                <div class="evento-trz-accion">
+                                    <button type="button" class="btn btn-success btn-sm btn-completar-evidencia"
+                                            data-action="{{ route('actividades.marcar-realizada', $evento['actividadid']) }}"
+                                            data-titulo="{{ $evento['titulo'] }}"
+                                            data-lote="{{ $lote->nombre }}"
+                                            data-scroll-to="historial-eventos"
+                                            title="Subir foto y marcar como completada">
                                         <i class="fas fa-check mr-1"></i> Completar
                                     </button>
-                                </form>
+                                </div>
                             @endif
+                        </div>
                         </div>
                     @empty
                         <div class="empty-timeline">
@@ -193,20 +293,26 @@
     @include('lotes.partials.detalle-actions')
 </div>
 
-@include('partials.modal-confirmar-accion')
+@include('partials.modal-completar-evidencia')
+@include('partials.modal-ver-evidencia')
 @endsection
 
 @push('scripts')
 <script>
 (function () {
-    if (window.location.hash === '#historial-eventos') {
+    function scrollToHistorial() {
         var el = document.getElementById('historial-eventos');
-        if (el) {
-            setTimeout(function () {
-                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 100);
-        }
+        if (!el) return;
+        requestAnimationFrame(function () {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
     }
+    if (window.location.hash === '#historial-eventos') {
+        setTimeout(scrollToHistorial, 150);
+    }
+    window.addEventListener('hashchange', function () {
+        if (window.location.hash === '#historial-eventos') scrollToHistorial();
+    });
 })();
 </script>
 @endpush

@@ -77,41 +77,20 @@
                             <label><i class="fas fa-ruler-combined mr-1"></i> Superficie (hectáreas) <span class="text-danger">*</span></label>
                             <input type="number" step="0.01" name="superficie" id="superficie" class="form-control" min="0.01" required
                                    placeholder="Ej: 12.5" value="{{ old('superficie') }}">
-                            <p class="campo-guia">Área cultivable. En el mapa se dibuja un círculo aproximado según este valor.</p>
+                            <p class="campo-guia">Área cultivable. En el mapa se dibuja un círculo según este valor (1 ha = 10.000 m²).</p>
                         </div>
 
-                        <div class="form-group">
-                            <label><i class="fas fa-seedling mr-1"></i> Cultivo principal</label>
-                            <div class="d-flex flex-wrap align-items-start" style="gap: 6px;">
-                                @include('partials.selector-catalogo', [
-                                    'id' => 'lote_cultivo',
-                                    'name' => 'cultivoid',
-                                    'value' => $cultivoidInicial ?? '',
-                                    'labelSelected' => $cultivoLabel ?? '',
-                                    'endpoint' => route('catalogo-selector.cultivos'),
-                                    'allowEmpty' => true,
-                                    'placeholderEmpty' => 'Opcional — sin cultivo asignado',
-                                    'title' => 'Seleccionar cultivo',
-                                    'searchPlaceholder' => 'Nombre o detalle del cultivo…',
-                                    'searchLabel' => 'Buscar cultivo',
-                                    'modalIcon' => 'fa-seedling',
-                                    'rowIcon' => 'fa-seedling',
-                                    'inputGroup' => true,
-                                ])
-                                <a href="{{ route('cultivos.create', ['retorno' => 'lote', 'selector' => 'lote_cultivo']) }}"
-                                   target="_blank" rel="noopener"
-                                   class="btn btn-outline-success" title="Crear cultivo en nueva pestaña">
-                                    <i class="fas fa-plus"></i>
-                                </a>
-                            </div>
-                            <p class="campo-guia">Opcional al crear; puedes asignarlo luego desde editar lote.</p>
-                        </div>
+                        @include('lotes.partials.selector-semilla', [
+                            'selectorId' => 'lote_semilla',
+                            'insumoSemillaId' => $insumoSemillaId ?? '',
+                            'insumoSemillaLabel' => $insumoSemillaLabel ?? '',
+                        ])
 
                         <div class="form-group">
-                            <label><i class="fas fa-map-marker-alt mr-1"></i> Referencia de ubicación</label>
+                            <label><i class="fas fa-road mr-1"></i> Calle o referencia</label>
                             <input type="text" name="ubicacion" id="ubicacion" class="form-control" maxlength="200"
-                                   placeholder="Se completa al marcar el mapa" value="{{ old('ubicacion') }}" readonly>
-                            <p class="campo-guia">Se genera al hacer clic en el mapa. Puedes editarla después si necesitas una descripción más clara.</p>
+                                   placeholder="Se completa al marcar el mapa" value="{{ old('ubicacion') }}">
+                            <p class="campo-guia">Al hacer clic en el mapa se sugiere la calle. Puedes corregirla si hace falta.</p>
                         </div>
 
                         <div class="form-group">
@@ -130,18 +109,8 @@
                             <p class="campo-guia mb-2">Haz clic donde está el lote (Santa Cruz por defecto). Es obligatorio para trazabilidad y el mapa general.</p>
                             <div id="map"></div>
                         </div>
-                        <div class="form-row">
-                            <div class="form-group col-6 mb-0">
-                                <label class="small text-muted">Latitud</label>
-                                <input type="number" step="0.0000001" name="latitud" id="latitud" class="form-control form-control-sm"
-                                       value="{{ old('latitud', '-17.7833') }}" readonly>
-                            </div>
-                            <div class="form-group col-6 mb-0">
-                                <label class="small text-muted">Longitud</label>
-                                <input type="number" step="0.0000001" name="longitud" id="longitud" class="form-control form-control-sm"
-                                       value="{{ old('longitud', '-63.1821') }}" readonly>
-                            </div>
-                        </div>
+                        <input type="hidden" name="latitud" id="latitud" value="{{ old('latitud', '-17.7833') }}">
+                        <input type="hidden" name="longitud" id="longitud" value="{{ old('longitud', '-63.1821') }}">
                     </div>
                 </div>
             </div>
@@ -160,6 +129,8 @@
 @endsection
 
 @push('scripts')
+    @include('lotes.partials.mapa-calle-helper')
+    @include('lotes.partials.mapa-superficie-helper')
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         (function () {
@@ -172,52 +143,44 @@
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
 
             let marker = null;
-            let circle = null;
+            const circleRef = { current: null };
 
-            function calcularRadio(ha) {
-                return Math.sqrt(ha * 10000 / Math.PI);
+            function redibujarCirculo() {
+                const lat = parseFloat(latInput.value);
+                const lng = parseFloat(lngInput.value);
+                window.AgroFusionLoteMapa.actualizarCirculo(map, circleRef, lat, lng, supInput.value);
             }
 
-            function colocarMarcador(lat, lng) {
+            async function colocarMarcador(lat, lng) {
                 latInput.value = Number(lat).toFixed(7);
                 lngInput.value = Number(lng).toFixed(7);
-                ubicInput.removeAttribute('readonly');
-                if (!ubicInput.value || ubicInput.value.startsWith('Parcela GPS')) {
-                    ubicInput.value = 'Parcela GPS ' + Number(lat).toFixed(5) + ', ' + Number(lng).toFixed(5);
+
+                const debeActualizarCalle = !ubicInput.value
+                    || window.AgroFusionMapaCalle.esTextoGps(ubicInput.value);
+                if (debeActualizarCalle) {
+                    ubicInput.value = 'Buscando calle…';
+                    const calle = await window.AgroFusionMapaCalle.resolver(lat, lng);
+                    ubicInput.value = calle || 'Zona agrícola, Santa Cruz de la Sierra';
                 }
 
                 if (marker) map.removeLayer(marker);
-                if (circle) map.removeLayer(circle);
 
                 marker = L.marker([lat, lng]).addTo(map);
-                const sup = parseFloat(supInput.value);
-                if (sup > 0) {
-                    circle = L.circle([lat, lng], {
-                        color: '#28a745', fillColor: '#28a745', fillOpacity: 0.25,
-                        radius: calcularRadio(sup)
-                    }).addTo(map);
-                }
+                marker.bindPopup(ubicInput.value || 'Parcela').openPopup();
+                redibujarCirculo();
             }
 
             map.on('click', function (e) {
                 colocarMarcador(e.latlng.lat, e.latlng.lng);
             });
 
-            supInput.addEventListener('input', function () {
-                const lat = latInput.value;
-                const lng = lngInput.value;
-                const sup = parseFloat(this.value);
-                if (lat && lng && sup > 0) {
-                    if (circle) map.removeLayer(circle);
-                    circle = L.circle([lat, lng], {
-                        color: '#28a745', fillColor: '#28a745', fillOpacity: 0.25,
-                        radius: calcularRadio(sup)
-                    }).addTo(map);
-                }
-            });
+            supInput.addEventListener('input', redibujarCirculo);
+            supInput.addEventListener('change', redibujarCirculo);
 
             if (latInput.value && lngInput.value) {
                 colocarMarcador(parseFloat(latInput.value), parseFloat(lngInput.value));
+            } else if (supInput.value) {
+                redibujarCirculo();
             }
 
             document.getElementById('formNuevoLote').addEventListener('submit', function (e) {
@@ -232,6 +195,7 @@
                 if (label) label.textContent = this.files[0]?.name || 'Elegir imagen…';
             });
 
+            window.AgroFusionLoteMapa.vincularDosisSiembra({ selectorId: 'lote_semilla' });
         })();
     </script>
 @endpush

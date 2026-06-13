@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use App\Support\PedidoCatalogo;
+use App\Support\UbicacionGpsParser;
+use App\Support\SuperficieFormato;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -20,6 +23,7 @@ class Lote extends Model
         'superficie',
         'unidadsuperficieid',
         'cultivoid',
+        'insumosemillaid',
         'actorid',
         'codigo_trazabilidad',
         'fechasiembra',
@@ -37,6 +41,7 @@ class Lote extends Model
         'superficie'          => 'float',
         'unidadsuperficieid'  => 'integer',
         'cultivoid'           => 'integer',
+        'insumosemillaid'     => 'integer',
         'actorid'             => 'integer',
         'estadolotetipoid'    => 'integer',
         'latitud'             => 'float',
@@ -67,6 +72,11 @@ class Lote extends Model
     public function cultivo()
     {
         return $this->belongsTo(Cultivo::class, 'cultivoid', 'cultivoid');
+    }
+
+    public function insumoSemilla()
+    {
+        return $this->belongsTo(Insumo::class, 'insumosemillaid', 'insumoid');
     }
 
     public function actorAbastecimiento()
@@ -117,5 +127,31 @@ class Lote extends Model
     public function certificaciones()
     {
         return $this->hasMany(CertificacionLote::class, 'loteid', 'loteid');
+    }
+
+    public function getUbicacionVisibleAttribute(): string
+    {
+        return UbicacionGpsParser::textoLoteVisible(
+            $this->ubicacion,
+            $this->loteid,
+            $this->latitud,
+            $this->longitud
+        );
+    }
+
+    public function getSuperficieEtiquetaAttribute(): string
+    {
+        return SuperficieFormato::etiqueta($this->superficie);
+    }
+
+    public function getCultivoEtiquetaAttribute(): ?string
+    {
+        $this->loadMissing('insumoSemilla', 'cultivo');
+
+        if ($this->insumoSemilla) {
+            return PedidoCatalogo::cultivoDesdeInsumo($this->insumoSemilla);
+        }
+
+        return $this->cultivo?->nombre;
     }
 }
