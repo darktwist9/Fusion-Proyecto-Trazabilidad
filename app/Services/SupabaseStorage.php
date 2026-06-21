@@ -12,9 +12,9 @@ class SupabaseStorage
 
     public function __construct()
     {
-        $this->url = env('SUPABASE_URL') . '/storage/v1';
-        $this->key = env('SUPABASE_SERVICE_ROLE');
-        $this->bucket = env('SUPABASE_BUCKET');
+        $this->url = (env('SUPABASE_URL') ?? '') . '/storage/v1';
+        $this->key = env('SUPABASE_SERVICE_ROLE') ?? '';
+        $this->bucket = env('SUPABASE_BUCKET') ?? '';
     }
 
     public function upload($path, $file, $mime)

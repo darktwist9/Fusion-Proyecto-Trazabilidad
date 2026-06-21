@@ -13,13 +13,14 @@ class InsumoController extends Controller
     public function index()
     {
         return response()->json(
-            Insumo::with(['tipo', 'unidadMedida'])->get()
+            Insumo::with(['tipo', 'unidadMedida'])->get()->makeVisible(['tipo', 'unidadMedida'])
         );
     }
 
     public function show($id)
     {
-        $insumo = Insumo::with(['tipo', 'unidadMedida', 'loteInsumos'])->findOrFail($id);
+        $insumo = Insumo::with(['tipo', 'unidadMedida', 'loteInsumos'])->findOrFail($id)
+            ->makeVisible(['tipo', 'unidadMedida']);
 
         return response()->json($insumo);
     }
@@ -31,7 +32,7 @@ class InsumoController extends Controller
 
         $insumo = Insumo::create($data);
 
-        return response()->json($insumo->load(['tipo', 'unidadMedida']), 201);
+        return response()->json($insumo->load(['tipo', 'unidadMedida'])->makeVisible(['tipo', 'unidadMedida']), 201);
     }
 
     public function update(Request $request, $id)
@@ -43,7 +44,7 @@ class InsumoController extends Controller
 
         $insumo->update($data);
 
-        return response()->json($insumo->load(['tipo', 'unidadMedida']));
+        return response()->json($insumo->load(['tipo', 'unidadMedida'])->makeVisible(['tipo', 'unidadMedida']));
     }
 
     public function destroy($id)

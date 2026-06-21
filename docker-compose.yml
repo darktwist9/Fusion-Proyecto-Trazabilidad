@@ -4,8 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: agronexus-laravel
-    volumes:
-      - .:/var/www
+    volumes: []
     environment:
       DB_CONNECTION: pgsql
       DB_HOST: db

@@ -27,6 +27,8 @@ class Insumo extends Model
         'dosis_por_ha',
         'dosis_unidad',
         'semillas_por_kg',
+        'rendimiento_cosecha_kg_ha',
+        'codigo_transporte_requerido',
         'almacenid',
         'codigo_trazabilidad',
     ];
@@ -41,12 +43,11 @@ class Insumo extends Model
         'preciounitario' => 'float',
         'dosis_por_ha'   => 'float',
         'semillas_por_kg' => 'float',
+        'rendimiento_cosecha_kg_ha' => 'float',
         'almacenid' => 'integer',
     ];
 
     protected $hidden = [
-        'tipo',
-        'unidadMedida',
         'loteInsumos',
     ];
 
@@ -73,6 +74,11 @@ class Insumo extends Model
     public function almacen()
     {
         return $this->belongsTo(Almacen::class, 'almacenid', 'almacenid');
+    }
+
+    public function presentaciones()
+    {
+        return $this->hasMany(InsumoPresentacion::class, 'insumoid', 'insumoid');
     }
 
     /**
