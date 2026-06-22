@@ -15,10 +15,13 @@ class AlmacenAmbito
 
     public const PUNTO_VENTA = 'punto_venta';
 
+    public const MAYORISTA = 'mayorista';
+
     /** @var array<string, string> */
     public const TITULOS = [
         self::AGRICOLA => 'Almacén agrícola',
         self::PLANTA => 'Almacén de planta',
+        self::MAYORISTA => 'Almacén mayorista',
         self::PUNTO_VENTA => 'Inventario punto de venta',
     ];
 
@@ -32,6 +35,9 @@ class AlmacenAmbito
         }
 
         $routeName = $request?->route()?->getName() ?? '';
+        if (str_starts_with($routeName, self::routePrefix(self::MAYORISTA).'.')) {
+            return self::MAYORISTA;
+        }
         if (str_starts_with($routeName, self::routePrefix(self::PLANTA).'.')) {
             return self::PLANTA;
         }
@@ -47,7 +53,7 @@ class AlmacenAmbito
 
     public static function esValido(?string $ambito): bool
     {
-        return in_array($ambito, [self::AGRICOLA, self::PLANTA, self::PUNTO_VENTA], true);
+        return in_array($ambito, [self::AGRICOLA, self::PLANTA, self::MAYORISTA, self::PUNTO_VENTA], true);
     }
 
     public static function routePrefix(string $ambito): string
@@ -55,6 +61,7 @@ class AlmacenAmbito
         return match ($ambito) {
             self::AGRICOLA => 'almacen-agricola',
             self::PLANTA => 'almacen-planta',
+            self::MAYORISTA => 'almacen-mayorista',
             self::PUNTO_VENTA => 'almacen-punto-venta',
             default => 'almacen-agricola',
         };
@@ -95,6 +102,10 @@ class AlmacenAmbito
             return $user->hasAnyRole(['planta', 'jefe_planta', 'admin']);
         }
 
+        if ($ambito === self::MAYORISTA) {
+            return $user->hasAnyRole(['mayorista', 'jefe_mayorista', 'admin']);
+        }
+
         if ($ambito === self::PUNTO_VENTA) {
             return $user->hasAnyRole(['minorista', 'admin']);
         }
@@ -108,13 +119,34 @@ class AlmacenAmbito
             $query = $query->where('ambito', $ambito);
 
             if ($ambito === self::AGRICOLA) {
-                return self::excluirMarcadoresPuntoVenta(self::excluirMarcadoresPlanta($query));
+                return self::excluirMarcadoresPuntoVenta(
+                    self::excluirMarcadoresMayorista(
+                        self::excluirMarcadoresPlanta($query)
+                    )
+                );
             }
 
             return $query;
         }
 
         return self::scopeLegacyPorNombre($query, $ambito);
+    }
+
+    public static function scopeParaUsuario(Builder $query, string $ambito, ?Usuario $user): Builder
+    {
+        if ($ambito === self::MAYORISTA) {
+            return MayoristaAccess::scopeAlmacenesMayorista($query, $user);
+        }
+
+        return self::scope($query, $ambito);
+    }
+
+    /** Excluye almacenes mayoristas aunque el campo ambito esté mal cargado. */
+    private static function excluirMarcadoresMayorista(Builder $query): Builder
+    {
+        return $query
+            ->whereRaw('LOWER(TRIM(nombre)) NOT LIKE ?', ['%mayorista%'])
+            ->whereDoesntHave('tipoAlmacen', fn ($t) => $t->whereRaw('LOWER(TRIM(nombre)) LIKE ?', ['%mayorista%']));
     }
 
     /** Excluye almacenes de planta aunque el campo ambito esté mal cargado. */
@@ -147,6 +179,11 @@ class AlmacenAmbito
 
     public static function resolverAmbito(Almacen $almacen): string
     {
+        if (\Illuminate\Support\Facades\Schema::hasColumn('almacen', 'ambito')
+            && self::esValido($almacen->ambito)) {
+            return $almacen->ambito;
+        }
+
         if (\Illuminate\Support\Facades\Schema::hasTable('punto_venta')) {
             $vinculadoPdv = \Illuminate\Support\Facades\DB::table('punto_venta')
                 ->where('almacenid', $almacen->almacenid)
@@ -159,6 +196,10 @@ class AlmacenAmbito
 
         $nombre = mb_strtolower(trim($almacen->nombre ?? ''));
         $tipo = mb_strtolower(trim($almacen->tipoAlmacen?->nombre ?? ''));
+
+        if (str_contains($nombre, 'mayorista') || str_contains($tipo, 'mayorista')) {
+            return self::MAYORISTA;
+        }
 
         if (str_contains($nombre, 'planta') || str_contains($tipo, 'planta')) {
             return self::PLANTA;
