@@ -188,11 +188,16 @@ final class DashboardCharts
     /**
      * @return array<string, mixed>
      */
-    public static function paraTransportista(Usuario $user, DashboardFiltros $filtros): array
+    public static function paraTransportista(DashboardFiltros $filtros, ?int $transportistaId = null, bool $todos = false): array
     {
         $meses = $filtros->mesesParaGrafico();
         $labels = array_column($meses, 'nombre');
-        $base = EnvioAsignacionMultiple::query()->where('transportista_usuarioid', $user->usuarioid);
+        $base = EnvioAsignacionMultiple::query();
+        if ($todos) {
+            $base->whereNotNull('transportista_usuarioid');
+        } elseif ($transportistaId) {
+            $base->where('transportista_usuarioid', $transportistaId);
+        }
 
         $asignadosMes = self::conteoPorMes((clone $base), 'fecha_asignacion', $meses, $filtros);
         $entregadosMes = [];
@@ -252,7 +257,7 @@ final class DashboardCharts
     /**
      * @return array<string, mixed>
      */
-    public static function paraJefeAgricola(DashboardFiltros $filtros): array
+    public static function paraJefeAgricola(DashboardFiltros $filtros, ?int $usuarioId = null, bool $todos = false): array
     {
         $meses = $filtros->mesesParaGrafico();
         $labels = array_column($meses, 'nombre');
@@ -263,14 +268,20 @@ final class DashboardCharts
                 ->whereMonth('fechacosecha', $mes['mes'])
                 ->whereYear('fechacosecha', $mes['año']);
             $filtros->aplicarCultivoEnLote($q);
+            if ($usuarioId && ! $todos) {
+                $q->whereHas('lote', fn ($l) => $l->where('usuarioid', $usuarioId));
+            }
             if ($filtros->tieneRango()) {
                 $filtros->aplicarFecha($q, 'fechacosecha');
             }
             $cosechasMes[] = (float) $q->sum('cantidad');
         }
 
-        $actividadesMes = self::conteoPorMes(Actividad::query(), 'fechainicio', $meses, $filtros, function ($q) use ($filtros) {
+        $actividadesMes = self::conteoPorMes(Actividad::query(), 'fechainicio', $meses, $filtros, function ($q) use ($filtros, $usuarioId, $todos) {
             $filtros->aplicarCultivoEnLote($q);
+            if ($usuarioId && ! $todos) {
+                $q->where('usuarioid', $usuarioId);
+            }
         });
 
         $lotesEstado = Lote::query()
@@ -279,6 +290,7 @@ final class DashboardCharts
             ->when($filtros->cultivoId, fn ($q) => $q->where('lote.cultivoid', $filtros->cultivoId))
             ->when($filtros->loteId, fn ($q) => $q->where('lote.loteid', $filtros->loteId))
             ->when($filtros->estadoLoteId, fn ($q) => $q->where('lote.estadolotetipoid', $filtros->estadoLoteId))
+            ->when($usuarioId && ! $todos, fn ($q) => $q->where('lote.usuarioid', $usuarioId))
             ->groupBy('estadolote_tipo.nombre')
             ->orderByDesc('total')
             ->get();
@@ -289,6 +301,9 @@ final class DashboardCharts
         $filtros->aplicarFecha($topCultivos, 'produccion.fechacosecha');
         if ($filtros->cultivoId) {
             $topCultivos->where('lote.cultivoid', $filtros->cultivoId);
+        }
+        if ($usuarioId && ! $todos) {
+            $topCultivos->where('lote.usuarioid', $usuarioId);
         }
         $topCultivos = $topCultivos->groupBy('cultivo.nombre')->orderByDesc('total')->limit(6)->get();
 
@@ -387,29 +402,88 @@ final class DashboardCharts
     /**
      * @return array<string, mixed>
      */
-    public static function paraMinorista(Usuario $user, DashboardFiltros $filtros): array
+    public static function paraMayorista(DashboardFiltros $filtros, ?Usuario $usuario = null, bool $todos = false): array
     {
-        $meses = $filtros->mesesParaGrafico();
-        $labels = array_column($meses, 'nombre');
-        $puntosIds = PuntoVenta::query()->where('usuarioid', $user->usuarioid)->pluck('puntoventaid');
-
-        $pedidosMes = self::conteoPorMes(
-            PedidoDistribucion::query()->whereIn('puntoventaid', $puntosIds),
+        $base = PedidoDistribucion::query();
+        if ($usuario && ! $todos) {
+            $almacenIds = MayoristaAccess::idsAlmacenesMayorista($usuario);
+            if ($almacenIds !== []) {
+                $base->whereHas('puntoVenta', fn ($q) => $q->whereIn('almacenid', $almacenIds));
+            }
+        }
+        $seriePedidos = self::serieTemporalConteo($base, 'fechapedido', $filtros);
+        $serieTransito = self::serieTemporalConteo(
+            (clone $base)->where('estado', PedidoDistribucionCatalogo::ESTADO_EN_TRANSITO),
             'fechapedido',
-            $meses,
             $filtros,
         );
 
-        $estados = PedidoDistribucion::query()
-            ->whereIn('puntoventaid', $puntosIds)
+        $estados = (clone $base)
             ->select('estado', DB::raw('COUNT(*) as total'))
             ->when($filtros->tieneRango(), fn ($q) => $filtros->aplicarFecha($q, 'fechapedido'))
             ->groupBy('estado')
             ->orderByDesc('total')
             ->get();
 
-        $porPunto = PedidoDistribucion::query()
-            ->whereIn('pedido_distribucion.puntoventaid', $puntosIds)
+        $porPdv = (clone $base)
+            ->join('punto_venta', 'pedido_distribucion.puntoventaid', '=', 'punto_venta.puntoventaid')
+            ->select('punto_venta.nombre', DB::raw('COUNT(*) as total'));
+        if ($filtros->tieneRango()) {
+            $filtros->aplicarFecha($porPdv, 'pedido_distribucion.fechapedido');
+        }
+        $porPdv = $porPdv->groupBy('punto_venta.nombre')->orderByDesc('total')->limit(6)->get();
+
+        return [
+            'pedidosMes' => [
+                'labels' => $seriePedidos['labels'],
+                'data' => $seriePedidos['data'],
+                'label' => 'Pedidos recibidos',
+                'color' => '#0d9488',
+                'modo' => $seriePedidos['modo'],
+            ],
+            'enTransitoMes' => [
+                'labels' => $serieTransito['labels'],
+                'data' => $serieTransito['data'],
+                'label' => 'En tránsito',
+                'color' => '#22c55e',
+                'modo' => $serieTransito['modo'],
+            ],
+            'estadosPedido' => self::doughnutDesdeFilas(
+                $estados,
+                'estado',
+                PedidoDistribucionCatalogo::etiquetasEstado(),
+                ['#f59e0b', '#22c55e', '#0ea5e9', '#10b981', '#ef4444', '#94a3b8'],
+            ),
+            'porPdv' => [
+                'labels' => $porPdv->pluck('nombre')->all(),
+                'data' => $porPdv->pluck('total')->map(fn ($v) => (int) $v)->all(),
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function paraMinorista(DashboardFiltros $filtros, ?int $minoristaId = null, bool $todos = false): array
+    {
+        $puntosQuery = PuntoVenta::query();
+        if ($todos) {
+            $puntosQuery->whereNotNull('usuarioid');
+        } elseif ($minoristaId) {
+            $puntosQuery->where('usuarioid', $minoristaId);
+        }
+        $puntosIds = $puntosQuery->pluck('puntoventaid');
+        $base = PedidoDistribucion::query()->whereIn('pedido_distribucion.puntoventaid', $puntosIds);
+        $seriePedidos = self::serieTemporalConteo($base, 'fechapedido', $filtros);
+
+        $estados = (clone $base)
+            ->select('estado', DB::raw('COUNT(*) as total'))
+            ->when($filtros->tieneRango(), fn ($q) => $filtros->aplicarFecha($q, 'fechapedido'))
+            ->groupBy('estado')
+            ->orderByDesc('total')
+            ->get();
+
+        $porPunto = (clone $base)
             ->join('punto_venta', 'pedido_distribucion.puntoventaid', '=', 'punto_venta.puntoventaid')
             ->select('punto_venta.nombre', DB::raw('COUNT(*) as total'));
         if ($filtros->tieneRango()) {
@@ -419,10 +493,11 @@ final class DashboardCharts
 
         return [
             'pedidosMes' => [
-                'labels' => $labels,
-                'data' => $pedidosMes,
+                'labels' => $seriePedidos['labels'],
+                'data' => $seriePedidos['data'],
                 'label' => 'Pedidos solicitados',
                 'color' => '#8b5cf6',
+                'modo' => $seriePedidos['modo'],
             ],
             'estadosPedido' => self::doughnutDesdeFilas(
                 $estados,
@@ -435,6 +510,51 @@ final class DashboardCharts
                 'data' => $porPunto->pluck('total')->map(fn ($v) => (int) $v)->all(),
             ],
         ];
+    }
+
+    /**
+     * Serie diaria (un solo mes) o mensual según el filtro activo.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @return array{labels: array<int, string>, data: array<int, int>, modo: string}
+     */
+    private static function serieTemporalConteo($query, string $column, DashboardFiltros $filtros): array
+    {
+        $meses = $filtros->mesesParaGrafico();
+        $dias = $filtros->diasParaGrafico();
+
+        if (count($meses) === 1 && $dias !== []) {
+            return [
+                'labels' => array_column($dias, 'label'),
+                'data' => self::conteoPorDias($query, $column, $dias, $filtros),
+                'modo' => 'diario',
+            ];
+        }
+
+        return [
+            'labels' => array_column($meses, 'nombre'),
+            'data' => self::conteoPorMes($query, $column, $meses, $filtros),
+            'modo' => 'mensual',
+        ];
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @param  array<int, array{fecha: string, label: string}>  $dias
+     * @return array<int, int>
+     */
+    private static function conteoPorDias($query, string $column, array $dias, DashboardFiltros $filtros): array
+    {
+        $data = [];
+        foreach ($dias as $dia) {
+            $q = (clone $query)->whereDate($column, $dia['fecha']);
+            if ($filtros->tieneRango()) {
+                $filtros->aplicarFecha($q, $column);
+            }
+            $data[] = $q->count();
+        }
+
+        return $data;
     }
 
     /**

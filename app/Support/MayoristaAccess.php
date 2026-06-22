@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Almacen;
+use App\Models\PedidoDistribucion;
 use App\Models\RutaDistribucion;
 use App\Models\Usuario;
 use Illuminate\Database\Eloquent\Builder;
@@ -34,9 +35,25 @@ final class MayoristaAccess
         return (int) $almacen->responsable_usuarioid === (int) $user->usuarioid;
     }
 
+    public static function puedeGestionarRutaDistribucion(?Usuario $user, RutaDistribucion $ruta): bool
+    {
+        if (RutaDistribucionCatalogo::esTrasladoPlantaMayorista($ruta)) {
+            return false;
+        }
+
+        if (UsuarioRol::esAdminGlobal($user)) {
+            return true;
+        }
+
+        $ruta->loadMissing('almacenOrigen');
+        $almacen = $ruta->almacenOrigen;
+
+        return $almacen !== null && self::puedeGestionarAlmacen($user, $almacen);
+    }
+
     public static function puedeGestionarTraslado(?Usuario $user, RutaDistribucion $ruta): bool
     {
-        if (! \App\Support\RutaDistribucionCatalogo::esTrasladoPlantaMayorista($ruta)) {
+        if (! RutaDistribucionCatalogo::esTrasladoPlantaMayorista($ruta)) {
             return false;
         }
 
@@ -80,6 +97,64 @@ final class MayoristaAccess
             ->map(fn ($id) => (int) $id)
             ->values()
             ->all();
+    }
+
+    /** Almacenes mayorista vinculados al usuario (responsable o almacén asignado). */
+    public static function idsAlmacenesOperados(?Usuario $user): array
+    {
+        if (! $user) {
+            return [];
+        }
+
+        if (UsuarioRol::esAdminGlobal($user)) {
+            return AlmacenAmbito::scope(Almacen::query()->where('activo', true), AlmacenAmbito::MAYORISTA)
+                ->pluck('almacenid')
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
+        }
+
+        $ids = collect();
+        if ($user->almacenid) {
+            $ids->push((int) $user->almacenid);
+        }
+
+        return $ids->merge(self::idsAlmacenesMayorista($user))
+            ->unique()
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    public static function puedeVerPedidoDistribucion(?Usuario $user, PedidoDistribucion $pedido): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        if (UsuarioRol::esAdminGlobal($user)) {
+            return true;
+        }
+
+        if (! UsuarioRol::puedeGestionarDistribucionMayorista($user)) {
+            return false;
+        }
+
+        $almacenId = (int) $pedido->almacen_mayorista_origenid;
+
+        if ($almacenId <= 0) {
+            return $pedido->tipo_solicitud === PedidoDistribucionCatalogo::TIPO_SOLICITUD_CUSTOM
+                && self::idsAlmacenesOperados($user) !== [];
+        }
+
+        return in_array($almacenId, self::idsAlmacenesOperados($user), true);
+    }
+
+    public static function asegurarPuedeVerPedido(?Usuario $user, PedidoDistribucion $pedido): void
+    {
+        if (! self::puedeVerPedidoDistribucion($user, $pedido)) {
+            abort(403, 'Este pedido no está dirigido a su almacén mayorista.');
+        }
     }
 
     public static function asegurarPuedeGestionar(?Usuario $user, Almacen $almacen): void

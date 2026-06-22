@@ -13,6 +13,7 @@ class ChecklistIncidenteEnvio extends Model
 
     protected $fillable = [
         'envioasignacionmultipleid',
+        'rutadistribucionid',
         'fecha',
         'observaciones',
     ];
@@ -20,6 +21,11 @@ class ChecklistIncidenteEnvio extends Model
     protected $casts = [
         'fecha' => 'datetime',
     ];
+
+    public function ruta(): BelongsTo
+    {
+        return $this->belongsTo(RutaDistribucion::class, 'rutadistribucionid', 'rutadistribucionid');
+    }
 
     public function asignacion(): BelongsTo
     {

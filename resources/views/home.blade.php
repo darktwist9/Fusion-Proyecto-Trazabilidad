@@ -254,7 +254,7 @@
                             @endcan
                             @can('lotes.update')
                             <a href="{{ route('actividades.create') }}" class="role-acc-tile">
-                                <span class="role-acc-tile__icon role-acc-tile__icon--prod"><i class="fas fa-tasks"></i></span>
+                                <span class="role-acc-tile__icon role-acc-tile__icon--log"><i class="fas fa-tasks"></i></span>
                                 <span><span class="role-acc-tile__lbl">Registrar actividad</span><span class="role-acc-tile__sub">Siembra, riego, cosecha…</span></span>
                             </a>
                             @endcan

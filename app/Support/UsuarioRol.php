@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\RutaDistribucion;
 use App\Models\Usuario;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -62,9 +63,44 @@ final class UsuarioRol
         return (bool) ($user && $user->hasRole('minorista'));
     }
 
+    public static function esJefeMayorista(?Usuario $user): bool
+    {
+        return self::esMayorista($user);
+    }
+
+    /** Rol operativo mayorista (incluye legacy jefe_mayorista). */
+    public static function esMayorista(?Usuario $user): bool
+    {
+        return (bool) ($user && $user->hasAnyRole(['mayorista', 'jefe_mayorista']));
+    }
+
+    public static function puedeGestionarDistribucionMayorista(?Usuario $user): bool
+    {
+        return self::esAdminGlobal($user) || self::esMayorista($user);
+    }
+
+    public static function puedeMarcarEnRutaDistribucion(?Usuario $user, RutaDistribucion $ruta): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        if (self::esAdminGlobal($user)) {
+            return true;
+        }
+
+        return self::esTransportista($user)
+            && (int) $ruta->transportista_usuarioid === (int) $user->usuarioid;
+    }
+
+    public static function puedePlanificarDistribucion(?Usuario $user): bool
+    {
+        return self::esAdminGlobal($user);
+    }
+
     public static function puedeGestionarDistribucionPlanta(?Usuario $user): bool
     {
-        return self::esAdminGlobal($user) || self::esJefePlanta($user);
+        return self::puedeGestionarDistribucionMayorista($user);
     }
 
     public static function gestionaCampo(?Usuario $user): bool
@@ -168,14 +204,22 @@ final class UsuarioRol
     {
         return match (strtolower((string) $nombre)) {
             'admin' => 'Administrador',
-            'agricultor' => 'Campo — operario',
-            'jefe_agricultor' => 'Jefe de campo',
-            'jefe_planta' => 'Jefe de planta',
-            'minorista' => 'Punto de venta',
-            'planta' => 'Planta — operario',
-            'transportista' => 'Transporte',
+            'agricultor' => 'Agricultor (Operario)',
+            'jefe_agricultor' => 'Jefe Agricultor',
+            'jefe_planta' => 'Jefe Planta',
+            'jefe_mayorista' => 'Mayorista',
+            'mayorista' => 'Mayorista',
+            'minorista' => 'Minorista',
+            'planta' => 'Planta (Operario)',
+            'transportista' => 'Transportista',
             default => ucfirst(str_replace('_', ' ', (string) $nombre)),
         };
+    }
+
+    /** @return list<string> Slugs legacy que no deben listarse en selectores de rol. */
+    public static function rolesLegacyOcultosEnSelector(): array
+    {
+        return ['jefe_mayorista'];
     }
 
     public static function puedeAprobarSolicitud(?Usuario $user, ?string $rolSolicitado): bool

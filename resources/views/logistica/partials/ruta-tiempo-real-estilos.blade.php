@@ -39,23 +39,24 @@
 .sim-vivo-head {
     background: #fff;
     border: 1px solid var(--rt-border);
-    border-top: 3px solid var(--rt-tipo-color, var(--rt-logistica));
-    border-radius: 10px;
-    padding: 1rem 1.15rem;
+    border-left: 4px solid var(--rt-tipo-color, var(--rt-logistica));
+    border-radius: 8px;
+    padding: .9rem 1.1rem;
     margin-bottom: 1rem;
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
     align-items: flex-start;
-    gap: .85rem 1.25rem;
+    gap: .75rem 1rem;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, .04);
 }
 .sim-vivo-head__main { min-width: 0; flex: 1; }
 .sim-vivo-head__code {
     display: block;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 1.05rem;
+    font-size: 1rem;
     font-weight: 700;
-    color: var(--rt-tipo-color, var(--rt-logistica));
+    color: var(--rt-text);
     letter-spacing: .01em;
 }
 .sim-vivo-head__label {
@@ -67,72 +68,60 @@
     margin-bottom: .15rem;
 }
 .sim-vivo-head__tipo {
-    display: inline-flex;
-    align-items: center;
-    gap: .35rem;
-    margin-top: .45rem;
-    padding: .2rem .55rem;
-    border-radius: 999px;
-    font-size: .72rem;
+    display: inline-block;
+    margin-top: .35rem;
+    font-size: .78rem;
     font-weight: 600;
-    color: var(--rt-tipo-color, var(--rt-logistica));
-    background: var(--rt-tipo-soft, var(--rt-logistica-soft));
-    border: 1px solid var(--rt-tipo-border, #d1e7d4);
+    color: var(--rt-muted);
 }
+.sim-vivo-head__tipo i { color: var(--rt-tipo-color, var(--rt-logistica)); margin-right: .25rem; }
 .sim-vivo-head__ruta {
-    margin-top: .65rem;
+    margin-top: .55rem;
+    padding-top: .55rem;
+    border-top: 1px solid var(--rt-border);
 }
 .sim-vivo-ruta-flow {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: .5rem .65rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: .5rem;
+    align-items: start;
+}
+@media (max-width: 767px) {
+    .sim-vivo-ruta-flow { grid-template-columns: 1fr; }
+    .sim-vivo-ruta-flecha { display: none; }
 }
 .sim-vivo-ruta-punto {
-    display: inline-flex;
-    align-items: flex-start;
-    gap: .45rem;
-    flex: 1 1 200px;
-    min-width: 0;
-    padding: .55rem .75rem;
-    border-radius: 8px;
-    font-size: .84rem;
+    font-size: .82rem;
     font-weight: 600;
     line-height: 1.4;
+    color: var(--rt-text);
 }
-.sim-vivo-ruta-punto i {
-    flex-shrink: 0;
-    margin-top: .15rem;
-    font-size: .78rem;
+.sim-vivo-ruta-punto__lbl {
+    display: block;
+    font-size: .65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--rt-muted);
+    margin-bottom: .15rem;
 }
-.sim-vivo-ruta-punto--origen {
-    color: #2c5530;
-    background: #f0f7f1;
-    border: 1px solid #d1e7d4;
-    border-left: 3px solid #2c5530;
-}
-.sim-vivo-ruta-punto--destino {
-    color: #9f1239;
-    background: #fff1f2;
-    border: 1px solid #fecdd3;
-    border-left: 3px solid #be123c;
-}
+.sim-vivo-ruta-punto i { display: none; }
+.sim-vivo-ruta-punto--origen .sim-vivo-ruta-punto__lbl { color: #2c5530; }
+.sim-vivo-ruta-punto--destino .sim-vivo-ruta-punto__lbl { color: #9f1239; }
 .sim-vivo-ruta-flecha {
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: #fff;
-    border: 1px solid var(--rt-tipo-border, #e2e8f0);
-    color: var(--rt-tipo-color, #64748b);
-    font-size: .95rem;
-    box-shadow: 0 1px 4px rgba(15, 23, 42, .06);
+    color: var(--rt-muted);
+    font-size: .85rem;
+    padding-top: 1.1rem;
+    text-align: center;
 }
-.sim-vivo-head__ruta-sep { color: var(--rt-tipo-color-mid, #94a3b8); margin: 0 .35rem; }
 .sim-vivo-head__actions { flex-shrink: 0; }
+.sim-live-badge.sim-live--espera {
+    background: #fffbeb !important;
+    color: #92400e !important;
+    border: 1px solid #fde68a;
+}
+.sim-live-pct.sim-live--espera { color: #b45309; }
+.sim-live-bar.sim-live--espera { background: #d97706 !important; }
 
 .rt-page-head {
     background: #fff;
@@ -278,6 +267,11 @@
     background: #e0f2fe !important;
     border: 1px solid #bae6fd;
     box-shadow: none;
+}
+.rt-estado-pill--espera {
+    color: #92400e !important;
+    background: #fffbeb !important;
+    border-color: #fde68a;
 }
 .rt-live-pct { font-weight: 800; }
 

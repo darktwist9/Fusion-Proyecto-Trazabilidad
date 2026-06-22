@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\DocumentoEntrega;
+use App\Support\DocumentoEntregaAcceso;
 use App\Support\DocumentoEntregaArchivo;
 use App\Support\DocumentoEntregaCatalogo;
 use App\Support\DocumentoEntregaTransportista;
@@ -11,6 +12,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DocumentoEntregaController extends Controller
@@ -23,9 +25,7 @@ class DocumentoEntregaController extends Controller
             ->orderByDesc('created_at');
 
         $user = auth()->user();
-        if ($user && $user->hasRole('transportista')) {
-            DocumentoEntregaTransportista::restringirConsultaTransportista($q, $user->usuarioid);
-        }
+        DocumentoEntregaAcceso::aplicarFiltroRol($q, $user);
 
         if ($request->filled('q')) {
             $term = $request->string('q')->trim()->toString();
@@ -63,7 +63,7 @@ class DocumentoEntregaController extends Controller
 
         $resumenDocumentos = [
             'total' => (clone $q)->count(),
-            'pods' => (clone $q)->where('tipo_documento', 'pod')->count(),
+            'guias' => (clone $q)->where('tipo_documento', 'guia_transporte')->count(),
             'hoy' => (clone $q)->whereDate('created_at', today())->count(),
         ];
 
@@ -131,7 +131,38 @@ class DocumentoEntregaController extends Controller
         $this->autorizarAccesoDocumento($documento);
         $documento->load(['usuario', 'pedido']);
 
-        return view('logistica.documentos.show', compact('documento'));
+        DocumentoEntregaArchivo::asegurarPdfOperativo($documento->fresh());
+        $documento->refresh();
+
+        $puedePrevisualizar = $documento->archivo_path
+            && Storage::disk('public')->exists($documento->archivo_path)
+            && str_ends_with(strtolower($documento->archivo_path), '.pdf');
+
+        return view('logistica.documentos.show', compact('documento', 'puedePrevisualizar'));
+    }
+
+    public function preview(DocumentoEntrega $documento): Response|RedirectResponse
+    {
+        $this->autorizarAccesoDocumento($documento);
+
+        DocumentoEntregaArchivo::asegurarPdfOperativo($documento->fresh());
+        $documento->refresh();
+
+        if (! $documento->archivo_path || ! Storage::disk('public')->exists($documento->archivo_path)) {
+            return redirect()
+                ->route('logistica.documentos.show', $documento)
+                ->with('error', 'El archivo no está disponible para previsualizar.');
+        }
+
+        $filename = $documento->metadata['original_name'] ?? ($documento->titulo.'.pdf');
+
+        return response()->file(
+            Storage::disk('public')->path($documento->archivo_path),
+            [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="'.$filename.'"',
+            ]
+        );
     }
 
     public function edit(DocumentoEntrega $documento): View
@@ -208,12 +239,9 @@ class DocumentoEntregaController extends Controller
 
     private function autorizarAccesoDocumento(DocumentoEntrega $documento): void
     {
-        $user = auth()->user();
-        if ($user && $user->hasRole('transportista')) {
-            abort_unless(
-                DocumentoEntregaTransportista::puedeVerDocumento($documento, $user->usuarioid),
-                403
-            );
-        }
+        abort_unless(
+            DocumentoEntregaAcceso::puedeVerDocumento($documento, auth()->user()),
+            403
+        );
     }
 }

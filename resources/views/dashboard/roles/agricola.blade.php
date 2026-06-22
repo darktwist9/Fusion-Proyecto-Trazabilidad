@@ -23,6 +23,7 @@
             <p class="role-panel-hero__sub">
                 Coordinación de lotes, cosechas, almacén agrícola y envíos hacia planta.
             </p>
+            @include('dashboard.partials.panel-admin-vista')
         </div>
 
         @include('partials.dashboard-alertas')
@@ -34,6 +35,9 @@
             'mostrarCultivo' => true,
             'mostrarLote' => true,
             'actionUrl' => url()->current(),
+            'mostrarUsuario' => $mostrarUsuario ?? false,
+            'usuariosPanel' => $usuariosPanel ?? collect(),
+            'etiquetaUsuarioPanel' => 'Usuario agrícola',
         ])
 
         <div class="role-metrics">
@@ -58,6 +62,33 @@
                 <p class="role-metric__lbl">Pedidos pend.</p>
             </div>
         </div>
+
+        @if(isset($charts))
+        <div class="row panel-chart-row">
+            <div class="col-lg-8 mb-4">
+                <div class="panel-chart-card">
+                    <div class="panel-chart-card__head">
+                        <h3><i class="fas fa-chart-area text-success mr-2"></i>Cosecha y actividades · {{ $etiquetaGrafico ?? $filtros->etiquetaGrafico() }}</h3>
+                    </div>
+                    <div class="panel-chart-wrap"><canvas id="chartAgrFlujo"></canvas></div>
+                </div>
+            </div>
+            <div class="col-lg-4 mb-4">
+                <div class="panel-chart-card">
+                    <div class="panel-chart-card__head">
+                        <h3><i class="fas fa-chart-pie text-warning mr-2"></i>Lotes por estado</h3>
+                    </div>
+                    <div class="panel-chart-wrap panel-chart-wrap--sm"><canvas id="chartAgrLotes"></canvas></div>
+                </div>
+            </div>
+        </div>
+        <div class="panel-chart-card mb-4">
+            <div class="panel-chart-card__head">
+                <h3><i class="fas fa-trophy text-warning mr-2"></i>Top cultivos por producción (kg)</h3>
+            </div>
+            <div class="panel-chart-wrap panel-chart-wrap--sm"><canvas id="chartAgrTop"></canvas></div>
+        </div>
+        @endif
 
         @if($lotesRecientes->isNotEmpty())
         <div class="role-block-card">
@@ -199,3 +230,53 @@
     </div>
 </section>
 @endsection
+
+@if(isset($charts))
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var c = @json($charts);
+    var grid = { color: '#f1f5f9' };
+    function emptyChart(id, msg) {
+        var el = document.getElementById(id);
+        if (el && el.parentElement) el.parentElement.innerHTML = '<div class="panel-chart-empty"><i class="fas fa-chart-line fa-2x mb-2 d-block"></i>' + msg + '</div>';
+    }
+    if (c.cosechasMes.labels.length) {
+        new Chart(document.getElementById('chartAgrFlujo'), {
+            type: 'line',
+            data: {
+                labels: c.cosechasMes.labels,
+                datasets: [
+                    { label: c.cosechasMes.label, data: c.cosechasMes.data, borderColor: '#22c55e', backgroundColor: '#22c55e33', fill: true, tension: .4, yAxisID: 'y' },
+                    { label: c.actividadesMes.label, data: c.actividadesMes.data, borderColor: '#0ea5e9', backgroundColor: '#0ea5e933', fill: true, tension: .4, yAxisID: 'y1' },
+                ],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: true, position: 'left', grid: grid, title: { display: true, text: 'kg' } },
+                    y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Actividades' } },
+                    x: { grid: grid },
+                },
+            },
+        });
+    } else { emptyChart('chartAgrFlujo', 'Sin datos de cosecha en el periodo'); }
+    if (c.lotesEstado.labels.length) {
+        new Chart(document.getElementById('chartAgrLotes'), {
+            type: 'doughnut',
+            data: { labels: c.lotesEstado.labels, datasets: [{ data: c.lotesEstado.data, backgroundColor: c.lotesEstado.colors, borderWidth: 0 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } },
+        });
+    } else { emptyChart('chartAgrLotes', 'Sin lotes registrados'); }
+    if (c.topCultivos.labels.length) {
+        new Chart(document.getElementById('chartAgrTop'), {
+            type: 'bar',
+            data: { labels: c.topCultivos.labels, datasets: [{ label: 'kg', data: c.topCultivos.data, backgroundColor: '#22c55ecc', borderRadius: 6 }] },
+            options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { beginAtZero: true, grid: grid }, y: { grid: { display: false } } } },
+        });
+    } else { emptyChart('chartAgrTop', 'Sin producción registrada'); }
+});
+</script>
+@endpush
+@endif

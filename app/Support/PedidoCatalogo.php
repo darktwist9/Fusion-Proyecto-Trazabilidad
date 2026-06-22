@@ -2,14 +2,18 @@
 
 namespace App\Support;
 
+use App\Models\CatalogoTamanoConteo;
 use App\Models\Cultivo;
+use App\Models\DetallePedido;
 use App\Models\EnvioAsignacionMultiple;
 use App\Models\Insumo;
 use App\Models\Pedido;
 use App\Models\ProduccionAlmacenamiento;
 use App\Models\TipoInsumo;
+use App\Services\CosechaPresentacionService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 
 final class PedidoCatalogo
 {
@@ -315,7 +319,13 @@ final class PedidoCatalogo
     public static function cosechasAgricolasDisponibles(): Collection
     {
         return ProduccionAlmacenamiento::query()
-            ->with(['produccion.lote.cultivo', 'unidadMedida', 'almacen'])
+            ->with([
+                'produccion.lote.cultivo',
+                'produccion.lote.catalogoTamanoConteo',
+                'catalogoTamanoConteo',
+                'unidadMedida',
+                'almacen',
+            ])
             ->whereNull('fechasalida')
             ->where('cantidad', '>', 0)
             ->whereHas('almacen', fn ($q) => AlmacenAmbito::scope($q, AlmacenAmbito::AGRICOLA))
@@ -396,13 +406,214 @@ final class PedidoCatalogo
         throw new \InvalidArgumentException('Producto de pedido no válido.');
     }
 
+    /** Insumo con calibres logísticos asociado a la referencia del formulario (insumo, cosecha o cultivo). */
+    public static function insumoIdParaCalibres(string $productoRef): ?int
+    {
+        if (str_starts_with($productoRef, 'insumo:')) {
+            $id = (int) substr($productoRef, 7);
+
+            return self::resolverInsumoIdConCalibres($id) ?? $id;
+        }
+
+        $cultivoNombre = null;
+        if (str_starts_with($productoRef, 'cosecha:')) {
+            $cosecha = ProduccionAlmacenamiento::query()
+                ->with(['produccion.lote.cultivo', 'catalogoTamanoConteo'])
+                ->find((int) substr($productoRef, 8));
+            if ($cosecha?->catalogotamanoconteoid && $cosecha->catalogoTamanoConteo) {
+                return (int) $cosecha->catalogoTamanoConteo->insumoid;
+            }
+            $cultivoNombre = $cosecha?->produccion?->lote?->cultivo?->nombre;
+        } elseif (str_starts_with($productoRef, 'cultivo:')) {
+            $cultivoNombre = Cultivo::query()->find((int) substr($productoRef, 8))?->nombre;
+        }
+
+        if ($cultivoNombre === null || trim($cultivoNombre) === '') {
+            return null;
+        }
+
+        CalibresVerdurasCatalogo::sincronizarParaNombreCultivo($cultivoNombre);
+
+        $insumoId = self::insumoVerduraPorNombreCultivo($cultivoNombre)?->insumoid
+            ?? self::insumoPorNombreCultivo($cultivoNombre)?->insumoid;
+
+        return $insumoId !== null ? (int) $insumoId : null;
+    }
+
+    /** Insumo verdura por raíz del cultivo (con o sin calibres). */
+    public static function insumoPorNombreCultivo(string $cultivoNombre): ?Insumo
+    {
+        $raiz = mb_strtolower(trim(explode(' ', trim($cultivoNombre))[0] ?? ''));
+        if ($raiz === '') {
+            return null;
+        }
+
+        return Insumo::query()
+            ->whereRaw('LOWER(nombre) LIKE ?', ['%'.$raiz.'%'])
+            ->orderBy('insumoid')
+            ->first();
+    }
+
     /**
-     * Stock disponible del producto en un almacén (null si no aplica, p. ej. cultivo genérico).
+     * Insumos relacionados (misma especie) para buscar calibres compartidos — p. ej. «Papa» y «Papa Rubiola».
+     *
+     * @return list<int>
+     */
+    public static function insumoIdsRelacionadosParaCalibres(int $insumoId): array
+    {
+        $insumo = Insumo::query()->find($insumoId);
+        if ($insumo === null) {
+            return [];
+        }
+
+        $ids = [$insumoId];
+        $raiz = mb_strtolower(trim(explode(' ', self::cultivoDesdeInsumo($insumo))[0] ?? ''));
+        if ($raiz === '') {
+            $raiz = mb_strtolower(trim(explode(' ', (string) $insumo->nombre)[0] ?? ''));
+        }
+
+        if ($raiz !== '') {
+            $relacionados = Insumo::query()
+                ->whereRaw('LOWER(nombre) LIKE ?', ['%'.$raiz.'%'])
+                ->pluck('insumoid')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+            $ids = array_values(array_unique(array_merge($ids, $relacionados)));
+        }
+
+        return $ids;
+    }
+
+    /**
+     * Calibres activos para un producto del wizard (insumo, cosecha o cultivo).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function listarCalibresParaProducto(string $productoRef, ?int $tipoEmpaqueId = null): array
+    {
+        if (! \Illuminate\Support\Facades\Schema::hasTable('catalogo_tamano_conteo')) {
+            return [];
+        }
+
+        $insumoId = self::insumoIdParaCalibres($productoRef);
+        if ($insumoId === null) {
+            return [];
+        }
+
+        CalibresVerdurasCatalogo::sincronizarParaInsumo($insumoId);
+
+        $insumoIds = self::insumoIdsRelacionadosParaCalibres($insumoId);
+
+        $base = \App\Models\CatalogoTamanoConteo::query()
+            ->with(['insumo:insumoid,nombre', 'tipoEmpaque'])
+            ->whereIn('insumoid', $insumoIds)
+            ->where('activo', true)
+            ->orderBy('nombre');
+
+        $coleccion = $base->get();
+
+        $deduplicada = self::deduplicarCalibresPorNombre($coleccion, $insumoId);
+
+        return $deduplicada->map(fn (\App\Models\CatalogoTamanoConteo $c) => [
+            'id' => (int) $c->catalogotamanoconteoid,
+            'id_producto' => (int) $c->insumoid,
+            'producto' => $c->insumo?->nombre,
+            'nombre' => $c->nombre,
+            'conteo_por_empaque' => (int) $c->conteo_por_empaque,
+            'peso_promedio_kg' => (float) $c->peso_promedio_kg,
+            'peso_promedio_unidad' => (float) $c->peso_promedio_kg,
+            'id_tipo_empaque' => $c->tipoempaqueid,
+            'tipo_empaque' => $c->tipoEmpaque?->nombre,
+        ])->values()->all();
+    }
+
+    /**
+     * Un calibre por nombre (p. ej. una Mediana, una Pequeña) — prioriza el insumo principal.
+     *
+     * @param  \Illuminate\Support\Collection<int, CatalogoTamanoConteo>  $coleccion
+     * @return \Illuminate\Support\Collection<int, CatalogoTamanoConteo>
+     */
+    private static function deduplicarCalibresPorNombre(\Illuminate\Support\Collection $coleccion, int $insumoPreferido): \Illuminate\Support\Collection
+    {
+        $ordenados = $coleccion->sortBy([
+            fn (CatalogoTamanoConteo $c) => (int) $c->insumoid === $insumoPreferido ? 0 : 1,
+            fn (CatalogoTamanoConteo $c) => self::ordenCalibrePorNombre($c->nombre),
+            fn (CatalogoTamanoConteo $c) => mb_strtolower(trim($c->nombre)),
+        ])->values();
+
+        $vistos = [];
+        $resultado = collect();
+
+        foreach ($ordenados as $calibre) {
+            $clave = mb_strtolower(trim($calibre->nombre));
+            if ($clave === '' || isset($vistos[$clave])) {
+                continue;
+            }
+            $vistos[$clave] = true;
+            $resultado->push($calibre);
+        }
+
+        return $resultado->sortBy(fn (CatalogoTamanoConteo $c) => self::ordenCalibrePorNombre($c->nombre))->values();
+    }
+
+    private static function ordenCalibrePorNombre(string $nombre): int
+    {
+        $n = mb_strtolower($nombre);
+
+        return match (true) {
+            str_contains($n, 'peque') => 1,
+            str_contains($n, 'median') => 2,
+            str_contains($n, 'grand') => 3,
+            str_contains($n, 'estándar') || str_contains($n, 'estandar') => 4,
+            default => 5,
+        };
+    }
+
+    private static function resolverInsumoIdConCalibres(int $insumoId): ?int
+    {
+        foreach (self::insumoIdsRelacionadosParaCalibres($insumoId) as $candidato) {
+            $tiene = \App\Models\CatalogoTamanoConteo::query()
+                ->where('insumoid', $candidato)
+                ->where('activo', true)
+                ->exists();
+            if ($tiene) {
+                return $candidato;
+            }
+        }
+
+        return null;
+    }
+
+    public static function insumoVerduraPorNombreCultivo(string $cultivoNombre): ?Insumo
+    {
+        $raiz = mb_strtolower(trim(explode(' ', trim($cultivoNombre))[0] ?? ''));
+        if ($raiz === '') {
+            return null;
+        }
+
+        if (! \Illuminate\Support\Facades\Schema::hasTable('catalogo_tamano_conteo')) {
+            return null;
+        }
+
+        return Insumo::query()
+            ->whereRaw('LOWER(nombre) LIKE ?', ['%'.$raiz.'%'])
+            ->whereExists(function ($q) {
+                $q->selectRaw('1')
+                    ->from('catalogo_tamano_conteo')
+                    ->whereColumn('catalogo_tamano_conteo.insumoid', 'insumo.insumoid')
+                    ->where('catalogo_tamano_conteo.activo', true);
+            })
+            ->orderBy('insumoid')
+            ->first();
+    }
+
+    /**
+     * Stock disponible en kilogramos (base logística del wizard).
      */
     public static function stockDisponibleProductoPedido(string $productoRef, ?int $almacenId = null): ?float
     {
         if (str_starts_with($productoRef, 'insumo:')) {
-            $insumo = Insumo::query()->find((int) substr($productoRef, 7));
+            $insumo = Insumo::query()->with('unidadMedida')->find((int) substr($productoRef, 7));
             if ($insumo === null) {
                 return null;
             }
@@ -410,11 +621,21 @@ final class PedidoCatalogo
                 return 0.0;
             }
 
-            return (float) $insumo->stock;
+            return round(app(\App\Services\AlmacenCapacidadService::class)->convertirAKg(
+                (float) $insumo->stock,
+                $insumo->unidadMedida
+            ), 4);
         }
 
         if (str_starts_with($productoRef, 'cosecha:')) {
-            $cosecha = ProduccionAlmacenamiento::query()->find((int) substr($productoRef, 8));
+            $cosecha = ProduccionAlmacenamiento::query()
+                ->with([
+                    'unidadMedida',
+                    'catalogoTamanoConteo',
+                    'produccion.lote.catalogoTamanoConteo',
+                    'produccion.unidadMedida',
+                ])
+                ->find((int) substr($productoRef, 8));
             if ($cosecha === null) {
                 return null;
             }
@@ -422,7 +643,117 @@ final class PedidoCatalogo
                 return 0.0;
             }
 
-            return (float) $cosecha->cantidad;
+            return self::stockKgCosecha($cosecha);
+        }
+
+        return null;
+    }
+
+    public static function stockKgCosecha(ProduccionAlmacenamiento $cosecha): float
+    {
+        $cosecha->loadMissing([
+            'unidadMedida',
+            'catalogoTamanoConteo',
+            'produccion.lote.catalogoTamanoConteo',
+            'produccion.unidadMedida',
+        ]);
+
+        $capacidad = app(\App\Services\AlmacenCapacidadService::class);
+        $abbr = mb_strtolower(trim($cosecha->unidadMedida?->abreviatura ?? 'kg'));
+        $esUnidad = in_array($abbr, ['und', 'un', 'u'], true)
+            || str_contains($abbr, 'und')
+            || str_contains($abbr, 'unidad');
+
+        if ($esUnidad) {
+            $calibre = $cosecha->catalogoTamanoConteo ?? $cosecha->produccion?->lote?->catalogoTamanoConteo;
+            if ($calibre === null) {
+                $calibreId = self::calibreSugeridoIdParaProducto('cosecha:'.$cosecha->produccionalmacenamientoid);
+                if ($calibreId) {
+                    $calibre = CatalogoTamanoConteo::query()->find($calibreId);
+                }
+            }
+            $unidades = (int) ($cosecha->cantidad_unidades ?? round((float) $cosecha->cantidad));
+            if ($calibre && (float) $calibre->peso_promedio_kg > 0 && $unidades > 0) {
+                return round($unidades * (float) $calibre->peso_promedio_kg, 4);
+            }
+        }
+
+        $presentacion = app(\App\Services\CosechaPresentacionService::class)->paraAlmacenamiento($cosecha);
+        $kg = (float) ($presentacion['kg'] ?? 0);
+        if ($kg > 0) {
+            return round($kg, 4);
+        }
+
+        return round($capacidad->convertirAKg((float) $cosecha->cantidad, $cosecha->unidadMedida), 4);
+    }
+
+    /** Reutiliza calibre ya registrado en cosecha, lote o siembra previa del mismo producto. */
+    public static function calibreSugeridoIdParaProducto(string $productoRef): ?int
+    {
+        if (! Schema::hasTable('catalogo_tamano_conteo')) {
+            return null;
+        }
+
+        if (str_starts_with($productoRef, 'cosecha:')) {
+            $cosecha = ProduccionAlmacenamiento::query()
+                ->with(['produccion.lote'])
+                ->find((int) substr($productoRef, 8));
+            if ($cosecha?->catalogotamanoconteoid) {
+                return (int) $cosecha->catalogotamanoconteoid;
+            }
+            if ($cosecha?->produccion?->lote?->catalogotamanoconteoid) {
+                return (int) $cosecha->produccion->lote->catalogotamanoconteoid;
+            }
+        }
+
+        if (str_starts_with($productoRef, 'insumo:')) {
+            $insumoId = (int) substr($productoRef, 7);
+            CalibresVerdurasCatalogo::sincronizarParaInsumo($insumoId);
+
+            $lote = \App\Models\Lote::query()
+                ->where('insumosemillaid', $insumoId)
+                ->whereNotNull('catalogotamanoconteoid')
+                ->orderByDesc('loteid')
+                ->first();
+            if ($lote?->catalogotamanoconteoid) {
+                return (int) $lote->catalogotamanoconteoid;
+            }
+
+            $ctx = app(\App\Services\PlanificacionCosechaService::class)->contexto($insumoId);
+
+            return isset($ctx['calibre_default_id']) ? (int) $ctx['calibre_default_id'] : null;
+        }
+
+        if (str_starts_with($productoRef, 'cultivo:')) {
+            $cultivoId = (int) substr($productoRef, 8);
+
+            $lote = \App\Models\Lote::query()
+                ->where('cultivoid', $cultivoId)
+                ->whereNotNull('catalogotamanoconteoid')
+                ->orderByDesc('loteid')
+                ->first();
+            if ($lote?->catalogotamanoconteoid) {
+                return (int) $lote->catalogotamanoconteoid;
+            }
+
+            $cosecha = ProduccionAlmacenamiento::query()
+                ->whereHas('produccion.lote', fn ($q) => $q->where('cultivoid', $cultivoId))
+                ->whereNotNull('catalogotamanoconteoid')
+                ->orderByDesc('fechaentrada')
+                ->first();
+            if ($cosecha?->catalogotamanoconteoid) {
+                return (int) $cosecha->catalogotamanoconteoid;
+            }
+
+            $nombre = Cultivo::query()->find($cultivoId)?->nombre;
+            if ($nombre) {
+                $insumoId = CalibresVerdurasCatalogo::sincronizarParaNombreCultivo($nombre);
+                if ($insumoId) {
+                    $ctx = app(\App\Services\PlanificacionCosechaService::class)->contexto($insumoId);
+
+                    return isset($ctx['calibre_default_id']) ? (int) $ctx['calibre_default_id'] : null;
+                }
+            }
         }
 
         return null;
@@ -491,5 +822,246 @@ final class PedidoCatalogo
         $limpio = preg_replace('/^(semilla\s+certificada|semilla|material de siembra)\s+/iu', '', $insumo->nombre);
 
         return trim((string) $limpio) ?: $insumo->nombre;
+    }
+
+    /** Prefijo interno para empaque/carga en observaciones del detalle. */
+    public const PREFIJO_META_CARGA = '@carga:';
+
+    public const SUFIJO_META_CARGA = '@';
+
+    /**
+     * Texto de empaque/unidades para guardar en observaciones del ítem.
+     */
+    public static function construirMetaCargaObservaciones(
+        string $forma,
+        ?string $cantidadPedido,
+        ?string $nombreEmpaque,
+        ?string $nombreCalibre,
+        ?string $observacionesUsuario = null
+    ): ?string {
+        $cantidadPedido = trim((string) $cantidadPedido);
+        $meta = null;
+
+        if ($forma === 'empaques' && $cantidadPedido !== '' && $nombreEmpaque) {
+            $meta = $cantidadPedido.' empaques · '.$nombreEmpaque;
+            if ($nombreCalibre) {
+                $meta .= ' · '.$nombreCalibre;
+            }
+        } elseif ($forma === 'unidades' && $cantidadPedido !== '') {
+            $meta = $cantidadPedido.' unidades';
+            if ($nombreCalibre) {
+                $meta .= ' · '.$nombreCalibre;
+            }
+        }
+
+        if ($meta === null) {
+            return $observacionesUsuario !== null && trim($observacionesUsuario) !== ''
+                ? trim($observacionesUsuario)
+                : null;
+        }
+
+        $usuario = trim((string) $observacionesUsuario);
+        $bloque = self::PREFIJO_META_CARGA.$meta.self::SUFIJO_META_CARGA;
+
+        return $usuario !== '' ? $bloque.' '.$usuario : $bloque;
+    }
+
+    /**
+     * Empaque o presentación legible a partir de observaciones del detalle.
+     */
+    public static function descripcionEmpaqueDetalle(?string $observaciones): ?string
+    {
+        if ($observaciones === null || trim($observaciones) === '') {
+            return null;
+        }
+
+        if (preg_match('/'.preg_quote(self::PREFIJO_META_CARGA, '/').'(.+?)'.preg_quote(self::SUFIJO_META_CARGA, '/').'/s', $observaciones, $coincidencias)) {
+            return trim($coincidencias[1]);
+        }
+
+        $primeraLinea = trim(strtok($observaciones, "\n"));
+        if ($primeraLinea === '') {
+            return null;
+        }
+
+        if (preg_match('/^\d+[\d.,]*\s+(empaques?|unidades)\b/iu', $primeraLinea)) {
+            return $primeraLinea;
+        }
+
+        return null;
+    }
+
+    public static function observacionesUsuarioDetalle(?string $observaciones): ?string
+    {
+        if ($observaciones === null || trim($observaciones) === '') {
+            return null;
+        }
+
+        if (preg_match('/'.preg_quote(self::PREFIJO_META_CARGA, '/').'.+?'.preg_quote(self::SUFIJO_META_CARGA, '/').'\s*(.*)/s', $observaciones, $coincidencias)) {
+            $resto = trim($coincidencias[1]);
+
+            return $resto !== '' ? $resto : null;
+        }
+
+        if (self::descripcionEmpaqueDetalle($observaciones) !== null) {
+            $lineas = preg_split("/\r\n|\n|\r/", $observaciones);
+            $resto = trim(implode("\n", array_slice($lineas, 1)));
+
+            return $resto !== '' ? $resto : null;
+        }
+
+        return trim($observaciones);
+    }
+
+    /**
+     * Presentación completa de un ítem de pedido: empaque, unidades estimadas y texto para UI.
+     *
+     * @return array{
+     *     kg: float,
+     *     kg_fmt: string,
+     *     empaque: ?string,
+     *     empaques: ?int,
+     *     unidades: ?int,
+     *     unidades_fmt: ?string,
+     *     linea: string,
+     *     linea_corta: string
+     * }
+     */
+    public static function presentacionDetalle(DetallePedido $detalle): array
+    {
+        $detalle->loadMissing([
+            'cosechaAlmacen.catalogoTamanoConteo.tipoEmpaque',
+            'insumo',
+        ]);
+
+        $kg = (float) $detalle->cantidad;
+        $kgFmt = number_format($kg, 2, ',', '.');
+        $meta = self::descripcionEmpaqueDetalle($detalle->observaciones);
+
+        $calibre = $detalle->cosechaAlmacen?->catalogoTamanoConteo
+            ?? self::resolverCalibrePorCultivo($detalle->cultivo_personalizado);
+
+        $estimacion = app(CosechaPresentacionService::class)->desdeKg($kg, $calibre);
+
+        $empaqueTexto = self::formatearTextoEmpaqueDetalle($meta, $estimacion);
+        $empaquesCount = null;
+        $unidadesCount = null;
+
+        if ($meta !== null) {
+            if (preg_match('/^([\d][\d.,]*)\s+empaques?\b/iu', $meta, $coincidencias)) {
+                $empaquesCount = (int) preg_replace('/[^\d]/', '', $coincidencias[1]);
+            }
+            if (preg_match('/^([\d][\d.,]*)\s+unidades?\b/iu', $meta, $coincidencias)) {
+                $unidadesCount = (int) preg_replace('/[^\d]/', '', $coincidencias[1]);
+            }
+        }
+
+        if ($unidadesCount === null && ($estimacion['ok'] ?? false)) {
+            $unidadesCount = (int) ($estimacion['unidades'] ?? 0);
+        }
+        if ($empaquesCount === null && ($estimacion['ok'] ?? false) && $empaqueTexto === null) {
+            $empaquesCount = (int) ($estimacion['empaques'] ?? 0);
+            $empaqueTexto = $estimacion['resumen'] ?? null;
+        }
+
+        if ($empaqueTexto === null && ($estimacion['ok'] ?? false)) {
+            $empaqueTexto = $estimacion['resumen'] ?? null;
+        }
+
+        $unidadesFmt = $unidadesCount !== null && $unidadesCount > 0
+            ? number_format($unidadesCount, 0, ',', '.')
+            : null;
+
+        $partes = [];
+        if ($empaqueTexto) {
+            $partes[] = $empaqueTexto;
+        }
+        $partes[] = $kgFmt.' kg';
+        if ($unidadesFmt !== null && $meta === null && ! str_contains(mb_strtolower($empaqueTexto ?? ''), 'unidad')) {
+            $partes[] = '~'.$unidadesFmt.' unidades est.';
+        } elseif ($unidadesFmt !== null && $meta !== null && ! str_contains(mb_strtolower($empaqueTexto ?? ''), 'unidad')) {
+            $partes[] = '~'.$unidadesFmt.' unidades';
+        }
+
+        $linea = implode(' · ', $partes);
+        $lineaCorta = $empaqueTexto
+            ? $empaqueTexto.' ('.$kgFmt.' kg)'
+            : ($unidadesFmt
+                ? $kgFmt.' kg · ~'.$unidadesFmt.' u.'
+                : $kgFmt.' kg');
+
+        return [
+            'kg' => $kg,
+            'kg_fmt' => $kgFmt,
+            'empaque' => $empaqueTexto,
+            'empaques' => $empaquesCount,
+            'unidades' => $unidadesCount,
+            'unidades_fmt' => $unidadesFmt,
+            'linea' => $linea,
+            'linea_corta' => $lineaCorta,
+        ];
+    }
+
+    public static function etiquetaCantidadDetalle(DetallePedido $detalle): string
+    {
+        return self::presentacionDetalle($detalle)['linea'];
+    }
+
+    private static function resolverCalibrePorCultivo(?string $cultivo): ?\App\Models\CatalogoTamanoConteo
+    {
+        $nombre = trim((string) $cultivo);
+        if ($nombre === '') {
+            return null;
+        }
+
+        $insumo = self::insumoVerduraPorNombreCultivo($nombre);
+        if ($insumo === null) {
+            return null;
+        }
+
+        $ctx = app(\App\Services\PlanificacionCosechaService::class)->contexto((int) $insumo->insumoid);
+        $calibreId = $ctx['calibre_default_id'] ?? null;
+        if (! $calibreId) {
+            return null;
+        }
+
+        return \App\Models\CatalogoTamanoConteo::query()
+            ->with('tipoEmpaque')
+            ->find((int) $calibreId);
+    }
+
+    /**
+     * Convierte metadatos @carga:…@ en texto legible (p. ej. "80 Sacos · 5.600 unidades").
+     *
+     * @param  array<string, mixed>  $estimacion
+     */
+    private static function formatearTextoEmpaqueDetalle(?string $meta, array $estimacion): ?string
+    {
+        if ($meta === null || trim($meta) === '') {
+            return null;
+        }
+
+        if (preg_match('/^([\d][\d.,]*)\s+unidades?\b/iu', $meta, $coincidencias)) {
+            $unidades = (int) preg_replace('/[^\d]/', '', $coincidencias[1]);
+
+            return number_format($unidades, 0, ',', '.').' unidades';
+        }
+
+        if (preg_match('/^([\d][\d.,]*)\s+empaques?\b/iu', $meta, $coincidencias)) {
+            $empaques = (int) preg_replace('/[^\d]/', '', $coincidencias[1]);
+            $partes = array_values(array_filter(array_map('trim', preg_split('/\s*·\s*/u', $meta) ?: [])));
+            $tipoNombre = $partes[1] ?? null;
+            $label = CosechaPresentacionService::etiquetaEmpaquePlural($tipoNombre);
+            $unidades = ($estimacion['ok'] ?? false) ? (int) ($estimacion['unidades'] ?? 0) : null;
+
+            $texto = number_format($empaques, 0, ',', '.').' '.$label;
+            if ($unidades !== null && $unidades > 0) {
+                $texto .= ' · '.number_format($unidades, 0, ',', '.').' unidades';
+            }
+
+            return $texto;
+        }
+
+        return $meta;
     }
 }

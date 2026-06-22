@@ -188,11 +188,38 @@ a.role-metric:hover {
     color: rgba(100, 116, 139, 0.16) !important;
 }
 
-/* Accesos rápidos */
+/* Accesos rápidos — iconos con color por categoría */
+.role-acc-tile__icon--prod,
+.planta-acc-tile__icon--prod { background: #dcfce7 !important; color: #166534 !important; border-color: #bbf7d0 !important; }
+.role-acc-tile__icon--log,
+.planta-acc-tile__icon--log { background: #dbeafe !important; color: #1d4ed8 !important; border-color: #bfdbfe !important; }
+.role-acc-tile__icon--adm,
+.planta-acc-tile__icon--adm { background: #f3e8ff !important; color: #6d28d9 !important; border-color: #e9d5ff !important; }
+.role-acc-tile__icon--com,
+.planta-acc-tile__icon--com { background: #fef3c7 !important; color: #b45309 !important; border-color: #fde68a !important; }
+.role-acc-tile__icon--trans { background: #ffedd5 !important; color: #c2410c !important; border-color: #fed7aa !important; }
+.role-acc-tile__icon--warn,
+.planta-acc-tile__icon--warn { background: #fee2e2 !important; color: #dc2626 !important; border-color: #fecaca !important; }
+.role-acc-tile__icon--teal { background: #ccfbf1 !important; color: #0f766e !important; border-color: #99f6e4 !important; }
+.role-acc-tile:hover .role-acc-tile__icon,
+.planta-acc-tile:hover .planta-acc-tile__icon { filter: brightness(.96); }
+
+.admin-weather {
+    background: #f8fafc !important;
+    color: #1e293b !important;
+    border: 1px solid #dee2e6 !important;
+    border-top: 3px solid #0ea5e9 !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+    padding: 1rem 1.15rem !important;
+    margin-bottom: 1.25rem;
+}
+.admin-weather .weather-temp { color: #1e293b !important; font-weight: 700 !important; }
+.admin-weather .weather-desc,
+.admin-weather .weather-details { color: #64748b !important; opacity: 1 !important; }
+
 .role-acc-tile__icon,
 .planta-acc-tile__icon {
-    background: #f1f5f9 !important;
-    color: #475569 !important;
     box-shadow: none !important;
     border: 1px solid #e2e8f0;
     width: 36px !important;
@@ -220,25 +247,22 @@ a.role-metric:hover {
     border-bottom: 1px solid #e2e8f0 !important;
 }
 
-    background: #f8fafc !important;
-    color: #1e293b !important;
-    border: 1px solid #dee2e6 !important;
-    border-top: 3px solid #0ea5e9 !important;
-    border-radius: 8px !important;
-    box-shadow: none !important;
-}
-.admin-weather .weather-temp { color: #1e293b !important; font-weight: 700 !important; }
-.admin-weather .weather-desc,
-.admin-weather .weather-details { color: #64748b !important; opacity: 1 !important; }
 .activity-icon {
-    background: #f1f5f9 !important;
-    color: #475569 !important;
-    border: 1px solid #e2e8f0;
     border-radius: 8px !important;
     width: 36px !important;
     height: 36px !important;
     font-size: .85rem !important;
+    border: 1px solid transparent;
 }
+.activity-riego { background: #dbeafe !important; color: #2563eb !important; border-color: #bfdbfe !important; }
+.activity-siembra { background: #dcfce7 !important; color: #16a34a !important; border-color: #bbf7d0 !important; }
+.activity-cosecha { background: #fef3c7 !important; color: #d97706 !important; border-color: #fde68a !important; }
+.activity-fertilizacion { background: #f3e8ff !important; color: #7c3aed !important; border-color: #e9d5ff !important; }
+.activity-plagas { background: #fee2e2 !important; color: #dc2626 !important; border-color: #fecaca !important; }
+.activity-labranza { background: #ffedd5 !important; color: #c2410c !important; border-color: #fed7aa !important; }
+.activity-poda { background: #ecfdf5 !important; color: #059669 !important; border-color: #a7f3d0 !important; }
+.activity-monitoreo { background: #e0f2fe !important; color: #0284c7 !important; border-color: #bae6fd !important; }
+.activity-default { background: #f1f5f9 !important; color: #475569 !important; border-color: #e2e8f0 !important; }
 .alert-icon {
     background: #fffbeb !important;
     color: #b45309 !important;
@@ -338,7 +362,18 @@ a.role-metric:hover {
 .planta-panel-hero__sub { color: #64748b !important; }
 .planta-metric__val { color: #1e293b !important; font-weight: 700 !important; }
 .planta-metric__lbl { color: #64748b !important; opacity: 1 !important; }
-.planta-acc-card { border: 1px solid #dee2e6 !important; border-radius: 8px !important; box-shadow: none !important; }
+.planta-acc-card { border: 1px solid #dee2e6 !important; border-radius: 8px !important; box-shadow: none !important; overflow: hidden; background: #fff; }
+.planta-acc-card__head {
+    background: #f8fafc !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    padding: .9rem 1.25rem !important;
+}
+.planta-acc-card__head h3 { font-size: .95rem; font-weight: 700; color: #1e293b; margin: 0; }
+.planta-acc-tile__icon {
+    width: 36px; height: 36px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .88rem; flex-shrink: 0;
+}
 
 /* Filtros dashboard */
 .dash-filtros-card { border-radius: 8px !important; box-shadow: none !important; border: 1px solid #dee2e6 !important; }

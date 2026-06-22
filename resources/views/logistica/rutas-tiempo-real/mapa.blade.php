@@ -30,8 +30,20 @@
     width:32px;height:32px;border-radius:50%;
     border:2px solid #fff;color:#fff;
     display:flex!important;align-items:center;justify-content:center;
-    box-shadow:0 3px 10px rgba(0,0,0,.4);
+    box-shadow:0 2px 6px rgba(0,0,0,.35);
+    cursor:pointer;
 }
+.leaflet-div-icon.rt-parada-global{
+    width:auto!important;height:auto!important;margin:0!important;
+    background:transparent!important;border:none!important;
+}
+.rt-popup-resumen{min-width:200px;font-size:.82rem;line-height:1.35}
+.rt-popup-titulo{font-weight:700;color:#1e293b;font-size:.9rem}
+.rt-popup-sub{color:#64748b;font-size:.75rem;margin-bottom:.45rem}
+.rt-popup-line{color:#334155;margin:.2rem 0}
+.rt-popup-line i{width:14px;color:#64748b;margin-right:.35rem}
+.rt-popup-badge{display:inline-block;margin-left:.25rem;padding:.1rem .4rem;border-radius:4px;background:#eff6ff;color:#1d4ed8;font-size:.68rem;font-weight:600}
+.rt-popup-badge--wait{background:#fffbeb;color:#92400e}
 </style>
 @endpush
 
@@ -101,5 +113,5 @@
 
 @push('scripts')
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="{{ asset('js/simulacion-mapa-global.js') }}?v=1"></script>
+<script src="{{ asset('js/simulacion-mapa-global.js') }}?v=2"></script>
 @endpush

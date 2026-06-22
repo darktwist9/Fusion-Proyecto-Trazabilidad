@@ -531,7 +531,7 @@
                                 </td>
                                 <td><span class="badge badge-{{ $badge['clase'] }} px-2 py-1">{{ $badge['etiqueta'] }}</span></td>
                                 <td>
-                                    <a href="{{ route('punto-venta.rutas.show', $ruta) }}" class="ruta-plan-btn-ver" title="Ver detalle">
+                                    <a href="{{ \App\Support\RutaDistribucionNavegacion::urlVer($ruta) }}" class="ruta-plan-btn-ver" title="Ver detalle">
                                         <i class="fas fa-eye"></i>
                                     </a>
                                 </td>

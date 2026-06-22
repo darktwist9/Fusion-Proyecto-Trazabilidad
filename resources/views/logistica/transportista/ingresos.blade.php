@@ -14,9 +14,15 @@
 @endpush
 
 @section('content')
+@php
+    $urlIngresos = route('logistica.transportista.ingresos', $filtros->queryParams());
+@endphp
 <div class="content-header">
     <div class="container-fluid d-flex flex-wrap justify-content-between align-items-center">
-        <p class="text-muted mb-0">Ingresos por servicios de transporte completados (bolivianos).</p>
+        <div>
+            <p class="text-muted mb-1">Ingresos por servicios de transporte completados (bolivianos).</p>
+            @include('dashboard.partials.panel-admin-vista')
+        </div>
         <a href="{{ route('logistica.asignaciones.listado') }}" class="btn btn-outline-secondary btn-sm">
             <i class="fas fa-arrow-left mr-1"></i> Mis envíos
         </a>
@@ -28,6 +34,9 @@
         @include('dashboard.partials.filtros', [
             'filtros' => $filtros,
             'actionUrl' => route('logistica.transportista.ingresos'),
+            'mostrarUsuario' => $mostrarUsuario ?? false,
+            'usuariosPanel' => $usuariosPanel ?? collect(),
+            'etiquetaUsuarioPanel' => 'Transportista',
         ])
 
         <div class="row mb-3">
@@ -73,6 +82,9 @@
                             <th>Tipo</th>
                             <th>Código</th>
                             <th>Descripción</th>
+                            @if($vistaTodosUsuarios ?? false)
+                            <th>Transportista</th>
+                            @endif
                             <th>Fecha</th>
                             <th class="text-right">Monto (Bs)</th>
                             <th></th>
@@ -81,9 +93,12 @@
                     <tbody>
                         @forelse($servicios as $servicio)
                         <tr>
-                            <td><span class="badge badge-{{ $servicio['tipo'] === 'agricola' ? 'success' : 'primary' }}">{{ $servicio['tipo_etiqueta'] }}</span></td>
+                            <td><span class="badge badge-{{ in_array($servicio['tipo'], ['agricola'], true) ? 'success' : ( $servicio['tipo'] === 'planta_mayorista' ? 'warning' : 'primary') }}">{{ $servicio['tipo_etiqueta'] }}</span></td>
                             <td class="font-weight-bold">{{ $servicio['codigo'] }}</td>
                             <td>{{ $servicio['descripcion'] }}</td>
+                            @if($vistaTodosUsuarios ?? false)
+                            <td class="text-muted small">{{ $servicio['transportista'] ?? '—' }}</td>
+                            @endif
                             <td class="text-muted">{{ $servicio['fecha']?->format('d/m/Y') ?? '—' }}</td>
                             <td class="text-right font-weight-bold text-success">{{ number_format($servicio['costo_bs'], 2, ',', '.') }}</td>
                             <td class="text-nowrap">
@@ -92,7 +107,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="6" class="text-center text-muted py-5">
+                            <td colspan="{{ ($vistaTodosUsuarios ?? false) ? 7 : 6 }}" class="text-center text-muted py-5">
                                 No hay servicios completados con costo registrado en este periodo.
                             </td>
                         </tr>
@@ -101,7 +116,7 @@
                     @if($servicios->isNotEmpty())
                     <tfoot class="bg-light">
                         <tr>
-                            <th colspan="4" class="text-right">Total periodo:</th>
+                            <th colspan="{{ ($vistaTodosUsuarios ?? false) ? 5 : 4 }}" class="text-right">Total periodo:</th>
                             <th class="text-right text-success">{{ number_format($resumen['total_bs'], 2, ',', '.') }} Bs</th>
                             <th></th>
                         </tr>

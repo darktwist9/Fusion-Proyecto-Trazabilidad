@@ -5,10 +5,13 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\Almacen;
 use App\Models\RutaDistribucion;
+use App\Services\RecepcionPlantaMayoristaService;
 use App\Services\SimulacionRutaService;
 use App\Services\TrasladoPlantaMayoristaService;
 use App\Support\AlmacenAmbito;
+use App\Support\EnvioTrayectoCatalogo;
 use App\Support\MayoristaAccess;
+use App\Support\PlantaAccess;
 use App\Support\RutaDistribucionCatalogo;
 use App\Support\SimulacionRutaCatalogo;
 use App\Support\UbicacionGpsParser;
@@ -20,7 +23,8 @@ use Illuminate\View\View;
 class TrasladoPlantaMayoristaController extends Controller
 {
     public function __construct(
-        private readonly TrasladoPlantaMayoristaService $traslados
+        private readonly TrasladoPlantaMayoristaService $traslados,
+        private readonly RecepcionPlantaMayoristaService $recepcion,
     ) {}
 
     public function create(): View
@@ -33,32 +37,44 @@ class TrasladoPlantaMayoristaController extends Controller
         $user = $request->user();
         abort_unless($this->puedeVerListado($user), 403);
 
-        $query = RutaDistribucion::query()
-            ->where('tipo_ruta', RutaDistribucionCatalogo::TIPO_RUTA_PLANTA_MAYORISTA)
-            ->with(['almacenPlantaOrigen', 'almacenMayoristaDestino', 'transportista', 'detallesTraslado'])
-            ->orderByDesc('rutadistribucionid');
+        $esVistaMayorista = $request->routeIs('almacen-mayorista.traslados-planta.*');
+        $filtro = (string) $request->query('filtro', RecepcionPlantaMayoristaService::FILTRO_TODOS);
 
-        if (UsuarioRol::esMayorista($user) && ! UsuarioRol::esAdminGlobal($user)) {
-            $ids = MayoristaAccess::idsAlmacenesMayorista($user);
-            $query->whereIn('almacen_mayorista_destinoid', $ids);
-        }
+        $query = $this->recepcion->queryListado($user, $esVistaMayorista ? $filtro : null)
+            ->with(['almacenPlantaOrigen', 'almacenMayoristaDestino', 'transportista', 'detallesTraslado', 'firmaTransportista', 'firmaRecepcion']);
 
         $traslados = $query->paginate(15)->withQueryString();
-        $pendientesCount = (clone $query)->where('estado', RutaDistribucionCatalogo::ESTADO_PENDIENTE_APROBACION)->count();
+        $pendientesCount = RutaDistribucion::query()
+            ->where('tipo_ruta', RutaDistribucionCatalogo::TIPO_RUTA_PLANTA_MAYORISTA)
+            ->where('estado', RutaDistribucionCatalogo::ESTADO_PENDIENTE_APROBACION)
+            ->when(
+                UsuarioRol::esMayorista($user) && ! UsuarioRol::esAdminGlobal($user),
+                fn ($q) => $q->whereIn('almacen_mayorista_destinoid', MayoristaAccess::idsAlmacenesMayorista($user) ?: [-1])
+            )
+            ->count();
 
-        $esVistaMayorista = $request->routeIs('almacen-mayorista.traslados-planta.*');
+        $conteosRecepcion = $esVistaMayorista ? $this->recepcion->conteos($user) : null;
+        $estadosRecepcion = [];
+        if ($esVistaMayorista) {
+            foreach ($traslados as $t) {
+                $estadosRecepcion[$t->rutadistribucionid] = $this->recepcion->estadoRecepcion($t);
+            }
+        }
 
         return view('logistica.traslados-planta.index', [
             'traslados' => $traslados,
             'pendientesCount' => $pendientesCount,
             'esVistaMayorista' => $esVistaMayorista,
             'rutaPrefijo' => $esVistaMayorista ? 'almacen-mayorista.traslados-planta' : 'logistica.traslados-planta',
+            'filtroRecepcion' => $filtro,
+            'conteosRecepcion' => $conteosRecepcion,
+            'estadosRecepcion' => $estadosRecepcion,
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        abort_unless($this->puedeGestionarPlanta(), 403);
+        EnvioTrayectoCatalogo::autorizarTrayecto($request->user(), EnvioTrayectoCatalogo::TRAYECTO_MAYORISTA);
 
         $data = $request->validate([
             'almacen_planta_origenid' => 'required|integer|exists:almacen,almacenid',
@@ -98,13 +114,20 @@ class TrasladoPlantaMayoristaController extends Controller
 
         return redirect()
             ->route('logistica.traslados-planta.show', $ruta)
-            ->with('success', 'Traslado registrado. El mayorista recibirá una alerta para aceptar o rechazar la recepción.');
+            ->with('success', 'Traslado registrado. El jefe de planta debe aprobarlo antes de que el transportista pueda salir.');
     }
 
-    public function show(Request $request, RutaDistribucion $ruta): View
+    public function show(Request $request, RutaDistribucion $ruta): View|RedirectResponse
     {
         abort_unless($ruta->esTrasladoPlantaMayorista(), 404);
         $this->autorizarVer($ruta);
+
+        $user = auth()->user();
+        if (\App\Support\RutaDistribucionNavegacion::transportistaDebeUsarCierre($ruta, $user)) {
+            return redirect()
+                ->route('logistica.traslados-planta.cierre.panel', $ruta)
+                ->with('info', 'Complete el cierre operativo de este traslado.');
+        }
 
         $ruta->load([
             'transportista',
@@ -114,12 +137,16 @@ class TrasladoPlantaMayoristaController extends Controller
             'paradas',
             'detallesTraslado.insumo.unidadMedida',
             'aprobadoPor',
+            'checklistCondicionVehiculo',
         ]);
 
         $esVistaMayorista = $request->routeIs('almacen-mayorista.traslados-planta.*');
         $user = auth()->user();
-        $pendienteAprobacion = RutaDistribucionCatalogo::pendienteAprobacionMayorista($ruta);
-        $puedeGestionarMayorista = MayoristaAccess::puedeGestionarTraslado($user, $ruta);
+        $pendienteAprobacion = RutaDistribucionCatalogo::pendienteAprobacionPlanta($ruta);
+        $puedeAprobarPlanta = PlantaAccess::puedeAprobarTraslado($user, $ruta);
+
+        $estadoRecepcion = $esVistaMayorista ? $this->recepcion->estadoRecepcion($ruta) : null;
+        $resumenCierre = app(\App\Services\CierreEnvioPlantaMayoristaService::class)->resumenPasos($ruta);
 
         return view('logistica.traslados-planta.show', [
             'ruta' => $ruta,
@@ -127,18 +154,22 @@ class TrasladoPlantaMayoristaController extends Controller
             'simulacionActiva' => SimulacionRutaCatalogo::simulacionActivaDistribucion($ruta),
             'puedeEmpezar' => SimulacionRutaCatalogo::usuarioPuedeEmpezarDistribucion($user, $ruta),
             'pendienteAprobacion' => $pendienteAprobacion,
-            'puedeGestionarMayorista' => $puedeGestionarMayorista,
+            'puedeAprobarPlanta' => $puedeAprobarPlanta,
+            'documentoEntrega' => app(\App\Services\CierreEnvioPlantaMayoristaService::class)->documentoEntrega($ruta),
             'rutaPrefijo' => $esVistaMayorista ? 'almacen-mayorista.traslados-planta' : 'logistica.traslados-planta',
             'volverUrl' => $esVistaMayorista
                 ? route('almacen-mayorista.traslados-planta.index')
                 : route('logistica.asignaciones.index'),
+            'esVistaMayorista' => $esVistaMayorista,
+            'estadoRecepcion' => $estadoRecepcion,
+            'resumenCierre' => $resumenCierre,
         ]);
     }
 
     public function aceptar(RutaDistribucion $ruta): RedirectResponse
     {
         abort_unless($ruta->esTrasladoPlantaMayorista(), 404);
-        abort_unless(MayoristaAccess::puedeGestionarTraslado(auth()->user(), $ruta), 403);
+        abort_unless(PlantaAccess::puedeAprobarTraslado(auth()->user(), $ruta), 403);
 
         try {
             $this->traslados->aceptar($ruta, auth()->user());
@@ -152,13 +183,13 @@ class TrasladoPlantaMayoristaController extends Controller
 
         return redirect()
             ->route($rutaPrefijo.'.show', $ruta)
-            ->with('success', 'Traslado aceptado. El transportista puede marcar en ruta cuando salga de planta.');
+            ->with('success', 'Traslado aprobado por planta. El transportista puede marcar en ruta cuando salga.');
     }
 
     public function rechazar(Request $request, RutaDistribucion $ruta): RedirectResponse
     {
         abort_unless($ruta->esTrasladoPlantaMayorista(), 404);
-        abort_unless(MayoristaAccess::puedeGestionarTraslado(auth()->user(), $ruta), 403);
+        abort_unless(PlantaAccess::puedeAprobarTraslado(auth()->user(), $ruta), 403);
 
         $data = $request->validate(['motivo_rechazo' => 'nullable|string|max:500']);
 
@@ -168,9 +199,12 @@ class TrasladoPlantaMayoristaController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return redirect()
-            ->route('almacen-mayorista.traslados-planta.index')
-            ->with('success', 'Traslado rechazado. La planta fue notificada.');
+        $volver = request()->routeIs('almacen-mayorista.traslados-planta.*')
+            ? route('almacen-mayorista.traslados-planta.index')
+            : route('pedidos.index');
+
+        return redirect($volver)
+            ->with('success', 'Traslado rechazado por planta.');
     }
 
     public function empezarRuta(RutaDistribucion $ruta, SimulacionRutaService $simulacion): RedirectResponse
@@ -184,7 +218,7 @@ class TrasladoPlantaMayoristaController extends Controller
         }
 
         if (! RutaDistribucionCatalogo::puedeEmpezarTrasladoPlanta($ruta)) {
-            return back()->with('error', 'El traslado debe ser aceptado por el mayorista antes de marcar en ruta.');
+            return back()->with('error', 'El traslado debe ser aprobado por el jefe de planta antes de marcar en ruta.');
         }
 
         try {
@@ -194,11 +228,11 @@ class TrasladoPlantaMayoristaController extends Controller
         }
 
         $redirect = redirect()
-            ->route('logistica.traslados-planta.show', $ruta)
-            ->with('success', 'Traslado marcado en ruta. El recorrido simulado está en marcha hacia el almacén mayorista.');
+            ->route('logistica.traslados-planta.cierre.panel', $ruta)
+            ->with('success', 'Traslado marcado en ruta. Confirme la llegada cuando llegue al almacén mayorista.');
 
         if ($this->puedeGestionarPlanta()) {
-            $redirect->with('info', 'Puede seguir el vehículo en Logística → Ruta en tiempo real.');
+            $redirect->with('info', 'Los supervisores pueden seguir el vehículo en Logística → Ruta en tiempo real.');
         }
 
         return $redirect;

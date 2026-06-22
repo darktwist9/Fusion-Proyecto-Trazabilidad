@@ -59,6 +59,7 @@
                     <p class="inicio-dash-hero__sub">
                         Hola, <strong>{{ auth()->user()->nombre }}</strong> · Pedidos, inventario y puntos de venta · {{ $filtros->etiquetaPeriodo() }}
                     </p>
+                    @include('dashboard.partials.panel-admin-vista')
                 </div>
                 @can('pedidos_distribucion.create')
                 <a href="{{ route('punto-venta.pedidos.create') }}" class="inicio-dash-link-panel">
@@ -73,6 +74,9 @@
         @include('dashboard.partials.filtros', [
             'filtros' => $filtros,
             'actionUrl' => url()->current(),
+            'mostrarUsuario' => $mostrarUsuario ?? false,
+            'usuariosPanel' => $usuariosPanel ?? collect(),
+            'etiquetaUsuarioPanel' => 'Minorista',
         ])
 
         <div class="inicio-kpi-row">

@@ -3,18 +3,27 @@
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Models\Almacen;
 use App\Models\EnvioAsignacionMultiple;
 use App\Models\Pedido;
+use App\Models\Insumo;
+use App\Models\PuntoVenta;
 use App\Models\Usuario;
-use App\Models\Almacen;
+use App\Models\Vehiculo;
+use App\Services\TransporteCapacidadService;
+use App\Support\LocalOrgTrackFallback;
+use App\Support\PedidoDistribucionCatalogo;
+use App\Support\PuntoVentaAccess;
 use App\Services\CostoEnvioRutaService;
 use App\Services\NotificacionUsuarioService;
 use App\Services\RecepcionPlantaEnvioService;
 use App\Support\AlmacenAmbito;
 use App\Support\EnvioAsignacionEstadoCatalogo;
-use App\Support\EnvioPedidoService;
 use App\Support\EnvioListadoService;
+use App\Support\EnvioPedidoService;
+use App\Support\EnvioTrayectoCatalogo;
 use App\Support\PedidoCatalogo;
+use App\Support\RutaDistribucionCatalogo;
 use App\Support\RutaPorCallesService;
 use App\Support\UbicacionGpsParser;
 use App\Support\UsuarioRol;
@@ -37,7 +46,17 @@ class PedidoController extends Controller
 
     public function create()
     {
+        $user = request()->user();
+        abort_unless(EnvioTrayectoCatalogo::puedeCrearAlguno($user), 403);
+
         AlmacenAmbito::asegurarAmbitosEnRegistros();
+
+        $trayectosPermitidos = EnvioTrayectoCatalogo::trayectosPermitidos($user);
+        $queryDestino = request()->string('destino')->toString() ?: null;
+        if ($queryDestino !== null && $queryDestino !== '' && ! EnvioTrayectoCatalogo::puedeUsarTrayecto($user, $queryDestino)) {
+            abort(403, 'Su rol no puede registrar envíos de este tipo de trayecto.');
+        }
+        $destinoInicial = EnvioTrayectoCatalogo::destinoInicialPermitido($user, $queryDestino);
 
         $numeroSolicitud = PedidoCatalogo::generarNumeroSolicitud();
 
@@ -57,14 +76,53 @@ class PedidoController extends Controller
             'label' => $a->nombre,
         ])->values()->all();
 
-        return view('pedidos.create', [
+        return view('pedidos.create', array_merge([
             'numeroSolicitud' => $numeroSolicitud,
+            'codigoTrasladoPreview' => RutaDistribucionCatalogo::generarCodigoTraslado(),
             'hubLat' => RutaPorCallesService::HUB_LAT,
             'hubLng' => RutaPorCallesService::HUB_LNG,
             'filtroAlmacenesAgricola' => $filtroAlmacenesAgricola,
             'filtroAlmacenesPlanta' => $filtroAlmacenesPlanta,
             'almacenesMapa' => $this->almacenesParaMapaEnvio(),
-        ]);
+            'almacenesMapaTraslado' => $this->almacenesParaMapaTraslado(),
+            'puntosMapaPdv' => $this->puntosMapaDistribucionPdv(request()->user()),
+            'destinoInicial' => $destinoInicial,
+            'trayectosPermitidos' => $trayectosPermitidos,
+            'mostrarSelectorTrayecto' => count($trayectosPermitidos) > 1,
+            'catalogosEmpaque' => [
+                'tiposEmpaque' => LocalOrgTrackFallback::tiposEmpaqueCatalogList(LocalOrgTrackFallback::AMBITO_EMPAQUE_AGRICOLA),
+                'tamanoConteo' => LocalOrgTrackFallback::tamanoConteoCatalogList(),
+            ],
+        ], $this->datosVistaDistribucionPdv(request()->user())));
+    }
+
+    /** @return array<string, mixed> */
+    private function datosVistaDistribucionPdv(?Usuario $user): array
+    {
+        $user = $user ?? auth()->user();
+        $esMinorista = $user && UsuarioRol::esMinorista($user);
+        $esAdmin = $user && UsuarioRol::esAdminGlobal($user);
+
+        $puntosMinorista = $user
+            ? PuntoVentaAccess::scopePuntosDelUsuario(
+                PuntoVenta::query()->where('activo', true)->with('minorista')->orderBy('nombre'),
+                $user
+            )->get()
+            : collect();
+
+        return [
+            'numeroSolicitudDist' => PedidoDistribucionCatalogo::generarNumeroSolicitud(),
+            'puntosMinorista' => $puntosMinorista,
+            'esMinoristaPdv' => $esMinorista,
+            'esAdminPdv' => $esAdmin,
+            'oldMinoristaId' => old('minorista_usuarioid'),
+            'oldMinoristaLabel' => '',
+            'oldPuntoLabel' => '',
+            'oldPuntoId' => old('puntoventaid'),
+            'oldAlmacenLabel' => '',
+            'oldProductoLabel' => '',
+            'oldProductoUnidad' => '',
+        ];
     }
 
     /** @return array<int, array<string, mixed>> */
@@ -101,8 +159,106 @@ class PedidoController extends Controller
         return $items;
     }
 
+    /** @return array<int, array<string, mixed>> */
+    private function almacenesParaMapaTraslado(): array
+    {
+        $items = [];
+
+        foreach ([AlmacenAmbito::PLANTA, AlmacenAmbito::MAYORISTA] as $ambito) {
+            $almacenes = AlmacenAmbito::scope(
+                Almacen::query()->where('activo', true),
+                $ambito
+            )->orderBy('nombre')->get();
+
+            foreach ($almacenes as $almacen) {
+                $resuelto = UbicacionGpsParser::resolverAlmacen(
+                    (int) $almacen->almacenid,
+                    $almacen->nombre,
+                    $almacen->ubicacion
+                );
+                $items[] = [
+                    'id' => $almacen->almacenid,
+                    'label' => $almacen->nombre,
+                    'extra' => [
+                        'lat' => $resuelto['lat'],
+                        'lng' => $resuelto['lng'],
+                        'direccion' => $resuelto['direccion'],
+                        'ambito' => $almacen->ambito ?? $ambito,
+                    ],
+                ];
+            }
+        }
+
+        return $items;
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function puntosMapaDistribucionPdv(?Usuario $user): array
+    {
+        $items = [];
+
+        $mayoristas = AlmacenAmbito::scope(
+            Almacen::query()->where('activo', true),
+            AlmacenAmbito::MAYORISTA
+        )->orderBy('nombre')->get();
+
+        foreach ($mayoristas as $almacen) {
+            $resuelto = UbicacionGpsParser::resolverAlmacen(
+                (int) $almacen->almacenid,
+                $almacen->nombre,
+                $almacen->ubicacion
+            );
+            $items[] = [
+                'id' => $almacen->almacenid,
+                'label' => $almacen->nombre,
+                'tipo' => 'mayorista',
+                'extra' => [
+                    'lat' => $resuelto['lat'],
+                    'lng' => $resuelto['lng'],
+                    'direccion' => $resuelto['direccion'],
+                    'ambito' => 'mayorista',
+                ],
+            ];
+        }
+
+        $puntosQuery = PuntoVenta::query()->where('activo', true)->with('minorista')->orderBy('nombre');
+        if ($user) {
+            $puntosQuery = PuntoVentaAccess::scopePuntosDelUsuario($puntosQuery, $user);
+        }
+
+        foreach ($puntosQuery->get() as $pdv) {
+            $lat = $pdv->latitud;
+            $lng = $pdv->longitud;
+            if ($lat === null || $lng === null) {
+                $coords = UbicacionGpsParser::fromTexto($pdv->direccion);
+                if ($coords === null) {
+                    continue;
+                }
+                $lat = $coords['lat'];
+                $lng = $coords['lng'];
+            }
+
+            $items[] = [
+                'id' => $pdv->puntoventaid,
+                'label' => $pdv->nombre,
+                'tipo' => 'pdv',
+                'extra' => [
+                    'lat' => (float) $lat,
+                    'lng' => (float) $lng,
+                    'direccion' => $pdv->direccion,
+                    'minorista_usuarioid' => $pdv->usuarioid,
+                    'minorista_nombre' => $pdv->nombreMinorista(),
+                ],
+            ];
+        }
+
+        return $items;
+    }
+
     public function store(Request $request)
     {
+        EnvioTrayectoCatalogo::autorizarTrayecto($request->user(), EnvioTrayectoCatalogo::TRAYECTO_PLANTA);
+
         $data = $request->validate([
             'origen_latitud' => 'required|numeric|between:-90,90',
             'origen_longitud' => 'required|numeric|between:-180,180',
@@ -111,7 +267,11 @@ class PedidoController extends Controller
             'latitud' => 'required|numeric|between:-90,90',
             'longitud' => 'required|numeric|between:-180,180',
             'direccion_texto' => 'nullable|string|max:255',
-            'fechaEntregaDeseada' => 'nullable|date',
+            'fechaEntregaDeseada' => 'required|date',
+            'hora_recogida' => 'nullable|date_format:H:i',
+            'hora_entrega_estimada' => 'nullable|date_format:H:i',
+            'instrucciones_recogida' => 'nullable|string|max:2000',
+            'instrucciones_entrega' => 'nullable|string|max:2000',
             'observaciones' => 'nullable|string',
             'transportista_usuarioid' => 'required|integer|exists:usuario,usuarioid',
             'vehiculoid' => 'required|integer|exists:vehiculo,vehiculoid',
@@ -127,11 +287,8 @@ class PedidoController extends Controller
             'detalles.*.observaciones' => 'nullable|string',
         ], [
             'detalles.*.producto_ref.regex' => 'Seleccione un producto válido de producción agrícola.',
+            'fechaEntregaDeseada.required' => 'Indique la fecha de entrega deseada.',
         ]);
-
-        if (empty($data['fechaEntregaDeseada'])) {
-            $data['fechaEntregaDeseada'] = now()->toDateString();
-        }
 
         $erroresStock = PedidoCatalogo::validarStockDetallesPedido(
             $data['detalles'],
@@ -141,6 +298,13 @@ class PedidoController extends Controller
         if ($erroresStock !== null) {
             throw \Illuminate\Validation\ValidationException::withMessages($erroresStock);
         }
+
+        $pesoTotalKg = (float) array_sum(array_map(
+            fn (array $d) => (float) ($d['cantidad'] ?? 0),
+            $data['detalles']
+        ));
+        $vehiculo = Vehiculo::query()->findOrFail((int) $data['vehiculoid']);
+        app(TransporteCapacidadService::class)->validarCarga($vehiculo, $pesoTotalKg);
 
         $transportistaId = (int) $data['transportista_usuarioid'];
         $vehiculoId = (int) $data['vehiculoid'];

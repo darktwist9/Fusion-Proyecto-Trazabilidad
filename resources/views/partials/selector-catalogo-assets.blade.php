@@ -10,23 +10,27 @@
         #modalSelectorCatalogo .sel-modal-header {
             background: linear-gradient(135deg, #1e4620 0%, #2c5530 55%, #3d7a46 100%);
             border: 0;
-            padding: 1rem 1.25rem;
-        }
-        #modalSelectorCatalogo .sel-modal-header-inner {
+            padding: 0.95rem 1.25rem;
             display: flex;
             align-items: center;
-            gap: 0.65rem;
+            justify-content: space-between;
+            gap: 1rem;
         }
-        #modalSelectorCatalogo .sel-modal-header-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.2);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1rem;
+        #modalSelectorCatalogo .sel-modal-header .modal-title {
+            font-weight: 700;
+            font-size: 1.05rem;
+            color: #fff;
+            line-height: 1.3;
+            flex: 1;
+            min-width: 0;
         }
+        #modalSelectorCatalogo .sel-modal-header .close {
+            opacity: 0.85;
+            text-shadow: none;
+            margin: 0;
+            padding: 0.25rem;
+        }
+        #modalSelectorCatalogo .sel-modal-header .close:hover { opacity: 1; }
         #modalSelectorCatalogo .sel-modal-body { max-height: 68vh; overflow-y: auto; padding: 1.15rem 1.25rem; }
         #modalSelectorCatalogo .sel-modal-search-panel {
             background: #f8faf9;
@@ -90,7 +94,54 @@
             margin-right: 0.55rem;
             vertical-align: middle;
         }
+        #modalSelectorCatalogo .sel-badge-sugerido {
+            display: inline-block;
+            margin-left: 0.45rem;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            color: #047857;
+            background: #d1fae5;
+            border: 1px solid #6ee7b7;
+            border-radius: 6px;
+            padding: 0.1rem 0.4rem;
+            vertical-align: middle;
+        }
+        #modalSelectorCatalogo .selector-catalogo-row--suggested {
+            background: #ecfdf5;
+            box-shadow: inset 3px 0 0 #059669;
+        }
+        #modalSelectorCatalogo .selector-catalogo-row--suggested:hover { background: #d1fae5; }
+        #modalSelectorCatalogo .selector-catalogo-row--selected {
+            background: #eff6ff;
+            box-shadow: inset 3px 0 0 #2563eb;
+        }
+        #modalSelectorCatalogo .selector-catalogo-row--selected:hover { background: #dbeafe; }
+        #modalSelectorCatalogo .sel-badge-seleccionado {
+            display: inline-block;
+            margin-left: 0.45rem;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            color: #1d4ed8;
+            background: #dbeafe;
+            border: 1px solid #93c5fd;
+            border-radius: 6px;
+            padding: 0.1rem 0.4rem;
+            vertical-align: middle;
+        }
         #modalSelectorCatalogo .sel-col-meta { color: #6b7280; font-size: 0.84rem; line-height: 1.45; }
+        #modalSelectorCatalogo .sel-meta-stack { display: flex; flex-direction: column; gap: 0.28rem; }
+        #modalSelectorCatalogo .sel-meta-line {
+            display: flex; align-items: flex-start; gap: 0.4rem;
+            font-size: 0.8rem; color: #475569; line-height: 1.35;
+        }
+        #modalSelectorCatalogo .sel-meta-line i {
+            width: 16px; text-align: center; color: #64748b; margin-top: 0.1rem; flex-shrink: 0;
+        }
+        #modalSelectorCatalogo .sel-meta-line span { flex: 1; }
         #modalSelectorCatalogo .sel-col-meta--with-action {
             display: flex;
             align-items: center;
@@ -104,6 +155,15 @@
             font-size: 0.78rem;
             padding: 0.2rem 0.65rem;
             border-radius: 6px;
+        }
+        #modalSelectorCatalogo .sel-row-map-btn {
+            margin-top: 0.35rem;
+            font-size: 0.75rem;
+            padding: 0.15rem 0.55rem;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.2rem;
         }
         #modalSelectorCatalogo .selector-catalogo-row:hover .sel-row-action-btn {
             background: #2c5530;
@@ -332,6 +392,40 @@
             background: #ecfdf5;
             border-color: #059669;
             color: #047857;
+        }
+
+        /* Tema: chofer / transportista */
+        #modalSelectorCatalogo.sel-theme-chofer .sel-modal-header {
+            background: linear-gradient(135deg, #1e3a5f 0%, #1e40af 55%, #3b82f6 100%);
+        }
+        #modalSelectorCatalogo.sel-theme-chofer .sel-modal-search-panel {
+            background: #eff6ff;
+            border-color: #bfdbfe;
+        }
+        #modalSelectorCatalogo.sel-theme-chofer .sel-modal-search-label { color: #1e40af; }
+        #modalSelectorCatalogo.sel-theme-chofer .sel-modal-search-input .input-group-text {
+            border-color: #93c5fd;
+            color: #1d4ed8;
+        }
+        #modalSelectorCatalogo.sel-theme-chofer .sel-modal-search-input .form-control { border-color: #93c5fd; }
+        #modalSelectorCatalogo.sel-theme-chofer .sel-modal-search-input .form-control:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 0.15rem rgba(37, 99, 235, 0.18);
+        }
+        #modalSelectorCatalogo.sel-theme-chofer .sel-modal-table-wrap { border-color: #bfdbfe; }
+        #modalSelectorCatalogo.sel-theme-chofer .sel-modal-table thead th {
+            background: #dbeafe;
+            color: #1e40af;
+            border-bottom-color: #93c5fd;
+        }
+        #modalSelectorCatalogo.sel-theme-chofer .selector-catalogo-row:hover { background: #eff6ff; }
+        #modalSelectorCatalogo.sel-theme-chofer .sel-col-nombre .sel-row-icon {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+        #modalSelectorCatalogo.sel-theme-chofer .sel-modal-footer {
+            background: #f8fafc;
+            border-top-color: #bfdbfe;
         }
 
         /* Tema: almacén origen planta (rojo) */
@@ -601,12 +695,16 @@
         .asig-picker-field .picker-actions .btn[id*="Buscar"],
         .asig-picker-field .picker-actions .btn-buscar-recogida,
         .pdv-picker-field .picker-actions .btn[id*="Buscar"] {
-            width: 30px;
-            height: 30px;
+            width: 34px;
+            min-width: 34px;
+            height: 34px;
             border-radius: 8px !important;
             background: linear-gradient(135deg, #2563eb, #3b82f6) !important;
             color: #fff !important;
-            font-size: .72rem !important;
+            font-size: 0 !important;
+            letter-spacing: 0;
+            white-space: nowrap;
+            overflow: hidden;
             box-shadow: 0 2px 8px rgba(37, 99, 235, .28) !important;
         }
         .picker-field .picker-actions .btn[id*="Buscar"]:hover,
@@ -616,6 +714,18 @@
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(37, 99, 235, .35) !important;
         }
+        .picker-field .picker-actions .btn[id*="Buscar"] .fa-search,
+        .picker-field .picker-actions .btn[id*="buscar"] .fa-search,
+        .picker-field .picker-actions .btn-buscar-recogida .fa-search,
+        .picker-field .picker-actions .btn-buscar-recogida-extra .fa-search,
+        .pedido-picker-field .picker-actions .btn[id*="Buscar"] .fa-search,
+        .pedido-picker-field .picker-actions .btn[id*="buscar"] .fa-search,
+        .pedido-picker-field .picker-actions .btn-buscar-recogida-extra .fa-search,
+        .asig-picker-field .picker-actions .btn[id*="Buscar"] .fa-search,
+        .asig-picker-field .picker-actions .btn-buscar-recogida .fa-search,
+        .pdv-picker-field .picker-actions .btn[id*="Buscar"] .fa-search {
+            font-size: .78rem !important;
+        }
         .picker-field .picker-actions .btn[id*="Buscar"] .fa-search::before,
         .pedido-picker-field .picker-actions .btn[id*="Buscar"] .fa-search::before,
         .pedido-picker-field .picker-actions .btn-buscar-recogida-extra .fa-search::before,
@@ -624,7 +734,7 @@
         .picker-field .picker-actions .btn-buscar-recogida .fa-search::before,
         .picker-field .picker-actions .btn-buscar-recogida-extra .fa-search::before,
         .asig-picker-field .picker-actions .btn-buscar-recogida .fa-search::before {
-            content: "\f078";
+            content: "\f002";
         }
         .picker-field .picker-actions .btn[id*="Buscar"] .mr-1,
         .pedido-picker-field .picker-actions .btn[id*="Buscar"] .mr-1,

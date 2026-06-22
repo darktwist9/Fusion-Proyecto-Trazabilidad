@@ -37,6 +37,7 @@
             <p class="role-panel-hero__sub">
                 Hola, <strong>{{ auth()->user()->nombre }}</strong> · Gestione sus almacenes y revise lo que solicitan los puntos de venta · {{ $filtros->etiquetaPeriodo() }}
             </p>
+            @include('dashboard.partials.panel-admin-vista')
         </div>
 
         @include('partials.dashboard-alertas')
@@ -44,6 +45,9 @@
         @include('dashboard.partials.filtros', [
             'filtros' => $filtros,
             'actionUrl' => url()->current(),
+            'mostrarUsuario' => $mostrarUsuario ?? false,
+            'usuariosPanel' => $usuariosPanel ?? collect(),
+            'etiquetaUsuarioPanel' => 'Mayorista',
         ])
 
         <div class="role-metrics">
@@ -52,20 +56,30 @@
                 <div class="role-metric__val">{{ $stats['almacenes'] }}</div>
                 <p class="role-metric__lbl">Almacenes</p>
             </a>
-            <a href="{{ route('punto-venta.pedidos.index', ['estado' => 'pendiente']) }}" class="role-metric dash-kpi--amber text-decoration-none">
+            <a href="{{ route('punto-venta.pedidos.index', ['estado' => 'pendiente', 'ctx' => 'mayorista']) }}" class="role-metric dash-kpi--amber text-decoration-none">
                 <i class="fas fa-inbox role-metric__icon"></i>
                 <div class="role-metric__val">{{ $stats['pedidos_pendientes'] }}</div>
                 <p class="role-metric__lbl">Por revisar</p>
             </a>
-            <a href="{{ route('punto-venta.pedidos.index') }}" class="role-metric dash-kpi--blue text-decoration-none">
+            <a href="{{ route('punto-venta.pedidos.index', ['ctx' => 'mayorista']) }}" class="role-metric dash-kpi--blue text-decoration-none">
                 <i class="fas fa-clipboard-list role-metric__icon"></i>
                 <div class="role-metric__val">{{ $stats['pedidos_activos'] }}</div>
                 <p class="role-metric__lbl">Pedidos activos</p>
             </a>
+            <a href="{{ route('almacen-mayorista.traslados-planta.index', ['filtro' => 'esperando_firma']) }}" class="role-metric dash-kpi--amber text-decoration-none">
+                <i class="fas fa-file-signature role-metric__icon"></i>
+                <div class="role-metric__val">{{ $stats['recepciones_pendiente_firma'] ?? 0 }}</div>
+                <p class="role-metric__lbl">Firma recepción</p>
+            </a>
+            <a href="{{ route('almacen-mayorista.traslados-planta.index', ['filtro' => 'en_camino']) }}" class="role-metric dash-kpi--blue text-decoration-none">
+                <i class="fas fa-truck role-metric__icon"></i>
+                <div class="role-metric__val">{{ $stats['recepciones_en_camino'] ?? 0 }}</div>
+                <p class="role-metric__lbl">Desde planta</p>
+            </a>
             <div class="role-metric dash-kpi--green">
                 <i class="fas fa-shipping-fast role-metric__icon"></i>
                 <div class="role-metric__val">{{ $stats['en_transito'] }}</div>
-                <p class="role-metric__lbl">En tránsito</p>
+                <p class="role-metric__lbl">Pedidos en tránsito</p>
             </div>
             <div class="role-metric dash-kpi--slate">
                 <i class="fas fa-boxes role-metric__icon"></i>
@@ -138,16 +152,16 @@
                         <div class="role-acc-grid" style="grid-template-columns:1fr">
                             @can('inventario.create')
                             <a href="{{ route('almacen-mayorista.create') }}" class="role-acc-tile">
-                                <span class="role-acc-tile__icon"><i class="fas fa-plus"></i></span>
+                                <span class="role-acc-tile__icon role-acc-tile__icon--prod"><i class="fas fa-plus"></i></span>
                                 <span><span class="role-acc-tile__lbl">Nuevo almacén</span><span class="role-acc-tile__sub">Registrar centro de distribución</span></span>
                             </a>
                             @endcan
                             <a href="{{ route('almacen-mayorista.index') }}" class="role-acc-tile">
-                                <span class="role-acc-tile__icon"><i class="fas fa-warehouse"></i></span>
+                                <span class="role-acc-tile__icon role-acc-tile__icon--log"><i class="fas fa-warehouse"></i></span>
                                 <span><span class="role-acc-tile__lbl">Mis almacenes</span><span class="role-acc-tile__sub">Inventario y movimientos</span></span>
                             </a>
                             <a href="{{ route('punto-venta.pedidos.index') }}" class="role-acc-tile">
-                                <span class="role-acc-tile__icon"><i class="fas fa-inbox"></i></span>
+                                <span class="role-acc-tile__icon role-acc-tile__icon--com"><i class="fas fa-inbox"></i></span>
                                 <span><span class="role-acc-tile__lbl">Pedidos minoristas</span><span class="role-acc-tile__sub">Aceptar y coordinar entregas</span></span>
                             </a>
                         </div>

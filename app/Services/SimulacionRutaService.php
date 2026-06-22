@@ -12,6 +12,7 @@ use App\Support\EnvioPedidoService;
 use App\Support\PedidoDistribucionCatalogo;
 use App\Support\RutaDistribucionCatalogo;
 use App\Support\RutaPorCallesService;
+use App\Support\EnvioEstadoRecepcionCatalogo;
 use App\Support\SimulacionRutaCatalogo;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -24,6 +25,7 @@ class SimulacionRutaService
         private readonly RutaPorCallesService $rutasCalles,
         private readonly DistribucionRutaService $distribucion,
         private readonly RecepcionPlantaEnvioService $recepcionPlanta,
+        private readonly RecepcionPuntoVentaService $recepcionPdv,
         private readonly NotificacionUsuarioService $notificaciones,
     ) {}
 
@@ -33,6 +35,10 @@ class SimulacionRutaService
 
         if (! SimulacionRutaCatalogo::puedeEmpezarAgricola($envio)) {
             throw new InvalidArgumentException('Este envío no está listo para iniciar la ruta.');
+        }
+
+        if (! app(CierreEnvioAgricolaService::class)->tieneCondicionesVehiculo($envio)) {
+            throw new InvalidArgumentException('Debe registrar las condiciones del vehículo antes de marcar en ruta.');
         }
 
         $paradas = EnvioPedidoService::paradasMapaEnvio($envio);
@@ -58,6 +64,16 @@ class SimulacionRutaService
 
         if (! SimulacionRutaCatalogo::puedeEmpezarDistribucion($ruta)) {
             throw new InvalidArgumentException('Esta ruta no está lista para iniciar.');
+        }
+
+        if (RutaDistribucionCatalogo::esTrasladoPlantaMayorista($ruta)
+            && ! app(CierreEnvioPlantaMayoristaService::class)->tieneCondicionesVehiculo($ruta)) {
+            throw new InvalidArgumentException('Debe registrar las condiciones del vehículo antes de marcar en ruta.');
+        }
+
+        if (! RutaDistribucionCatalogo::esTrasladoPlantaMayorista($ruta)
+            && ! app(CierreEnvioDistribucionPdvService::class)->tieneCondicionesVehiculo($ruta)) {
+            throw new InvalidArgumentException('Debe registrar las condiciones del vehículo antes de marcar en ruta.');
         }
 
         $paradas = $this->distribucion->paradasMapa($ruta);
@@ -89,7 +105,7 @@ class SimulacionRutaService
     /**
      * @return array<string, mixed>
      */
-    public function estadoAgricola(EnvioAsignacionMultiple $envio, bool $intentarCompletar = true): array
+    public function estadoAgricola(EnvioAsignacionMultiple $envio, bool $intentarCompletar = false): array
     {
         if ($intentarCompletar && $this->debeCompletarAgricola($envio)) {
             try {
@@ -101,7 +117,7 @@ class SimulacionRutaService
             $envio->refresh();
         }
 
-        return $this->armarEstado(
+        $estado = $this->armarEstado(
             SimulacionRutaCatalogo::TIPO_AGRICOLA,
             $envio->externo_envio_id ?? ('#'.$envio->envioasignacionmultipleid),
             $envio->simulacion_inicio_at,
@@ -110,12 +126,18 @@ class SimulacionRutaService
             EnvioAsignacionEstadoCatalogo::llegoADestino($envio),
             EnvioPedidoService::paradasMapaEnvio($envio),
         );
+
+        if ($envio->llegada_confirmada_at !== null) {
+            $estado['esperando_confirmacion'] = false;
+        }
+
+        return $estado;
     }
 
     /**
      * @return array<string, mixed>
      */
-    public function estadoDistribucion(RutaDistribucion $ruta, bool $intentarCompletar = true): array
+    public function estadoDistribucion(RutaDistribucion $ruta, bool $intentarCompletar = false): array
     {
         if ($intentarCompletar && $this->debeCompletarDistribucion($ruta)) {
             try {
@@ -127,8 +149,10 @@ class SimulacionRutaService
             $ruta->refresh();
         }
 
-        return $this->armarEstado(
-            SimulacionRutaCatalogo::TIPO_DISTRIBUCION,
+        $estado = $this->armarEstado(
+            RutaDistribucionCatalogo::esTrasladoPlantaMayorista($ruta)
+                ? SimulacionRutaCatalogo::TIPO_PLANTA_MAYORISTA
+                : SimulacionRutaCatalogo::TIPO_DISTRIBUCION,
             $ruta->codigo,
             $ruta->simulacion_inicio_at,
             (int) ($ruta->simulacion_duracion_seg ?? 0),
@@ -136,6 +160,12 @@ class SimulacionRutaService
             $ruta->estado === RutaDistribucionCatalogo::ESTADO_COMPLETADA,
             $this->distribucion->paradasMapa($ruta),
         );
+
+        if ($ruta->llegada_confirmada_at !== null) {
+            $estado['esperando_confirmacion'] = false;
+        }
+
+        return $estado;
     }
 
     public function completarManualAgricola(EnvioAsignacionMultiple $envio): void
@@ -185,11 +215,94 @@ class SimulacionRutaService
             ->get()
             ->map(fn (RutaDistribucion $r) => $this->mapearItemLista($r));
 
-        return $agricolas
-            ->merge($distribucion)
+        return collect($agricolas->all())
+            ->merge($distribucion->all())
             ->filter()
             ->sortByDesc('progreso')
             ->values();
+    }
+
+    /**
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function listarActivasFiltradas(?string $busqueda = null, ?string $variante = null): Collection
+    {
+        $coleccion = $this->listarActivas()->values();
+        $offset = 0;
+
+        return $coleccion
+            ->map(function (array $item) use (&$offset) {
+                $item['mapa_offset'] = $offset++;
+
+                return $item;
+            })
+            ->filter(function (array $item) use ($busqueda, $variante) {
+                if ($variante !== null && $variante !== '' && ($item['variante'] ?? '') !== $variante) {
+                    return false;
+                }
+                if ($busqueda === null || trim($busqueda) === '') {
+                    return true;
+                }
+                $q = mb_strtolower(trim($busqueda));
+                $texto = mb_strtolower(implode(' ', [
+                    $item['codigo'] ?? '',
+                    $item['chofer'] ?? '',
+                    $item['destino'] ?? '',
+                    $item['origen'] ?? '',
+                    $item['tipo_etiqueta'] ?? '',
+                ]));
+
+                return str_contains($texto, $q);
+            })
+            ->values();
+    }
+
+    /** @return list<array<string, mixed>> */
+    public function estadosMapaGlobal(): array
+    {
+        $items = [];
+        $offset = 0;
+
+        foreach ($this->listarActivas() as $item) {
+            $estado = match ($item['tipo']) {
+                SimulacionRutaCatalogo::TIPO_AGRICOLA => $this->estadoAgricola(
+                    EnvioAsignacionMultiple::query()->findOrFail($item['id']),
+                    false
+                ),
+                SimulacionRutaCatalogo::TIPO_DISTRIBUCION => $this->estadoDistribucion(
+                    RutaDistribucion::query()->findOrFail($item['id']),
+                    false
+                ),
+                SimulacionRutaCatalogo::TIPO_PLANTA_MAYORISTA => $this->estadoDistribucion(
+                    RutaDistribucion::query()->findOrFail($item['id']),
+                    false
+                ),
+                default => null,
+            };
+
+            if ($estado === null || ($estado['completada'] ?? false)) {
+                continue;
+            }
+
+            $geo = $this->desplazarGeojson($estado['geojson'] ?? null, $offset);
+            $paradas = $this->desplazarParadas($estado['paradas'] ?? [], $offset);
+            $posicion = $this->posicionDesplazada($estado['posicion'] ?? null, $offset);
+
+            $items[] = array_merge($item, [
+                'mapa_offset' => $offset,
+                'progreso' => $estado['progreso'] ?? 0,
+                'progreso_ratio' => $estado['progreso_ratio'] ?? 0,
+                'segundos_restantes' => $estado['segundos_restantes'] ?? 0,
+                'geojson' => $geo,
+                'paradas' => $paradas,
+                'posicion' => $posicion,
+                'completada' => false,
+                'esperando_confirmacion' => (bool) ($estado['esperando_confirmacion'] ?? false),
+            ]);
+            $offset++;
+        }
+
+        return $items;
     }
 
     public function completarAgricola(EnvioAsignacionMultiple $envio): void
@@ -222,22 +335,62 @@ class SimulacionRutaService
             return;
         }
 
+        if (RutaDistribucionCatalogo::esTrasladoPlantaMayorista($ruta)) {
+            $this->completarTrasladoPlantaMayorista($ruta);
+
+            return;
+        }
+
+        $ruta->loadMissing(['pedidos.detalles.insumo.unidadMedida', 'pedidos.puntoVenta', 'transportista']);
+
+        $usuario = $ruta->transportista;
+        if ($usuario === null) {
+            throw new InvalidArgumentException('La ruta no tiene transportista para registrar la recepción en PDV.');
+        }
+
+        foreach ($ruta->pedidos as $pedido) {
+            if (PedidoDistribucionCatalogo::puedeConfirmarRecepcion($pedido)) {
+                $this->recepcionPdv->confirmar($pedido, $usuario);
+            }
+        }
+
+        $ruta->refresh();
+
+        if ($ruta->estado !== RutaDistribucionCatalogo::ESTADO_COMPLETADA) {
+            DB::transaction(function () use ($ruta) {
+                $ruta->update(['estado' => RutaDistribucionCatalogo::ESTADO_COMPLETADA]);
+
+                $ruta->paradas()
+                    ->where('tipo', RutaDistribucionCatalogo::PARADA_ENTREGA_PDV)
+                    ->update(['estado' => 'completada']);
+            });
+        }
+
+        $this->notificaciones->simulacionCompletadaDistribucion($ruta->fresh(['transportista', 'almacenOrigen']));
+    }
+
+    private function completarTrasladoPlantaMayorista(RutaDistribucion $ruta): void
+    {
+        $ruta->loadMissing(['transportista', 'detallesTraslado']);
+
+        $usuario = $ruta->transportista;
+        if ($usuario === null) {
+            throw new InvalidArgumentException('El traslado no tiene transportista para registrar la entrega.');
+        }
+
+        app(TrasladoPlantaMayoristaService::class)->transferirInventarioAlCompletar($ruta, $usuario);
+
         DB::transaction(function () use ($ruta) {
             $ruta->update(['estado' => RutaDistribucionCatalogo::ESTADO_COMPLETADA]);
 
             $ruta->paradas()
-                ->where('tipo', RutaDistribucionCatalogo::PARADA_ENTREGA_PDV)
+                ->where('tipo', RutaDistribucionCatalogo::PARADA_ENTREGA_MAYORISTA)
                 ->update(['estado' => 'completada']);
-
-            PedidoDistribucion::query()
-                ->where('rutadistribucionid', $ruta->rutadistribucionid)
-                ->update([
-                    'estado' => PedidoDistribucionCatalogo::ESTADO_RECIBIDO,
-                    'fecha_recepcion' => now(),
-                ]);
         });
 
-        $this->notificaciones->simulacionCompletadaDistribucion($ruta->fresh(['transportista', 'almacenOrigen']));
+        $this->notificaciones->trasladoPlantaCompletado(
+            $ruta->fresh(['transportista', 'almacenPlantaOrigen', 'almacenMayoristaDestino', 'detallesTraslado.insumo'])
+        );
     }
 
     public function debeCompletarAgricola(EnvioAsignacionMultiple $envio): bool
@@ -279,8 +432,13 @@ class SimulacionRutaService
             return;
         }
 
-        $ruta->update(['estado' => RutaDistribucionCatalogo::ESTADO_COMPLETADA]);
-        $this->notificaciones->simulacionCompletadaDistribucion($ruta->fresh(['transportista', 'almacenOrigen']));
+        try {
+            $this->completarDistribucion($ruta);
+        } catch (\Throwable $e) {
+            report($e);
+            $ruta->update(['estado' => RutaDistribucionCatalogo::ESTADO_COMPLETADA]);
+            $this->notificaciones->simulacionCompletadaDistribucion($ruta->fresh(['transportista', 'almacenOrigen']));
+        }
     }
 
     private function segundosTranscurridos(?Carbon $inicio): int
@@ -460,6 +618,7 @@ class SimulacionRutaService
             'codigo' => $codigo,
             'activa' => $inicio !== null && ! $completada,
             'completada' => $completada,
+            'esperando_confirmacion' => ! $completada && $progreso >= 1.0,
             'progreso' => round($progreso * 100, 1),
             'progreso_ratio' => $progreso,
             'segundos_restantes' => $restante,
@@ -499,7 +658,7 @@ class SimulacionRutaService
     private function mapearItemLista(EnvioAsignacionMultiple|RutaDistribucion $item): ?array
     {
         if ($item instanceof EnvioAsignacionMultiple) {
-            $estado = $this->estadoAgricola($item, true);
+            $estado = $this->estadoAgricola($item, false);
             $item->refresh();
             if ($estado['completada'] || ! SimulacionRutaCatalogo::simulacionActivaAgricola($item)) {
                 return null;
@@ -508,10 +667,21 @@ class SimulacionRutaService
             $destino = $item->pedido
                 ? (EnvioPedidoService::etiquetaPlantaDestinoLista($item->pedido) ?? 'Planta')
                 : 'Planta';
+            $meta = SimulacionRutaCatalogo::metaVariante(SimulacionRutaCatalogo::TIPO_AGRICOLA);
+
+            $etiquetaEstado = ($estado['esperando_confirmacion'] ?? false)
+                ? EnvioEstadoRecepcionCatalogo::etiquetaListaEsperando()
+                : EnvioEstadoRecepcionCatalogo::etiquetaListaEnCamino('planta');
 
             return [
                 'tipo' => SimulacionRutaCatalogo::TIPO_AGRICOLA,
-                'tipo_etiqueta' => 'Almacén → Planta',
+                'variante' => $meta['variante'],
+                'tipo_etiqueta' => $meta['etiqueta'],
+                'color' => $meta['color'],
+                'icono' => $meta['icono'],
+                'estado_etiqueta' => $etiquetaEstado,
+                'esperando_confirmacion' => (bool) ($estado['esperando_confirmacion'] ?? false),
+                'origen' => 'Almacén agrícola',
                 'id' => $item->envioasignacionmultipleid,
                 'codigo' => $item->externo_envio_id ?? ('#'.$item->envioasignacionmultipleid),
                 'chofer' => $chofer,
@@ -525,22 +695,72 @@ class SimulacionRutaService
             ];
         }
 
-        $estado = $this->estadoDistribucion($item, true);
+        $estado = $this->estadoDistribucion($item, false);
         $item->refresh();
         if ($estado['completada'] || ! SimulacionRutaCatalogo::simulacionActivaDistribucion($item)) {
             return null;
         }
 
         $chofer = trim(($item->transportista?->nombre ?? '').' '.($item->transportista?->apellido ?? ''));
-        $paradas = $item->paradas?->where('tipo', RutaDistribucionCatalogo::PARADA_ENTREGA_PDV)->count() ?? 0;
+
+        if (RutaDistribucionCatalogo::esTrasladoPlantaMayorista($item)) {
+            $item->loadMissing(['almacenPlantaOrigen', 'almacenMayoristaDestino', 'paradas']);
+            $meta = SimulacionRutaCatalogo::metaVariante(SimulacionRutaCatalogo::TIPO_PLANTA_MAYORISTA);
+
+            $etiquetaEstadoPm = ($estado['esperando_confirmacion'] ?? false)
+                ? EnvioEstadoRecepcionCatalogo::etiquetaListaEsperando()
+                : EnvioEstadoRecepcionCatalogo::etiquetaListaEnCamino('mayorista');
+
+            return [
+                'tipo' => SimulacionRutaCatalogo::TIPO_PLANTA_MAYORISTA,
+                'variante' => $meta['variante'],
+                'tipo_etiqueta' => $meta['etiqueta'],
+                'color' => $meta['color'],
+                'icono' => $meta['icono'],
+                'estado_etiqueta' => $etiquetaEstadoPm,
+                'esperando_confirmacion' => (bool) ($estado['esperando_confirmacion'] ?? false),
+                'origen' => $item->almacenPlantaOrigen?->nombre ?? 'Almacén de planta',
+                'id' => $item->rutadistribucionid,
+                'codigo' => $item->codigo,
+                'chofer' => $chofer,
+                'destino' => $item->almacenMayoristaDestino?->nombre ?? 'Almacén mayorista',
+                'progreso' => $estado['progreso'],
+                'segundos_restantes' => $estado['segundos_restantes'],
+                'ver_url' => route('logistica.rutas-tiempo-real.show', [
+                    'tipo' => SimulacionRutaCatalogo::TIPO_PLANTA_MAYORISTA,
+                    'id' => $item->rutadistribucionid,
+                ]),
+            ];
+        }
+
+        $pdv = $item->paradas?->firstWhere('tipo', RutaDistribucionCatalogo::PARADA_ENTREGA_PDV);
+        $destinoPdv = $pdv ? str_replace('Entrega: ', '', (string) $pdv->destino) : 'Punto de venta';
+        $meta = SimulacionRutaCatalogo::metaVariante(SimulacionRutaCatalogo::TIPO_DISTRIBUCION);
+        $item->loadMissing(['pedidos.detalles', 'vehiculo']);
+        $primerPedido = $item->pedidos?->first();
+        $primerDetalle = $primerPedido?->detalles?->first();
+        $producto = $primerDetalle?->producto_nombre ?? $primerDetalle?->cultivo_personalizado ?? 'Distribución';
+        $etiquetaEstado = ($estado['esperando_confirmacion'] ?? false)
+            ? EnvioEstadoRecepcionCatalogo::etiquetaListaEsperando()
+            : EnvioEstadoRecepcionCatalogo::etiquetaListaEnCamino('pdv');
 
         return [
             'tipo' => SimulacionRutaCatalogo::TIPO_DISTRIBUCION,
-            'tipo_etiqueta' => 'Planta → PDV',
+            'variante' => $meta['variante'],
+            'tipo_etiqueta' => $meta['etiqueta'],
+            'color' => $meta['color'],
+            'icono' => $meta['icono'],
+            'estado_etiqueta' => $etiquetaEstado,
+            'esperando_confirmacion' => (bool) ($estado['esperando_confirmacion'] ?? false),
+            'origen' => $item->almacenOrigen?->nombre ?? 'Almacén mayorista',
             'id' => $item->rutadistribucionid,
             'codigo' => $item->codigo,
             'chofer' => $chofer,
-            'destino' => ($item->almacenOrigen?->nombre ?? 'Planta').' · '.$paradas.' entrega(s)',
+            'destino' => $destinoPdv,
+            'producto' => $producto,
+            'pedido_solicitud' => $primerPedido?->numero_solicitud,
+            'vehiculo_placa' => $item->vehiculo?->placa
+                ?? $item->transportista?->perfilTransportista?->vehiculo?->placa,
             'progreso' => $estado['progreso'],
             'segundos_restantes' => $estado['segundos_restantes'],
             'ver_url' => route('logistica.rutas-tiempo-real.show', [
@@ -548,5 +768,68 @@ class SimulacionRutaService
                 'id' => $item->rutadistribucionid,
             ]),
         ];
+    }
+
+    /** @param  array<int, array{lat: float, lng: float, label?: string}>|null  $paradas */
+    private function desplazarParadas(?array $paradas, int $offsetIndice): ?array
+    {
+        if ($paradas === null || $paradas === []) {
+            return $paradas;
+        }
+
+        [$dLat, $dLng] = $this->deltaOffset($offsetIndice);
+
+        return array_map(function (array $p) use ($dLat, $dLng) {
+            return array_merge($p, [
+                'lat' => (float) $p['lat'] + $dLat,
+                'lng' => (float) $p['lng'] + $dLng,
+            ]);
+        }, $paradas);
+    }
+
+    /** @param  array{lat?: float, lng?: float}|null  $posicion */
+    private function posicionDesplazada(?array $posicion, int $offsetIndice): ?array
+    {
+        if ($posicion === null || ! isset($posicion['lat'], $posicion['lng'])) {
+            return $posicion;
+        }
+        [$dLat, $dLng] = $this->deltaOffset($offsetIndice);
+
+        return [
+            'lat' => (float) $posicion['lat'] + $dLat,
+            'lng' => (float) $posicion['lng'] + $dLng,
+        ];
+    }
+
+    private function desplazarGeojson(?array $geojson, int $offsetIndice): ?array
+    {
+        if ($geojson === null || $offsetIndice === 0) {
+            return $geojson;
+        }
+
+        [$dLat, $dLng] = $this->deltaOffset($offsetIndice);
+        $features = $geojson['features'] ?? [];
+        foreach ($features as &$feature) {
+            $coords = $feature['geometry']['coordinates'] ?? null;
+            if (! is_array($coords)) {
+                continue;
+            }
+            $feature['geometry']['coordinates'] = array_map(
+                fn (array $c) => [$c[0] + $dLng, $c[1] + $dLat],
+                $coords
+            );
+        }
+        unset($feature);
+        $geojson['features'] = $features;
+
+        return $geojson;
+    }
+
+    /** @return array{0: float, 1: float} */
+    private function deltaOffset(int $offsetIndice): array
+    {
+        $lane = ($offsetIndice % 5) - 2;
+
+        return [$lane * 0.00014, $lane * 0.00009];
     }
 }

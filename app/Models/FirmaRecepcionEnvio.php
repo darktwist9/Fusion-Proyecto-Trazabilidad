@@ -12,6 +12,7 @@ class FirmaRecepcionEnvio extends Model
 
     protected $fillable = [
         'envioasignacionmultipleid',
+        'rutadistribucionid',
         'imagenfirma',
         'fechafirma',
     ];
@@ -19,6 +20,11 @@ class FirmaRecepcionEnvio extends Model
     protected $casts = [
         'fechafirma' => 'datetime',
     ];
+
+    public function ruta(): BelongsTo
+    {
+        return $this->belongsTo(RutaDistribucion::class, 'rutadistribucionid', 'rutadistribucionid');
+    }
 
     public function asignacion(): BelongsTo
     {

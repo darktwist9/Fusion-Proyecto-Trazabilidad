@@ -8,6 +8,8 @@ use App\Models\Insumo;
 use App\Models\UnidadMedida;
 use App\Support\AlmacenAmbito;
 use App\Support\InsumoCatalogo;
+use App\Models\InsumoPresentacion;
+use App\Services\InventarioPresentacionService;
 use App\Support\InsumoImagenCatalogo;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,7 +18,7 @@ use Illuminate\View\View;
 
 class AlmacenInventarioController extends Controller
 {
-    public function show(Request $request, Almacen $almacen, Insumo $insumo): View
+    public function show(Request $request, Almacen $almacen, Insumo $insumo, InventarioPresentacionService $inventarioPresentacion): View
     {
         $ctx = AlmacenAmbito::contexto($request);
         $this->autorizarProducto($almacen, $insumo, $ctx['ambito']);
@@ -24,10 +26,39 @@ class AlmacenInventarioController extends Controller
         $insumo->load(['tipo', 'unidadMedida', 'almacen']);
         $estadoStock = InsumoCatalogo::estadoStockAlmacen($insumo);
 
+        $inventarioPresentacion->asegurarInventarioDesdeStock((int) $almacen->almacenid, (int) $insumo->insumoid);
+
+        $empaquetajes = InsumoPresentacion::query()
+            ->with('tipoEmpaque')
+            ->where('insumoid', $insumo->insumoid)
+            ->where('activo', true)
+            ->orderBy('orden')
+            ->orderBy('nombre')
+            ->get()
+            ->map(function (InsumoPresentacion $presentacion) use ($almacen, $inventarioPresentacion) {
+                $unidades = $inventarioPresentacion->stockTotalUnidades(
+                    (int) $almacen->almacenid,
+                    (int) $presentacion->insumo_presentacionid
+                );
+                $kg = $inventarioPresentacion->stockTotalKg(
+                    (int) $almacen->almacenid,
+                    (int) $presentacion->insumo_presentacionid
+                );
+
+                return [
+                    'presentacion' => $presentacion,
+                    'unidades' => $unidades,
+                    'kg' => $kg,
+                ];
+            })
+            ->filter(fn (array $row) => $row['unidades'] > 0 || $row['kg'] > 0)
+            ->values();
+
         return view('almacenes.inventario.show', array_merge($ctx, [
             'almacen' => $almacen,
             'producto' => $insumo,
             'estadoStock' => $estadoStock,
+            'empaquetajes' => $empaquetajes,
         ]));
     }
 

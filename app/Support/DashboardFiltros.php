@@ -29,6 +29,7 @@ final class DashboardFiltros
         public readonly ?int $cultivoId = null,
         public readonly ?int $loteId = null,
         public readonly ?int $estadoLoteId = null,
+        public readonly ?int $usuarioId = null,
     ) {}
 
     public static function desdeRequest(Request $request): self
@@ -51,6 +52,7 @@ final class DashboardFiltros
             $request->filled('cultivo') ? (int) $request->input('cultivo') : null,
             $request->filled('lote') ? (int) $request->input('lote') : null,
             $request->filled('estado_lote') ? (int) $request->input('estado_lote') : null,
+            $request->filled('usuario') ? (int) $request->input('usuario') : null,
         );
     }
 
@@ -100,6 +102,7 @@ final class DashboardFiltros
         return $this->cultivoId
             || $this->loteId
             || $this->estadoLoteId
+            || $this->usuarioId
             || $this->anioHistorico
             || $this->usaRangoPersonalizado()
             || $this->periodo !== 'semestre';
@@ -298,6 +301,7 @@ final class DashboardFiltros
             'cultivo' => $this->cultivoId,
             'lote' => $this->loteId,
             'estado_lote' => $this->estadoLoteId,
+            'usuario' => $this->usuarioId,
         ], fn ($v) => $v !== null && $v !== '');
     }
 

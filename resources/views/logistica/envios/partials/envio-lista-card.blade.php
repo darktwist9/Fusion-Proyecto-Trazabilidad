@@ -9,7 +9,7 @@
         && (($item['trayecto_partes']['recogidas'] ?? []) !== [] || ($item['trayecto_partes']['destino'] ?? null));
 @endphp
 <div class="col-xl-6 col-lg-12 mb-3">
-    <article class="envio-lista-card" style="--env-accent: {{ $tipoTema['accent'] }};">
+    <article class="envio-lista-card{{ (($item['destacar_pendiente'] ?? false) || ($item['pendiente_salida'] ?? false)) ? ' envio-lista-card--pendiente' : '' }}" style="--env-accent: {{ $tipoTema['accent'] }};">
         <div class="envio-lista-card__head">
             <span class="envio-lista-card__tipo">
                 <i class="fas {{ $tipoTema['icon'] }}"></i>

@@ -7,6 +7,7 @@ use App\Models\ActorAbastecimiento;
 use App\Models\Almacen;
 use App\Models\Cultivo;
 use App\Models\Insumo;
+use App\Models\InsumoPresentacion;
 use App\Models\Lote;
 use App\Models\MaquinaPlanta;
 use App\Models\ProcesoPlanta;
@@ -21,6 +22,9 @@ use App\Models\Usuario;
 use App\Models\Vehiculo;
 use App\Support\AlmacenAmbito;
 use App\Services\ActividadInsumoService;
+use App\Services\CatalogoProductoPlantaPdvService;
+use App\Services\DisponibilidadMayoristaPdvService;
+use App\Services\InventarioPresentacionService;
 use App\Services\ProductoPlantaInventarioService;
 use App\Support\ActividadDetalleCatalogo;
 use App\Support\BusquedaTexto;
@@ -34,6 +38,7 @@ use App\Services\VehiculoFlotaEstadoService;
 use App\Support\EstadoVehiculoCatalogo;
 use App\Support\LicenciaConduccionCatalogo;
 use App\Support\TransportistaFlotaCatalogo;
+use App\Support\VehiculoTransporteCatalogo;
 use Illuminate\Support\Facades\Schema;
 use App\Support\UbicacionGpsParser;
 use App\Support\UsuarioRol;
@@ -120,6 +125,7 @@ class CatalogoSelectorController extends Controller
 
         return $this->respuestaPaginada($request, $query->orderBy('nombre')->orderBy('apellido'), function (Usuario $u) use ($esTransportista) {
             $placa = $esTransportista ? ($u->perfilTransportista?->vehiculo?->placa) : null;
+            $vehiculoId = $esTransportista ? ($u->perfilTransportista?->vehiculoid) : null;
             $metaPartes = array_filter([
                 $u->email,
                 $placa ? 'Placa: '.$placa : null,
@@ -132,6 +138,7 @@ class CatalogoSelectorController extends Controller
                 'extra' => [
                     'placa' => $placa ?? '',
                     'email' => $u->email ?? '',
+                    'vehiculoid' => $vehiculoId,
                 ],
             ];
         });
@@ -164,11 +171,19 @@ class CatalogoSelectorController extends Controller
             $query->whereNotIn('vehiculoid', $idsRuta);
         }
 
+        if ($request->filled('ambito_flota') && in_array($request->string('ambito_flota')->toString(), TransportistaFlotaCatalogo::valores(), true)) {
+            $query->where('ambito_flota', $request->string('ambito_flota')->toString());
+        }
+
+        $vehiculoSugeridoId = null;
+
         if ($request->boolean('solo_transportista') && $request->filled('transportista_usuarioid')) {
             $transportistaId = (int) $request->transportista_usuarioid;
-            $ambito = PerfilTransportista::query()
+            $perfil = PerfilTransportista::query()
                 ->where('usuarioid', $transportistaId)
-                ->value('ambito_flota') ?? TransportistaFlotaCatalogo::AGRICOLA;
+                ->first();
+            $ambito = $perfil?->ambito_flota ?? TransportistaFlotaCatalogo::AGRICOLA;
+            $vehiculoSugeridoId = $perfil?->vehiculoid;
 
             if (Schema::hasColumn('vehiculo', 'ambito_flota')) {
                 $query->where('ambito_flota', $ambito);
@@ -195,6 +210,10 @@ class CatalogoSelectorController extends Controller
             }
         }
 
+        if ($vehiculoSugeridoId) {
+            $query->orderByRaw('CASE WHEN vehiculoid = ? THEN 0 ELSE 1 END', [$vehiculoSugeridoId]);
+        }
+
         $q = trim((string) $request->q);
         if ($q !== '') {
             $like = '%'.$q.'%';
@@ -208,7 +227,7 @@ class CatalogoSelectorController extends Controller
 
         $capacidadSvc = app(TransporteCapacidadService::class);
 
-        return $this->respuestaPaginada($request, $query->orderBy('placa'), function (Vehiculo $v) use ($capacidadSvc) {
+        return $this->respuestaPaginada($request, $query->orderBy('placa'), function (Vehiculo $v) use ($capacidadSvc, $vehiculoSugeridoId) {
             $nombre = trim(collect([$v->marca, $v->modelo])->filter()->implode(' '));
 
             $categoria = Schema::hasColumn('vehiculo', 'ambito_flota')
@@ -216,17 +235,41 @@ class CatalogoSelectorController extends Controller
                 : null;
 
             $capTexto = $capacidadSvc->etiquetaCapacidad($v);
+            $tiposTransporte = $v->tiposTransporteEfectivos();
+            $codigoPrincipal = $tiposTransporte->first()?->codigo;
+            $metaTransporte = VehiculoTransporteCatalogo::metaUi($codigoPrincipal);
+            $iconoTransporte = match ($metaTransporte['nombre']) {
+                'Refrigerado' => 'fa-snowflake',
+                'Multitemperatura' => 'fa-layer-group',
+                'Isotérmico' => 'fa-thermometer-half',
+                default => 'fa-box',
+            };
 
             return [
                 'id' => $v->vehiculoid,
                 'label' => $v->placa,
+                'sugerido' => $vehiculoSugeridoId && (int) $v->vehiculoid === (int) $vehiculoSugeridoId,
                 'meta' => trim(collect([
                     $nombre !== '' ? $nombre : null,
                     $v->tipoVehiculo?->nombre ?? 'Vehículo',
                     $capTexto,
+                    $metaTransporte['nombre'],
                     $categoria ? 'Flota '.$categoria : null,
                 ])->filter()->implode(' · ')),
-                'extra' => $capacidadSvc->capacidadEfectiva($v),
+                'meta_lineas' => array_values(array_filter([
+                    [
+                        'icon' => 'fa-truck',
+                        'text' => trim(collect([$nombre !== '' ? $nombre : null, $v->tipoVehiculo?->nombre])->filter()->implode(' · ')),
+                    ],
+                    ['icon' => 'fa-weight-hanging', 'text' => $capTexto],
+                    ['icon' => $iconoTransporte, 'text' => $metaTransporte['nombre']],
+                    $categoria ? ['icon' => 'fa-warehouse', 'text' => 'Flota '.$categoria] : null,
+                ])),
+                'extra' => array_merge($capacidadSvc->capacidadEfectiva($v), [
+                    'tipos_transporte' => $tiposTransporte->pluck('codigo')->filter()->values()->all(),
+                    'transporte_principal' => $metaTransporte['nombre'],
+                    'transporte_codigo' => $codigoPrincipal,
+                ]),
             ];
         });
     }
@@ -349,6 +392,7 @@ class CatalogoSelectorController extends Controller
 
         if ($request->boolean('solo_cosecha')) {
             $trazabilidad = app(\App\Support\LoteTrazabilidadService::class);
+            $planificacion = app(\App\Services\PlanificacionCosechaService::class);
             $perPage = min(50, max(5, (int) $request->input('per_page', 20)));
             $page = max(1, (int) $request->input('page', 1));
             $filtrados = $query->orderBy('nombre')->get()
@@ -358,7 +402,7 @@ class CatalogoSelectorController extends Controller
             $items = $filtrados->slice(($page - 1) * $perPage, $perPage)->values();
 
             return response()->json([
-                'data' => $items->map(function (Lote $l) {
+                'data' => $items->map(function (Lote $l) use ($planificacion) {
                     $meta = [];
                     if ($l->cultivo?->nombre) {
                         $meta[] = $l->cultivo->nombre;
@@ -380,6 +424,7 @@ class CatalogoSelectorController extends Controller
                             'usuarioid' => $l->usuarioid,
                             'cultivo' => $l->cultivo?->nombre ?? 'Sin cultivo',
                             'superficie' => $l->superficie,
+                            'estimacion_cosecha' => $planificacion->estimacionUiDesdeLote($l),
                         ],
                     ];
                 })->values(),
@@ -437,6 +482,10 @@ class CatalogoSelectorController extends Controller
                 report($e);
             }
             $query = Insumo::query()->with(['tipo', 'unidadMedida', 'almacen']);
+        } elseif ($request->boolean('ambito_mayorista')) {
+            $query = InsumoCatalogo::aplicarFiltroProductoTerminado(
+                Insumo::query()->with(['tipo', 'unidadMedida', 'almacen'])
+            );
         } else {
             $query = InsumoCatalogo::aplicarFiltroOperativo(
                 Insumo::query()->with(['tipo', 'unidadMedida', 'almacen'])
@@ -457,6 +506,21 @@ class CatalogoSelectorController extends Controller
             $query->where('stock', '>', 0);
         }
 
+        if ($request->boolean('ambito_mayorista')) {
+            $almacenIds = AlmacenAmbito::scope(Almacen::query()->where('activo', true), AlmacenAmbito::MAYORISTA)
+                ->pluck('almacenid');
+
+            if ($almacenIds->isNotEmpty()) {
+                $query->whereIn('almacenid', $almacenIds);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+
+            if ($request->boolean('requiere_almacen') && ! $request->filled('almacenid')) {
+                $query->whereRaw('1 = 0');
+            }
+        }
+
         if ($request->boolean('ambito_planta')) {
             $almacenIds = AlmacenAmbito::scope(Almacen::query()->where('activo', true), AlmacenAmbito::PLANTA)
                 ->pluck('almacenid');
@@ -465,6 +529,10 @@ class CatalogoSelectorController extends Controller
                 $query->whereIn('almacenid', $almacenIds);
             } else {
                 $query->whereRaw('1 = 0');
+            }
+
+            if ($request->boolean('solo_producto_terminado')) {
+                $query = InsumoCatalogo::aplicarFiltroProductoTerminado($query);
             }
         }
 
@@ -515,6 +583,232 @@ class CatalogoSelectorController extends Controller
                 ],
             ];
         });
+    }
+
+    public function presentacionesProducto(Request $request, InventarioPresentacionService $inventarioPresentacion, CatalogoProductoPlantaPdvService $catalogoPdv, DisponibilidadMayoristaPdvService $catalogoMayorista): JsonResponse
+    {
+        $insumoId = (int) $request->query('insumoid', 0);
+        $almacenId = (int) $request->query('almacenid', 0);
+        if ($insumoId <= 0) {
+            return response()->json(['data' => []]);
+        }
+
+        if ($request->boolean('catalogo_mayorista_pdv')) {
+            $almacenMayoristaId = (int) $request->query('almacen_mayorista_origenid', 0);
+
+            $items = $catalogoMayorista->presentacionesParaSolicitud(
+                $insumoId,
+                $almacenMayoristaId > 0 ? $almacenMayoristaId : null
+            )
+                ->map(function (array $row) {
+                    /** @var InsumoPresentacion $p */
+                    $p = $row['presentacion'];
+
+                    return [
+                        'id' => $row['insumo_presentacionid'],
+                        'label' => $p->nombre,
+                        'meta' => $row['stock_etiqueta'],
+                        'extra' => [
+                            'insumoid' => $row['insumoid'],
+                            'presentacion_nombre' => $row['presentacion_nombre'],
+                            'peso_neto_kg' => $p->pesoNetoKg(),
+                            'tipo_envase' => $p->tipo_envase,
+                            'tipo_empaque' => $p->tipoEmpaque?->nombre,
+                            'unidad_etiqueta' => $row['unidad'],
+                            'stock_unidades' => $row['stock_unidades'],
+                            'stock_kg' => $row['stock_kg'],
+                            'stock_kg_producto' => $row['stock_kg'],
+                            'tiene_stock' => $row['tiene_stock'],
+                        ],
+                    ];
+                })
+                ->values()
+                ->all();
+
+            return response()->json(['data' => $items]);
+        }
+
+        if ($request->boolean('catalogo_pdv')) {
+            $producto = $catalogoPdv->productosConDisponibilidad()
+                ->first(fn (array $row) => (int) $row['insumo']->insumoid === $insumoId);
+
+            $items = collect($producto['presentaciones'] ?? [])
+                ->map(function (array $row) {
+                    /** @var InsumoPresentacion $p */
+                    $p = $row['presentacion'];
+
+                    return [
+                        'id' => $p->insumo_presentacionid,
+                        'label' => $p->nombre,
+                        'meta' => number_format($p->pesoNetoKg(), 3, '.', '').' kg · '.$row['stock_etiqueta'],
+                        'extra' => [
+                            'peso_neto_kg' => $p->pesoNetoKg(),
+                            'tipo_envase' => $p->tipo_envase,
+                            'unidad_etiqueta' => $p->etiquetaUnidad(),
+                            'stock_unidades' => $row['stock_unidades'],
+                        ],
+                    ];
+                })
+                ->values()
+                ->all();
+
+            return response()->json(['data' => $items]);
+        }
+
+        if ($almacenId > 0) {
+            $inventarioPresentacion->asegurarInventarioDesdeStock($almacenId, $insumoId);
+        }
+
+        $items = InsumoPresentacion::query()
+            ->with('tipoEmpaque')
+            ->where('insumoid', $insumoId)
+            ->where('activo', true)
+            ->orderBy('orden')
+            ->orderBy('nombre')
+            ->get()
+            ->map(function (InsumoPresentacion $p) use ($almacenId, $inventarioPresentacion) {
+                $tipoNombre = $p->tipoEmpaque?->nombre;
+                $stockUnidades = $almacenId > 0
+                    ? $inventarioPresentacion->stockTotalUnidades($almacenId, (int) $p->insumo_presentacionid)
+                    : null;
+                $stockKg = $almacenId > 0
+                    ? $inventarioPresentacion->stockTotalKg($almacenId, (int) $p->insumo_presentacionid)
+                    : null;
+
+                return [
+                    'id' => $p->insumo_presentacionid,
+                    'label' => $p->nombre,
+                    'meta' => number_format($p->pesoNetoKg(), 3, '.', '').' kg por '.$p->etiquetaUnidad()
+                        .($tipoNombre ? ' · '.$tipoNombre : '')
+                        .($stockUnidades !== null ? ' · Disp. '.number_format($stockUnidades, 0).' '.$p->etiquetaUnidad() : ''),
+                    'extra' => [
+                        'peso_neto_kg' => $p->pesoNetoKg(),
+                        'tipo_envase' => $p->tipo_envase,
+                        'tipo_empaque' => $tipoNombre,
+                        'tipoempaqueid' => $p->tipoempaqueid,
+                        'unidad_etiqueta' => $p->etiquetaUnidad(),
+                        'unidades_por_caja' => $p->unidades_por_caja,
+                        'sku' => $p->sku,
+                        'stock_unidades' => $stockUnidades,
+                        'stock_kg' => $stockKg,
+                    ],
+                ];
+            })
+            ->values()
+            ->all();
+
+        return response()->json(['data' => $items]);
+    }
+
+    public function productosMayoristaPdv(Request $request, DisponibilidadMayoristaPdvService $catalogo): JsonResponse
+    {
+        $items = $catalogo->productosConStock()
+            ->map(fn (array $row) => [
+                'id' => $row['catalogo_id'],
+                'label' => $row['label'],
+                'meta' => $row['stock_etiqueta'],
+                'extra' => [
+                    'insumoid' => $row['insumoid'],
+                    'almacen_mayorista_origenid' => $row['almacen_mayorista_origenid'],
+                    'mayorista_nombre' => $row['mayorista_nombre'],
+                    'almacen_nombre' => $row['almacen_nombre'],
+                    'ubicacion' => $row['ubicacion'],
+                    'lat' => $row['lat'],
+                    'lng' => $row['lng'],
+                    'stock_kg' => $row['stock_kg'],
+                    'presentaciones_count' => $row['presentaciones_count'],
+                    'producto_nombre' => $row['nombre'],
+                ],
+            ])
+            ->values()
+            ->all();
+
+        $q = trim((string) $request->query('q', ''));
+        if ($q !== '') {
+            $needle = mb_strtolower($q);
+            $items = array_values(array_filter(
+                $items,
+                fn (array $item) => str_contains(mb_strtolower($item['label']), $needle)
+            ));
+        }
+
+        return response()->json(['data' => $items]);
+    }
+
+    public function productosPlantaPdv(Request $request, CatalogoProductoPlantaPdvService $catalogo): JsonResponse
+    {
+        $items = $catalogo->productosConDisponibilidad()
+            ->map(function (array $row) {
+                /** @var Insumo $insumo */
+                $insumo = $row['insumo'];
+
+                return [
+                    'id' => $insumo->insumoid,
+                    'label' => $insumo->nombre,
+                    'meta' => $row['stock_mayorista_etiqueta'],
+                    'extra' => [
+                        'stock_mayorista_kg' => $row['stock_mayorista_kg'],
+                        'unidad' => $insumo->unidadMedida?->abreviatura ?? 'kg',
+                        'presentaciones_count' => count($row['presentaciones']),
+                    ],
+                ];
+            })
+            ->values()
+            ->all();
+
+        $q = trim((string) $request->query('q', ''));
+        if ($q !== '') {
+            $needle = mb_strtolower($q);
+            $items = array_values(array_filter(
+                $items,
+                fn (array $item) => str_contains(mb_strtolower($item['label']), $needle)
+            ));
+        }
+
+        return response()->json(['data' => $items]);
+    }
+
+    public function stockPresentacionLote(Request $request, InventarioPresentacionService $inventarioPresentacion): JsonResponse
+    {
+        $almacenId = (int) $request->query('almacenid', 0);
+        $presentacionId = (int) $request->query('insumo_presentacionid', 0);
+
+        if ($almacenId <= 0 || $presentacionId <= 0) {
+            return response()->json(['data' => [], 'stock_total_unidades' => 0]);
+        }
+
+        $presentacion = InsumoPresentacion::query()->find($presentacionId);
+        if ($presentacion !== null) {
+            $inventarioPresentacion->asegurarInventarioDesdeStock($almacenId, (int) $presentacion->insumoid);
+        }
+
+        $lotes = $inventarioPresentacion->lotesDisponibles($almacenId, $presentacionId);
+        $presentacion = $presentacion?->load('tipoEmpaque') ?? InsumoPresentacion::query()->with('tipoEmpaque')->find($presentacionId);
+        $unidad = $presentacion?->etiquetaUnidad() ?? 'unidades';
+
+        $items = $lotes->map(function ($inv) use ($unidad, $presentacion) {
+            $etiqueta = $inv->etiquetaLote();
+            $u = (float) $inv->cantidad_unidades;
+            $kg = (float) $inv->cantidad_kg;
+
+            return [
+                'id' => $inv->inventario_presentacion_loteid,
+                'label' => $etiqueta.' · '.number_format($u, 0).' '.$unidad,
+                'meta' => number_format($kg, 2).' kg',
+                'extra' => [
+                    'cantidad_unidades' => $u,
+                    'cantidad_kg' => $kg,
+                    'referencia_lote' => $inv->referencia_lote,
+                    'loteproduccionpedidoid' => $inv->loteproduccionpedidoid,
+                    'peso_neto_kg' => $presentacion?->pesoNetoKg(),
+                ],
+            ];
+        })->values()->all();
+
+        return response()->json([
+            'data' => $items,
+            'stock_total_unidades' => $inventarioPresentacion->stockTotalUnidades($almacenId, $presentacionId),
+        ]);
     }
 
     public function pedidos(Request $request): JsonResponse
@@ -604,10 +898,10 @@ class CatalogoSelectorController extends Controller
                 $pedidosListosPorAlmacen = \App\Models\PedidoDistribucion::query()
                     ->where('estado', \App\Support\PedidoDistribucionCatalogo::ESTADO_CONFIRMADO)
                     ->whereNull('rutadistribucionid')
-                    ->whereIn('almacen_planta_origenid', $idsPedidos)
-                    ->selectRaw('almacen_planta_origenid, count(*) as total')
-                    ->groupBy('almacen_planta_origenid')
-                    ->pluck('total', 'almacen_planta_origenid');
+                    ->whereIn('almacen_mayorista_origenid', $idsPedidos)
+                    ->selectRaw('almacen_mayorista_origenid, count(*) as total')
+                    ->groupBy('almacen_mayorista_origenid')
+                    ->pluck('total', 'almacen_mayorista_origenid');
             } else {
                 $query->whereRaw('1 = 0');
             }
@@ -693,7 +987,7 @@ class CatalogoSelectorController extends Controller
                 'extra' => [
                     'lat' => $pv->latitud,
                     'lng' => $pv->longitud,
-                    'direccion' => $pv->direccionParaMostrar(),
+                    'direccion' => $pv->ubicacionVisible()['direccion'],
                     'ubicacion_resumen' => $pv->resumenUbicacion(),
                     'minorista' => $minorista,
                     'activo' => (bool) $pv->activo,
@@ -719,25 +1013,29 @@ class CatalogoSelectorController extends Controller
             }
 
             $almacen = $insumo->almacen?->nombre;
-            $stock = number_format((float) $insumo->stock, 2);
-            $unidad = $insumo->unidadMedida?->abreviatura ?? 'kg';
+            $refInsumo = 'insumo:'.$insumo->insumoid;
+            $stockKg = PedidoCatalogo::stockDisponibleProductoPedido($refInsumo, (int) $insumo->almacenid) ?? 0.0;
+            $stock = number_format($stockKg, 2);
             $label = $insumo->nombre;
-            $meta = trim(collect([$almacen, "Stock: {$stock} {$unidad}"])->filter()->implode(' · '));
+            $meta = trim(collect([$almacen, "Stock: {$stock} kg"])->filter()->implode(' · '));
 
             if ($q !== '' && ! str_contains(mb_strtolower($label.' '.$meta), $q)) {
                 continue;
             }
 
             $items->push([
-                'id' => 'insumo:'.$insumo->insumoid,
+                'id' => $refInsumo,
                 'label' => $label,
                 'meta' => $meta !== '' ? $meta : 'Insumo · Material de siembra',
                 'extra' => [
                     'tipo' => 'insumo',
                     'almacen' => $almacen,
                     'almacenid' => $insumo->almacenid,
-                    'stock' => (float) $insumo->stock,
-                    'unidad' => $unidad,
+                    'stock' => $stockKg,
+                    'stock_kg' => $stockKg,
+                    'unidad' => 'kg',
+                    'calibre_id' => PedidoCatalogo::calibreSugeridoIdParaProducto($refInsumo),
+                    'insumoid_calibre' => PedidoCatalogo::insumoIdParaCalibres($refInsumo),
                 ],
             ]);
         }
@@ -750,25 +1048,29 @@ class CatalogoSelectorController extends Controller
             $cultivo = $cosecha->produccion?->lote?->cultivo?->nombre ?? 'Cultivo';
             $lote = $cosecha->produccion?->lote?->nombre ?? 'Lote';
             $almacen = $cosecha->almacen?->nombre ?? 'Almacén agrícola';
-            $cantidad = number_format((float) $cosecha->cantidad, 2);
-            $unidad = $cosecha->unidadMedida?->abreviatura ?? 'kg';
+            $refCosecha = 'cosecha:'.$cosecha->produccionalmacenamientoid;
+            $stockKg = PedidoCatalogo::stockDisponibleProductoPedido($refCosecha, (int) $cosecha->almacenid) ?? 0.0;
+            $cantidad = number_format($stockKg, 2);
             $label = "{$cultivo} — {$lote}";
-            $meta = "{$almacen} · {$cantidad} {$unidad} disponibles";
+            $meta = "{$almacen} · {$cantidad} kg disponibles";
 
             if ($q !== '' && ! str_contains(mb_strtolower($label.' '.$meta), $q)) {
                 continue;
             }
 
             $items->push([
-                'id' => 'cosecha:'.$cosecha->produccionalmacenamientoid,
+                'id' => $refCosecha,
                 'label' => $label,
                 'meta' => $meta,
                 'extra' => [
                     'tipo' => 'cosecha',
                     'almacen' => $almacen,
                     'almacenid' => $cosecha->almacenid,
-                    'stock' => (float) $cosecha->cantidad,
-                    'unidad' => $unidad,
+                    'stock' => $stockKg,
+                    'stock_kg' => $stockKg,
+                    'unidad' => 'kg',
+                    'calibre_id' => PedidoCatalogo::calibreSugeridoIdParaProducto($refCosecha),
+                    'insumoid_calibre' => PedidoCatalogo::insumoIdParaCalibres($refCosecha),
                 ],
             ]);
         }
@@ -782,11 +1084,18 @@ class CatalogoSelectorController extends Controller
                     continue;
                 }
 
+                $refCultivo = 'cultivo:'.$cultivo->cultivoid;
+                \App\Support\CalibresVerdurasCatalogo::sincronizarParaNombreCultivo($label);
                 $items->push([
-                    'id' => 'cultivo:'.$cultivo->cultivoid,
+                    'id' => $refCultivo,
                     'label' => $label,
                     'meta' => $meta,
-                    'extra' => ['tipo' => 'cultivo'],
+                    'extra' => [
+                        'tipo' => 'cultivo',
+                        'calibre_id' => PedidoCatalogo::calibreSugeridoIdParaProducto($refCultivo),
+                        'insumoid_calibre' => PedidoCatalogo::insumoVerduraPorNombreCultivo($label)?->insumoid
+                            ?? PedidoCatalogo::insumoPorNombreCultivo($label)?->insumoid,
+                    ],
                 ]);
             }
         }
@@ -1091,6 +1400,7 @@ class CatalogoSelectorController extends Controller
                     }
                 ),
                 'sugerencia_siembra' => $sugerencia,
+                'superficie_ha' => $lote ? (float) $lote->superficie : null,
                 'tipos_riego' => ActividadDetalleCatalogo::TIPOS_RIEGO,
             ],
         ]);

@@ -14,7 +14,7 @@ class ChecklistCondicionLogistica extends Model
     protected $primaryKey = 'checklistcondicionid';
 
     protected $fillable = [
-        'envioasignacionmultipleid', 'almacenid', 'revisado_por_usuarioid', 'estado_general',
+        'envioasignacionmultipleid', 'rutadistribucionid', 'almacenid', 'revisado_por_usuarioid', 'estado_general',
         'productos_completos', 'empaque_intacto', 'temperatura_adecuada', 'sin_danos_visibles',
         'documentacion_completa', 'observaciones', 'fecha_revision', 'created_at',
     ];
@@ -28,6 +28,11 @@ class ChecklistCondicionLogistica extends Model
         'fecha_revision'            => 'datetime',
         'created_at'                => 'datetime',
     ];
+
+    public function ruta(): BelongsTo
+    {
+        return $this->belongsTo(RutaDistribucion::class, 'rutadistribucionid', 'rutadistribucionid');
+    }
 
     public function asignacion(): BelongsTo
     {

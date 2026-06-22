@@ -5,13 +5,14 @@
 @endphp
 
 @if($esMiAsignacion)
-<div class="{{ !empty($conBordeSuperior) ? 'border-top pt-3 mt-3' : '' }}">
-    <div class="env-det-label"><i class="fas fa-coins text-warning mr-1"></i>Tu ingreso por este servicio</div>
+<div class="env-ingreso-transportista {{ !empty($conBordeSuperior) ? 'env-ingreso-transportista--separado' : '' }}">
+    <div class="env-ingreso-transportista__head">
+        <span class="env-ingreso-transportista__icon"><i class="fas fa-coins"></i></span>
+        <span class="env-ingreso-transportista__lbl">Tu ingreso por este servicio</span>
+    </div>
     @if($costoBs !== null)
-        <div class="env-det-value text-success mb-1" style="font-size:1.35rem;">
-            {{ number_format($costoBs, 2, ',', '.') }} Bs
-        </div>
-        <p class="small text-muted mb-0">
+        <div class="env-ingreso-transportista__monto">{{ number_format($costoBs, 2, ',', '.') }} Bs</div>
+        <p class="env-ingreso-transportista__nota mb-0">
             @if($completado)
                 <i class="fas fa-check-circle text-success mr-1"></i>
                 Acreditado en
@@ -22,7 +23,7 @@
             @endif
         </p>
     @else
-        <p class="text-muted small mb-0">Logística aún no registró el monto de este servicio.</p>
+        <p class="env-ingreso-transportista__nota mb-0">Logística aún no registró el monto de este servicio.</p>
     @endif
 </div>
 @endif

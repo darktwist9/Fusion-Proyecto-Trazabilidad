@@ -82,6 +82,23 @@ final class SimulacionRutaCatalogo
             || $user->can('asignaciones.update');
     }
 
+    /** El transportista asignado no ve su propia ruta en tiempo real; solo supervisores. */
+    public static function usuarioPuedeVerTiempoRealAgricola(?Usuario $user, EnvioAsignacionMultiple $envio): bool
+    {
+        if ($user === null || ! self::simulacionActivaAgricola($envio)) {
+            return false;
+        }
+
+        if (UsuarioRol::esTransportista($user)) {
+            return false;
+        }
+
+        return UsuarioRol::esAdminGlobal($user)
+            || UsuarioRol::esJefePlanta($user)
+            || UsuarioRol::esJefeAgricultor($user)
+            || ($user->can('asignaciones.read') && ! UsuarioRol::esMinorista($user));
+    }
+
     /** Transportista asignado, jefe de planta/admin o quien gestione asignaciones. */
     public static function usuarioPuedeEmpezarDistribucion(?Usuario $user, RutaDistribucion $ruta): bool
     {

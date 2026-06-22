@@ -30,7 +30,7 @@
                         <span><i class="fas fa-search mr-1"></i> Buscar chofer</span>
                     </div>
                 </div>
-                <input type="hidden" name="transportista_usuarioid" id="transportista_usuarioid_create" value="{{ $transportistaId }}" required>
+                <input type="hidden" name="transportista_usuarioid" id="transportista_usuarioid_create" form="form-pedido" value="{{ $transportistaId }}" required>
                 <input type="text" id="txtTransportistaCreate" class="d-none" value="{{ $transportistaLabel }}" tabindex="-1" aria-hidden="true">
             </div>
             <div class="col-md-6">
@@ -62,7 +62,7 @@
                         <small class="env-recurso-card__hint">La sugerencia es orientativa; puede elegir otro manualmente.</small>
                     </div>
                 </div>
-                <input type="hidden" name="vehiculoid" id="vehiculoid_create" value="{{ $vehiculoId }}" required>
+                <input type="hidden" name="vehiculoid" id="vehiculoid_create" form="form-pedido" value="{{ $vehiculoId }}" required>
                 <input type="text" id="txtVehiculoCreate" class="d-none" value="{{ $vehiculoLabel }}" tabindex="-1" aria-hidden="true">
             </div>
         </div>
@@ -79,7 +79,7 @@
                 <label class="small font-weight-bold">Costo del servicio (Bs) <span class="text-danger">*</span></label>
                 <div class="input-group input-group-sm">
                     <div class="input-group-prepend"><span class="input-group-text">Bs</span></div>
-                    <input type="number" name="costo_bs" id="costo_bs" class="form-control" min="0" step="1"
+                    <input type="number" name="costo_bs" id="costo_bs" form="form-pedido" class="form-control" min="0" step="1"
                            value="{{ old('costo_bs', '0') }}" placeholder="Se calcula con la ruta" required>
                 </div>
                 <small class="text-muted d-block" id="wizard-costo-detalle">Se estima al trazar la ruta. Puede ajustarlo.</small>

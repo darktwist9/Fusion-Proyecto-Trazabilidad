@@ -27,6 +27,7 @@
     $colNombre = $colNombre ?? null;
     $theme = $theme ?? null;
     $variant = $variant ?? 'filtros';
+    $registerScript = $registerScript ?? true;
     $esVarianteFiltros = $variant !== 'legacy';
 @endphp
 
@@ -102,6 +103,7 @@
 
 @include('partials.selector-catalogo-assets')
 
+@if($registerScript)
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -126,3 +128,4 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 @endpush
+@endif

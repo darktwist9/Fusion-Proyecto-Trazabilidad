@@ -8,11 +8,14 @@
 <style>
 .pdv-pedido-flujo {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: .75rem;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: .65rem;
     margin-bottom: 1.25rem;
 }
-@media (max-width: 991px) {
+@media (max-width: 1199px) {
+    .pdv-pedido-flujo { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 767px) {
     .pdv-pedido-flujo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .pdv-paso-card {
@@ -81,6 +84,141 @@
 }
 .pdv-paso-card.hecho .paso-icon { color: #059669; }
 .pdv-paso-card.hecho .paso-label { color: #065f46; }
+.pdv-paso-card.es-navegable {
+    cursor: pointer;
+}
+.pdv-paso-card.es-navegable.activo {
+    cursor: pointer;
+}
+.pdv-paso-card.es-navegable:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 14px rgba(5, 150, 105, .22);
+}
+.pdv-paso-card.vista-activa:not(.activo) {
+    outline: 3px solid #10b981;
+    outline-offset: 2px;
+}
+.pdv-estado-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    padding: .45rem .95rem;
+    border-radius: 999px;
+    font-size: .82rem;
+    font-weight: 700;
+    letter-spacing: .01em;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, .08);
+}
+.pdv-estado-pill i { font-size: .9rem; opacity: .95; }
+.pdv-estado-pill--revision { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #92400e; border: 1px solid #fcd34d; }
+.pdv-estado-pill--preparacion { background: linear-gradient(135deg, #e0f2fe, #bae6fd); color: #075985; border: 1px solid #7dd3fc; }
+.pdv-estado-pill--asignado { background: linear-gradient(135deg, #ffedd5, #fed7aa); color: #9a3412; border: 1px solid #fdba74; }
+.pdv-estado-pill--ruta { background: linear-gradient(135deg, #dbeafe, #93c5fd); color: #1e3a8a; border: 1px solid #60a5fa; }
+.pdv-estado-pill--recibido { background: linear-gradient(135deg, #d1fae5, #6ee7b7); color: #065f46; border: 1px solid #34d399; }
+.pdv-estado-pill--rechazado { background: linear-gradient(135deg, #fee2e2, #fecaca); color: #991b1b; border: 1px solid #f87171; }
+.pdv-estado-pill--cancelado, .pdv-estado-pill--neutral { background: #f3f4f6; color: #4b5563; border: 1px solid #d1d5db; }
+.pdv-info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .85rem;
+}
+@media (max-width: 767px) {
+    .pdv-info-grid { grid-template-columns: 1fr; }
+}
+.pdv-info-tile {
+    border-radius: 14px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    padding: 1rem 1.05rem;
+    box-shadow: 0 2px 10px rgba(15, 23, 42, .04);
+    height: 100%;
+}
+.pdv-info-tile--wide { grid-column: 1 / -1; }
+.pdv-info-tile__icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: .95rem; margin-bottom: .55rem;
+}
+.pdv-info-tile__icon--pdv { background: #ecfdf5; color: #059669; }
+.pdv-info-tile__icon--prod { background: #eff6ff; color: #2563eb; }
+.pdv-info-tile__icon--alm { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
+.pdv-info-tile__icon--stock { background: #ecfdf5; color: #047857; }
+.pdv-info-tile__icon--meta { background: #f5f3ff; color: #6d28d9; }
+.pdv-info-tile__label {
+    display: block;
+    font-size: .68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: #94a3b8;
+    margin-bottom: .25rem;
+}
+.pdv-info-tile__value {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.35;
+}
+.pdv-info-tile__sub { font-size: .82rem; color: #64748b; margin-top: .15rem; }
+.pdv-info-tile__badge {
+    display: inline-flex; align-items: center; gap: .35rem;
+    margin-top: .4rem; padding: .25rem .6rem; border-radius: 999px;
+    font-size: .75rem; font-weight: 600;
+}
+.pdv-info-tile__badge--ok { background: #ecfdf5; color: #047857; }
+.pdv-info-tile__badge--bad { background: #fef2f2; color: #b91c1c; }
+.pdv-almacen-caja {
+    display: inline-flex; align-items: center; gap: .5rem;
+    padding: .55rem .85rem; border-radius: 10px;
+    background: #f8fafc; border: 1px solid #e2e8f0;
+    font-weight: 600; color: #334155;
+}
+.pdv-almacen-caja i { color: #64748b; }
+.pdv-btn-ubicacion {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    margin-top: .55rem;
+    padding: .4rem .8rem;
+    font-size: .76rem;
+    font-weight: 600;
+    line-height: 1.2;
+    color: #fff !important;
+    background: linear-gradient(135deg, #4a7c59 0%, #2c5530 100%);
+    border: 1px solid #1e4620;
+    border-radius: 8px;
+    text-decoration: none !important;
+    box-shadow: 0 2px 8px rgba(44, 85, 48, .22);
+    transition: transform .12s ease, box-shadow .12s ease;
+}
+.pdv-btn-ubicacion:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(44, 85, 48, .32);
+    color: #fff !important;
+    text-decoration: none !important;
+}
+.pdv-btn-ubicacion i { font-size: .72rem; opacity: .95; }
+.pdv-ubicacion-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+.pdv-meta-list { display: grid; gap: .55rem; }
+.pdv-meta-item {
+    display: flex; justify-content: space-between; gap: 1rem;
+    padding: .55rem .7rem; border-radius: 10px; background: #f8fafc;
+    font-size: .84rem;
+}
+.pdv-meta-item span:first-child { color: #64748b; font-weight: 600; }
+.pdv-meta-item span:last-child { color: #0f172a; font-weight: 600; text-align: right; }
+.pdv-paso-panel { display: none; }
+.pdv-paso-panel.is-visible { display: block; }
+.pdv-edit-solicitud {
+    border-radius: 14px; border: 1px solid #dbeafe; background: linear-gradient(160deg, #f8fbff, #eff6ff);
+    padding: 1rem 1.1rem; margin-top: 1rem;
+}
+.pdv-sidebar-paso { display: none; }
+.pdv-sidebar-paso.is-visible { display: block; }
 .pdv-detalle-grid dt { font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; color: #6c757d; }
 .pdv-detalle-grid dd { margin-bottom: .85rem; }
 .pdv-banner-llegada {
@@ -104,6 +242,100 @@
 }
 .pdv-flota-panel--chofer .panel-icon { background: #dbeafe; color: #1d4ed8; }
 .pdv-flota-panel--vehiculo .panel-icon { background: #d1fae5; color: #047857; }
+
+/* Contenido bajo el flujo de 5 pasos — estilo ejecutivo (sin colores LED) */
+.pdv-paso-panel .pdv-info-grid { gap: .75rem; margin-bottom: 0; }
+.pdv-paso-panel .pdv-info-tile {
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    background: #fafbfc;
+    padding: .9rem 1rem;
+    box-shadow: none;
+}
+.pdv-paso-panel .pdv-info-tile__icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    font-size: .85rem; margin-bottom: .5rem;
+}
+.pdv-paso-panel .pdv-info-tile__icon--pdv { background: #ecfdf5; color: #059669; }
+.pdv-paso-panel .pdv-info-tile__icon--prod { background: #eff6ff; color: #2563eb; }
+.pdv-paso-panel .pdv-info-tile__icon--alm { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
+.pdv-paso-panel .pdv-info-tile__icon--stock { background: #ecfdf5; color: #047857; }
+.pdv-paso-panel .pdv-info-tile__icon--meta { background: #f5f3ff; color: #6d28d9; }
+.pdv-paso-panel .pdv-info-tile__label {
+    color: #64748b; font-size: .65rem; letter-spacing: .06em;
+}
+.pdv-paso-panel .pdv-info-tile__value {
+    font-size: .92rem; font-weight: 700; color: #0f172a;
+}
+.pdv-paso-panel .pdv-info-tile__value.text-success { color: #047857 !important; }
+.pdv-paso-panel .pdv-info-tile__sub { color: #64748b; font-size: .78rem; }
+.pdv-paso-panel .pdv-info-tile__badge {
+    margin-top: .45rem; padding: .22rem .55rem;
+    font-size: .72rem; font-weight: 600; border-radius: 999px;
+}
+.pdv-paso-panel .pdv-info-tile__badge--ok {
+    background: #ecfdf5; color: #047857; border: 1px solid #6ee7b7;
+}
+.pdv-paso-panel .pdv-info-tile__badge--bad {
+    background: #fef2f2; color: #991b1b; border: 1px solid #fecaca;
+}
+.pdv-paso-panel .pdv-info-tile__badge--warn {
+    background: #fffbeb; color: #92400e; border: 1px solid #fde68a;
+}
+.pdv-paso-panel .pdv-almacen-caja {
+    background: #f8fafc; border-color: #e2e8f0; color: #334155; font-weight: 600;
+}
+.pdv-paso-panel .pdv-almacen-caja i { color: #64748b; }
+.pdv-paso-panel .pdv-meta-list { gap: .45rem; }
+.pdv-paso-panel .pdv-meta-item {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+    padding: .5rem .65rem; font-size: .8rem;
+}
+.pdv-paso-panel .pdv-edit-solicitud {
+    border-radius: 10px; border: 1px solid #e2e8f0;
+    background: #fff; padding: .9rem 1rem; margin-top: .85rem;
+}
+.pdv-paso-panel .pdv-edit-solicitud h6 { color: #334155; font-size: .85rem; }
+.pdv-paso-panel .pdv-revision-banner {
+    display: flex; align-items: flex-start; gap: .65rem;
+    padding: .85rem 1rem; border-radius: 10px;
+    border: 1px solid #fde68a; background: linear-gradient(135deg, #fffbeb, #fef3c7);
+}
+.pdv-paso-panel .pdv-revision-banner__icon {
+    flex-shrink: 0; width: 36px; height: 36px; border-radius: 8px;
+    background: #fef3c7; color: #d97706;
+    display: flex; align-items: center; justify-content: center; font-size: .9rem;
+}
+.pdv-paso-panel .pdv-revision-banner__title {
+    font-size: .68rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .05em; color: #b45309; margin-bottom: .15rem;
+}
+.pdv-paso-panel .pdv-revision-banner__text {
+    font-size: .88rem; font-weight: 600; color: #0f172a; line-height: 1.35;
+}
+.pdv-paso-panel .pdv-revision-banner__sub { font-size: .78rem; color: #64748b; margin-top: .2rem; }
+.pdv-paso-panel .pdv-stock-row {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem;
+    padding: .75rem 1rem; border-radius: 10px;
+    border: 1px solid #bbf7d0; background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+}
+.pdv-paso-panel .pdv-stock-row__label {
+    font-size: .65rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .05em; color: #047857;
+}
+.pdv-paso-panel .pdv-stock-row__value {
+    font-size: 1rem; font-weight: 700; color: #065f46;
+}
+.pdv-sidebar-paso .card.card-outline.card-success .card-body.text-success,
+.pdv-sidebar-paso .card.card-outline.card-success .card-body.small.text-success {
+    color: #334155 !important; background: #fafbfc;
+}
+.pdv-sidebar-paso .card.card-outline.card-success .card-body.text-success i {
+    color: #475569;
+}
+.pdv-sidebar-paso .card.card-outline.card-warning .card-body {
+    background: #fffbeb; color: #78350f; border-left: 3px solid #d97706;
+}
 </style>
 @endpush
 
@@ -111,25 +343,45 @@
     @php
         $det = $pedido->detalles->first();
         $badge = \App\Support\PedidoDistribucionCatalogo::badgeEstado($pedido);
-        $pendientePlanta = \App\Support\PedidoDistribucionCatalogo::pendienteAprobacionPlanta($pedido);
-        $unidad = $det?->insumo?->unidadMedida?->abreviatura ?? '';
-        $stockOk = $erroresStock === [];
+        $pendienteMayorista = \App\Support\PedidoDistribucionCatalogo::pendienteAprobacionMayorista($pedido);
+        $unidad = $det?->presentacion?->etiquetaUnidad() ?? $det?->insumo?->unidadMedida?->abreviatura ?? 'unidades';
+        $stockOk = $pendienteMayorista || $erroresStock === [] || ($det?->es_solicitud_custom ?? false);
         $transportistaEfectivo = $pedido->transportista ?? $pedido->rutaDistribucion?->transportista;
         $vehiculoEfectivo = $pedido->vehiculo ?? $pedido->rutaDistribucion?->vehiculo;
-        $puedeDespacharDirecto = \App\Support\PedidoDistribucionCatalogo::puedeDespacharDirecto($pedido);
-        $enRutaPlanificada = $pedido->estado === 'confirmado' && $pedido->rutadistribucionid !== null;
+        $puedeDesignarTransportista = $puedeDesignarTransportista ?? false;
+        $transportistaDesignado = $transportistaDesignado ?? false;
+        $puedeEmpezarRuta = $puedeEmpezarRuta ?? false;
+        $simulacionActiva = $simulacionActiva ?? false;
+        $esTransportistaAsignado = $esTransportistaAsignado ?? false;
+        $puedeEditarFlujo = $puedeEditarFlujo ?? false;
+        $puedeEditarSolicitud = $puedeEditarSolicitud ?? false;
+        $puedeReabrirRevision = $puedeReabrirRevision ?? false;
+        $pasoInicial = $pasoInicial ?? 3;
+        $pasoActualFlujo = $pasoActualFlujo ?? 3;
+        $esAdmin = $esAdmin ?? false;
+        $puedeVerRutaTiempoReal = $puedeVerRutaTiempoReal ?? false;
+        $urlTiempoRealPedido = $urlTiempoRealPedido ?? null;
+        $puedeOperarSalidaRuta = ($esAdmin ?? false) || ($esTransportistaAsignado ?? false);
+        $urlUbicacionPdv = $pedido->puntoVenta
+            ? route('punto-venta.pedidos.ubicacion.pdv', $pedido)
+            : null;
+        $almacenContexto = $pedido->almacenMayoristaOrigen ?? $det?->insumo?->almacen;
+        $urlUbicacionAlmacen = $almacenContexto
+            ? route('punto-venta.pedidos.ubicacion.almacen', $pedido)
+            : null;
         $pasos = [
-            ['num' => 1, 'icon' => 'fa-paper-plane', 'label' => 'Solicitud minorista', 'hecho' => true, 'activo' => false],
-            ['num' => 2, 'icon' => 'fa-industry', 'label' => 'Revisión planta', 'hecho' => in_array($pedido->estado, ['confirmado', 'en_transito', 'recibido'], true), 'activo' => $pendientePlanta],
-            ['num' => 3, 'icon' => 'fa-shipping-fast', 'label' => 'En tránsito', 'hecho' => in_array($pedido->estado, ['en_transito', 'recibido'], true), 'activo' => $pedido->estado === 'confirmado'],
-            ['num' => 4, 'icon' => 'fa-dolly', 'label' => 'Recepción PDV', 'hecho' => $pedido->estado === 'recibido', 'activo' => $pedido->estado === 'en_transito'],
+            ['num' => 1, 'icon' => 'fa-paper-plane', 'label' => 'Solicitud minorista', 'hecho' => true, 'activo' => false, 'navegable' => $puedeEditarFlujo],
+            ['num' => 2, 'icon' => 'fa-warehouse', 'label' => 'Revisión mayorista', 'hecho' => in_array($pedido->estado, ['confirmado', 'en_transito', 'recibido'], true), 'activo' => $pendienteMayorista, 'navegable' => $puedeEditarFlujo],
+            ['num' => 3, 'icon' => 'fa-user-tie', 'label' => 'Designar transportista', 'hecho' => $transportistaDesignado || in_array($pedido->estado, ['en_transito', 'recibido'], true), 'activo' => $pedido->estado === 'confirmado' && ! $transportistaDesignado, 'navegable' => $puedeEditarFlujo],
+            ['num' => 4, 'icon' => 'fa-shipping-fast', 'label' => 'En ruta', 'hecho' => in_array($pedido->estado, ['en_transito', 'recibido'], true), 'activo' => $transportistaDesignado && $pedido->estado === 'confirmado', 'navegable' => $transportistaDesignado && in_array($pedido->estado, ['confirmado', 'en_transito'], true)],
+            ['num' => 5, 'icon' => 'fa-dolly', 'label' => 'Recepción PDV', 'hecho' => $pedido->estado === 'recibido', 'activo' => $pedido->estado === 'en_transito', 'navegable' => $pedido->estado === 'en_transito'],
         ];
     @endphp
 
     <div class="row mb-3">
         <div class="col-12">
-            <a href="{{ route('punto-venta.pedidos.index') }}" class="btn btn-secondary btn-sm">
-                <i class="fas fa-arrow-left mr-1"></i> Volver al listado
+            <a href="{{ route('punto-venta.pedidos.index', ['ctx' => $ctxVolver ?? 'pdv']) }}" class="btn btn-secondary btn-sm">
+                <i class="fas fa-arrow-left mr-1"></i> {{ ($esBandejaMayorista ?? false) ? 'Volver a bandeja mayorista' : 'Volver a mis pedidos' }}
             </a>
         </div>
     </div>
@@ -162,18 +414,29 @@
                     <h3 class="card-title mb-0 font-weight-bold">
                         <i class="fas fa-truck-loading text-success mr-2"></i>Detalle del pedido
                     </h3>
-                    <span class="badge badge-{{ $badge['clase'] }} badge-lg">{{ $badge['etiqueta'] }}</span>
+                    <span class="pdv-estado-pill pdv-estado-pill--{{ $badge['clase'] }}">
+                        <i class="fas {{ $badge['icono'] ?? 'fa-info-circle' }}"></i>
+                        {{ $badge['etiqueta'] }}
+                    </span>
                 </div>
                 <div class="card-body">
                     @if(! in_array($pedido->estado, ['rechazado', 'cancelado'], true))
-                    <div class="pdv-pedido-flujo">
+                    <div class="pdv-pedido-flujo" id="pdvPedidoFlujo" data-paso-inicial="{{ $pasoInicial }}" data-paso-flujo="{{ $pasoActualFlujo }}">
                         @foreach($pasos as $paso)
                             @php
                                 $clasePaso = $paso['activo']
                                     ? 'activo'
                                     : ($paso['hecho'] ? 'hecho' : 'pendiente');
+                                $esNavegable = $paso['num'] <= $pasoActualFlujo && (
+                                    in_array($paso['num'], [1, 2], true)
+                                        ? (($paso['navegable'] ?? false) && $puedeEditarFlujo)
+                                        : ($paso['navegable'] ?? false)
+                                );
                             @endphp
-                            <div class="pdv-paso-card {{ $clasePaso }}">
+                            <div class="pdv-paso-card {{ $clasePaso }} {{ $esNavegable ? 'es-navegable' : '' }}"
+                                 data-paso="{{ $paso['num'] }}"
+                                 data-navegable="{{ $esNavegable ? '1' : '0' }}"
+                                 title="{{ $esNavegable ? 'Ver y editar este paso' : '' }}">
                                 <span class="paso-num">{{ $paso['num'] }}</span>
                                 <i class="fas {{ $paso['icon'] }} paso-icon"></i>
                                 <span class="paso-label">{{ $paso['label'] }}</span>
@@ -182,97 +445,232 @@
                     </div>
                     @endif
 
-                    <dl class="row mb-0 pdv-detalle-grid">
-                        <dt class="col-sm-4">Punto de venta</dt>
-                        <dd class="col-sm-8">
-                            <a href="{{ route('punto-venta.puntos.show', $pedido->puntoVenta) }}">{{ $pedido->puntoVenta?->nombre }}</a>
-                            <br><small class="text-muted">{{ $pedido->puntoVenta?->nombreMinorista() }}</small>
-                        </dd>
-                        <dt class="col-sm-4">Producto solicitado</dt>
-                        <dd class="col-sm-8"><strong>{{ $det?->producto_nombre ?? '—' }}</strong></dd>
-                        <dt class="col-sm-4">Cantidad</dt>
-                        <dd class="col-sm-8">{{ $det ? number_format($det->cantidad, 2).' '.$unidad : '—' }}</dd>
-                        <dt class="col-sm-4">Almacén planta</dt>
-                        <dd class="col-sm-8">{{ $pedido->almacenPlantaOrigen?->nombre ?? $det?->insumo?->almacen?->nombre ?? '—' }}</dd>
+                    <div class="pdv-paso-panel" data-panel="1">
+                        <div class="pdv-info-grid mb-0">
+                            <div class="pdv-info-tile">
+                                <span class="pdv-info-tile__icon pdv-info-tile__icon--pdv"><i class="fas fa-store"></i></span>
+                                <span class="pdv-info-tile__label">Punto de venta</span>
+                                <div class="pdv-info-tile__value text-success">{{ $pedido->puntoVenta?->nombre ?? '—' }}</div>
+                                <div class="pdv-info-tile__sub">{{ $pedido->puntoVenta?->resumenUbicacion() ?: 'Sin calle de referencia' }}</div>
+                                @if($simulacionActiva && $urlTiempoRealPedido)
+                                    @include('logistica.partials.enlace-tiempo-real', ['href' => $urlTiempoRealPedido])
+                                @else
+                                    @include('punto_venta.pedidos.partials.enlace-ubicacion', ['href' => $urlUbicacionPdv])
+                                @endif
+                            </div>
+                            <div class="pdv-info-tile">
+                                <span class="pdv-info-tile__icon pdv-info-tile__icon--prod"><i class="fas fa-box"></i></span>
+                                <span class="pdv-info-tile__label">Producto solicitado</span>
+                                <div class="pdv-info-tile__value">{{ $det?->producto_nombre ?? '—' }}</div>
+                                <div class="pdv-info-tile__sub">{{ $det ? number_format($det->cantidad, 2).' '.$unidad : '—' }}</div>
+                            </div>
+                            <div class="pdv-info-tile">
+                                <span class="pdv-info-tile__icon pdv-info-tile__icon--alm"><i class="fas fa-warehouse"></i></span>
+                                <span class="pdv-info-tile__label">Almacén mayorista</span>
+                                <div class="pdv-ubicacion-stack">
+                                    <div class="pdv-almacen-caja">
+                                        <i class="fas fa-store-alt"></i>
+                                        {{ $almacenContexto?->nombre ?? '—' }}
+                                    </div>
+                                    @include('punto_venta.pedidos.partials.enlace-ubicacion', ['href' => $urlUbicacionAlmacen])
+                                </div>
+                            </div>
+                            @if($det?->insumo)
+                            <div class="pdv-info-tile">
+                                <span class="pdv-info-tile__icon pdv-info-tile__icon--stock"><i class="fas fa-cubes"></i></span>
+                                <span class="pdv-info-tile__label">Stock en mayorista</span>
+                                <div class="pdv-info-tile__value">{{ number_format((float) $det->insumo->stock, 2) }} {{ $unidad }}</div>
+                                <span class="pdv-info-tile__badge {{ $stockOk ? 'pdv-info-tile__badge--ok' : 'pdv-info-tile__badge--bad' }}">
+                                    <i class="fas {{ $stockOk ? 'fa-check-circle' : 'fa-exclamation-circle' }}"></i>
+                                    {{ $stockOk ? 'Disponible para despacho' : 'Stock insuficiente' }}
+                                </span>
+                            </div>
+                            @endif
+                        </div>
+                        @if($puedeEditarSolicitud)
+                        <div class="pdv-edit-solicitud">
+                            <h6 class="font-weight-bold mb-2"><i class="fas fa-edit text-primary mr-1"></i> Editar solicitud</h6>
+                            <form method="POST" action="{{ route('punto-venta.pedidos.update', $pedido) }}">
+                                @csrf
+                                @method('PUT')
+                                @if($esAdmin)
+                                <input type="hidden" name="minorista_usuarioid" value="{{ $pedido->puntoVenta?->usuarioid }}">
+                                <input type="hidden" name="puntoventaid" value="{{ $pedido->puntoventaid }}">
+                                <input type="hidden" name="almacen_mayorista_origenid" value="{{ $pedido->almacen_mayorista_origenid }}">
+                                @endif
+                                <input type="hidden" name="insumoid" value="{{ $det?->insumoid }}">
+                                <div class="form-row">
+                                    <div class="form-group col-md-4">
+                                        <label class="small font-weight-bold">Cantidad ({{ $unidad }})</label>
+                                        <input type="number" name="cantidad" class="form-control" step="0.01" min="0.01"
+                                               max="{{ $det?->insumo?->stock ?? 999999 }}" value="{{ old('cantidad', $det?->cantidad) }}" required>
+                                    </div>
+                                    <div class="form-group col-md-4">
+                                        <label class="small font-weight-bold">Entrega deseada</label>
+                                        <input type="date" name="fecha_entrega_deseada" class="form-control"
+                                               value="{{ old('fecha_entrega_deseada', $pedido->fecha_entrega_deseada?->format('Y-m-d')) }}">
+                                    </div>
+                                    <div class="form-group col-md-4 d-flex align-items-end">
+                                        <button type="submit" class="btn btn-primary btn-block">
+                                            <i class="fas fa-save mr-1"></i> Guardar cambios
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="form-group mb-0">
+                                    <label class="small font-weight-bold">Observaciones</label>
+                                    <textarea name="observaciones" class="form-control" rows="2" maxlength="2000" placeholder="Notas para el centro mayorista…">{{ old('observaciones', $pedido->observaciones) }}</textarea>
+                                </div>
+                                @if($transportistaDesignado)
+                                <p class="small text-warning mb-0 mt-2"><i class="fas fa-info-circle mr-1"></i>Si cambia la solicitud, se quitará el transportista asignado y deberá designarlo de nuevo.</p>
+                                @endif
+                            </form>
+                        </div>
+                        @endif
+                    </div>
+
+                    <div class="pdv-paso-panel" data-panel="2">
+                        <div class="pdv-revision-banner mb-3">
+                            <div class="pdv-revision-banner__icon"><i class="fas fa-clipboard-check"></i></div>
+                            <div>
+                                <div class="pdv-revision-banner__title">Estado de revisión</div>
+                                <div class="pdv-revision-banner__text">
+                                    @if($pendienteMayorista && $pedido->espera_stock)
+                                        Esperando stock — el minorista solicitó entrega para {{ $pedido->fecha_entrega_deseada?->format('d/m/Y') ?? 'fecha por confirmar' }}
+                                    @elseif($pendienteMayorista)
+                                        Pendiente de decisión del centro mayorista
+                                    @elseif($pedido->fecha_aceptacion)
+                                        Aceptado — {{ $pedido->fecha_aceptacion->format('d/m/Y H:i') }}
+                                    @else
+                                        Sin revisión registrada
+                                    @endif
+                                </div>
+                                @if($pedido->fecha_aceptacion && $pedido->aceptadoPor)
+                                    <div class="pdv-revision-banner__sub">
+                                        por {{ trim($pedido->aceptadoPor->nombre.' '.$pedido->aceptadoPor->apellido) }}
+                                    </div>
+                                @elseif($pendienteMayorista && $pedido->espera_stock)
+                                    <div class="pdv-revision-banner__sub">
+                                        Cantidad solicitada: {{ $det ? number_format($det->cantidad, 0).' '.$unidad : '—' }}.
+                                        El mayorista aceptará o rechazará según disponibilidad para la fecha indicada.
+                                    </div>
+                                @elseif($pendienteMayorista)
+                                    <div class="pdv-revision-banner__sub">
+                                        El mayorista verificará stock y confirmará el despacho hacia su punto de venta.
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
                         @if($det?->insumo)
-                        <dt class="col-sm-4">Stock en planta</dt>
-                        <dd class="col-sm-8">
-                            @if($stockOk)
-                                <span class="text-success"><i class="fas fa-check mr-1"></i>{{ number_format((float) $det->insumo->stock, 2) }} {{ $unidad }} disponible</span>
-                            @else
-                                <span class="text-danger"><i class="fas fa-times mr-1"></i>{{ number_format((float) $det->insumo->stock, 2) }} {{ $unidad }} — insuficiente</span>
+                        <div class="pdv-stock-row">
+                            <div>
+                                <div class="pdv-stock-row__label">Stock verificado en mayorista</div>
+                                <div class="pdv-stock-row__value">{{ number_format((float) $det->insumo->stock, 2) }} {{ $unidad }}</div>
+                            </div>
+                            <span class="pdv-info-tile__badge {{ $stockOk ? 'pdv-info-tile__badge--ok' : 'pdv-info-tile__badge--bad' }}">
+                                <i class="fas {{ $stockOk ? 'fa-check' : 'fa-exclamation-triangle' }} mr-1"></i>
+                                {{ $stockOk ? 'Cubre la solicitud' : 'No alcanza' }}
+                            </span>
+                        </div>
+                        @endif
+                    </div>
+
+                    <div class="pdv-paso-panel" data-panel="resumen">
+                        <div class="pdv-info-grid mb-3">
+                            <div class="pdv-info-tile">
+                                <span class="pdv-info-tile__icon pdv-info-tile__icon--pdv"><i class="fas fa-store"></i></span>
+                                <span class="pdv-info-tile__label">Punto de venta</span>
+                                <div class="pdv-info-tile__value text-success">{{ $pedido->puntoVenta?->nombre ?? '—' }}</div>
+                                <div class="pdv-info-tile__sub">{{ $pedido->puntoVenta?->resumenUbicacion() ?: 'Sin calle de referencia' }}</div>
+                                @if($simulacionActiva && $urlTiempoRealPedido)
+                                    @include('logistica.partials.enlace-tiempo-real', ['href' => $urlTiempoRealPedido])
+                                @else
+                                    @include('punto_venta.pedidos.partials.enlace-ubicacion', ['href' => $urlUbicacionPdv])
+                                @endif
+                            </div>
+                            <div class="pdv-info-tile">
+                                <span class="pdv-info-tile__icon pdv-info-tile__icon--prod"><i class="fas fa-box"></i></span>
+                                <span class="pdv-info-tile__label">Producto</span>
+                                <div class="pdv-info-tile__value">{{ $det?->producto_nombre ?? '—' }}</div>
+                                <div class="pdv-info-tile__sub">{{ $det ? number_format($det->cantidad, 2).' '.$unidad : '' }}</div>
+                            </div>
+                            <div class="pdv-info-tile">
+                                <span class="pdv-info-tile__icon pdv-info-tile__icon--alm"><i class="fas fa-warehouse"></i></span>
+                                <span class="pdv-info-tile__label">Origen mayorista</span>
+                                <div class="pdv-ubicacion-stack">
+                                    <div class="pdv-almacen-caja">
+                                        <i class="fas fa-store-alt"></i>
+                                        {{ $almacenContexto?->nombre ?? '—' }}
+                                    </div>
+                                    @include('punto_venta.pedidos.partials.enlace-ubicacion', ['href' => $urlUbicacionAlmacen])
+                                </div>
+                            </div>
+                            @if($transportistaEfectivo)
+                            <div class="pdv-info-tile">
+                                <span class="pdv-info-tile__icon pdv-info-tile__icon--meta"><i class="fas fa-id-card"></i></span>
+                                <span class="pdv-info-tile__label">Transportista</span>
+                                <div class="pdv-info-tile__value">{{ trim($transportistaEfectivo->nombre.' '.$transportistaEfectivo->apellido) }}</div>
+                                @if($vehiculoEfectivo)
+                                <div class="pdv-info-tile__sub">{{ $vehiculoEfectivo->placa }}</div>
+                                @endif
+                            </div>
                             @endif
-                        </dd>
-                        @endif
-                        <dt class="col-sm-4">Fecha solicitud</dt>
-                        <dd class="col-sm-8">{{ $pedido->fechapedido?->format('d/m/Y H:i') ?? '—' }}</dd>
-                        @if($pedido->creadoPor)
-                        <dt class="col-sm-4">Solicitado por</dt>
-                        <dd class="col-sm-8">{{ trim($pedido->creadoPor->nombre.' '.$pedido->creadoPor->apellido) }}</dd>
-                        @endif
-                        @if($pedido->fecha_entrega_deseada)
-                        <dt class="col-sm-4">Entrega deseada</dt>
-                        <dd class="col-sm-8">{{ $pedido->fecha_entrega_deseada->format('d/m/Y') }}</dd>
-                        @endif
-                        @if($pedido->fecha_aceptacion)
-                        <dt class="col-sm-4">Aceptado por planta</dt>
-                        <dd class="col-sm-8">
-                            {{ $pedido->fecha_aceptacion->format('d/m/Y H:i') }}
-                            @if($pedido->aceptadoPor)
-                                — {{ trim($pedido->aceptadoPor->nombre.' '.$pedido->aceptadoPor->apellido) }}
+                        </div>
+                        <div class="pdv-meta-list">
+                            <div class="pdv-meta-item"><span>Fecha solicitud</span><span>{{ $pedido->fechapedido?->format('d/m/Y H:i') ?? '—' }}</span></div>
+                            @if($pedido->creadoPor)
+                            <div class="pdv-meta-item"><span>Solicitado por</span><span>{{ trim($pedido->creadoPor->nombre.' '.$pedido->creadoPor->apellido) }}</span></div>
                             @endif
-                        </dd>
-                        @endif
-                        @if($pedido->fecha_envio)
-                        <dt class="col-sm-4">Enviado</dt>
-                        <dd class="col-sm-8">{{ $pedido->fecha_envio->format('d/m/Y H:i') }}</dd>
-                        @endif
-                        @if($transportistaEfectivo)
-                        <dt class="col-sm-4">Transportista</dt>
-                        <dd class="col-sm-8">{{ trim($transportistaEfectivo->nombre.' '.$transportistaEfectivo->apellido) }}</dd>
-                        @endif
-                        @if($vehiculoEfectivo)
-                        <dt class="col-sm-4">Vehículo</dt>
-                        <dd class="col-sm-8">
-                            {{ $vehiculoEfectivo->placa }}
-                            @if($vehiculoEfectivo->marca || $vehiculoEfectivo->modelo)
-                                <span class="text-muted">— {{ trim(($vehiculoEfectivo->marca ?? '').' '.($vehiculoEfectivo->modelo ?? '')) }}</span>
+                            @if($pedido->fecha_entrega_deseada)
+                            <div class="pdv-meta-item"><span>Entrega deseada</span><span>{{ $pedido->fecha_entrega_deseada->format('d/m/Y') }}</span></div>
                             @endif
-                        </dd>
-                        @endif
-                        @if($pedido->fecha_recepcion)
-                        <dt class="col-sm-4">Recibido en PDV</dt>
-                        <dd class="col-sm-8">{{ $pedido->fecha_recepcion->format('d/m/Y H:i') }}</dd>
-                        @endif
-                        @if($pedido->observaciones)
-                        <dt class="col-sm-4">Observaciones</dt>
-                        <dd class="col-sm-8"><pre class="mb-0 small bg-light p-2 rounded border-0">{{ $pedido->observaciones }}</pre></dd>
-                        @endif
-                    </dl>
+                            @if($pedido->fecha_envio)
+                            <div class="pdv-meta-item"><span>Salida en ruta</span><span>{{ $pedido->fecha_envio->format('d/m/Y H:i') }}</span></div>
+                            @endif
+                            @if($pedido->fecha_recepcion)
+                            <div class="pdv-meta-item"><span>Recibido en PDV</span><span>{{ $pedido->fecha_recepcion->format('d/m/Y H:i') }}</span></div>
+                            @endif
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            @if($puedeGestionarPlanta && $pendientePlanta && $erroresStock !== [])
-            <div class="alert alert-danger">
-                <strong><i class="fas fa-exclamation-triangle mr-1"></i>No se puede aceptar todavía:</strong>
+            @if(($puedeGestionarMayorista ?? false) && $pendienteMayorista && $erroresStock !== [] && ! ($det?->es_solicitud_custom ?? false))
+            <div class="alert alert-warning">
+                <strong><i class="fas fa-info-circle mr-1"></i>Stock mayorista limitado:</strong>
                 <ul class="mb-0 pl-3 mt-1">@foreach($erroresStock as $err)<li>{{ $err }}</li>@endforeach</ul>
+                <p class="mb-0 mt-2 small">Puede aceptar igual; al confirmar se coordinará con planta si no hay stock cercano al punto de venta.</p>
             </div>
             @endif
         </div>
 
-        <div class="col-lg-4">
-            @if($puedeGestionarPlanta && $pendientePlanta)
+        <div class="col-lg-4" id="pdvPedidoSidebar">
+            <div class="pdv-sidebar-paso" data-sidebar-paso="1">
+                <div class="card pdv-card card-outline card-secondary mb-3">
+                    <div class="card-body small text-muted mb-0">
+                        <i class="fas fa-edit mr-1"></i>
+                        Revise los datos de la solicitud a la izquierda. Los cambios se guardan sin salir de esta pantalla.
+                    </div>
+                </div>
+            </div>
+
+            <div class="pdv-sidebar-paso" data-sidebar-paso="2">
+            @if(($puedeGestionarMayorista ?? false) && $pendienteMayorista)
             <div class="card pdv-card card-outline card-success mb-3">
                 <div class="card-header bg-white py-2">
-                    <h3 class="card-title mb-0 font-weight-bold"><i class="fas fa-industry text-success mr-1"></i> Decisión planta</h3>
+                    <h3 class="card-title mb-0 font-weight-bold"><i class="fas fa-warehouse text-success mr-1"></i> Decisión mayorista</h3>
                 </div>
                 <div class="card-body">
                     <p class="text-muted small mb-3">
-                        Revise stock y confirme si puede despachar el producto hacia el punto de venta.
+                        @if($pedido->espera_stock)
+                            El minorista solicitó una presentación sin stock actual para el {{ $pedido->fecha_entrega_deseada?->format('d/m/Y') ?? '—' }}.
+                            Acepte si podrá abastecer a tiempo, o rechace la solicitud.
+                        @else
+                            Al aceptar se asignará el almacén mayorista más cercano al punto de venta con stock, o quedará pendiente de coordinación con planta.
+                        @endif
                     </p>
                     <form method="POST" action="{{ route('punto-venta.pedidos.aceptar', $pedido) }}" class="mb-3">
                         @csrf
-                        <button type="submit" class="btn btn-success btn-block btn-lg" @disabled(! $stockOk)>
+                        <button type="submit" class="btn btn-success btn-block btn-lg">
                             <i class="fas fa-check mr-1"></i> Aceptar y preparar envío
                         </button>
                     </form>
@@ -292,23 +690,89 @@
                     </form>
                 </div>
             </div>
-            @elseif($puedeGestionarPlanta && $puedeDespacharDirecto)
-            <div class="card pdv-card card-outline card-success mb-3">
-                <div class="card-header bg-white py-2"><h3 class="card-title mb-0 font-weight-bold"><i class="fas fa-shipping-fast text-success mr-1"></i> Envío a PDV</h3></div>
+            @elseif($puedeReabrirRevision)
+            <div class="card pdv-card card-outline card-warning mb-3">
+                <div class="card-header bg-white py-2">
+                    <h3 class="card-title mb-0 font-weight-bold"><i class="fas fa-undo text-warning mr-1"></i> Volver a revisar</h3>
+                </div>
                 <div class="card-body">
                     <p class="text-muted small mb-3">
-                        Asigne un <strong>transportista de flota planta</strong> y su <strong>vehículo</strong> antes de marcar la salida hacia el minorista.
+                        Si necesita cambiar cantidad, producto o destino, puede devolver el pedido a revisión. Se quitará el transportista asignado si lo hubiera.
                     </p>
-                    <form method="POST" action="{{ route('punto-venta.pedidos.marcar-enviado', $pedido) }}" id="formDespachoPedidoPdv">
+                    <form method="POST" action="{{ route('punto-venta.pedidos.reabrir-revision', $pedido) }}">
+                        @csrf
+                        <button type="button" class="btn btn-warning btn-block"
+                                data-confirm-modal
+                                data-confirm-title="Reabrir revisión mayorista"
+                                data-confirm-message="¿Devolver este pedido a revisión? Deberá aceptarlo nuevamente antes de designar transportista."
+                                data-confirm-tone="warning">
+                            <i class="fas fa-undo mr-1"></i> Reabrir paso 2
+                        </button>
+                    </form>
+                </div>
+            </div>
+            @elseif($pendienteMayorista && ($esMinoristaDueño ?? false))
+            <div class="card pdv-card card-outline card-warning mb-3">
+                <div class="card-body small mb-0">
+                    <i class="fas fa-hourglass-half mr-1"></i>
+                    Su solicitud está en revisión. El mayorista confirmará cuando haya stock y despacho disponible.
+                </div>
+            </div>
+            @else
+            <div class="card pdv-card card-outline card-secondary mb-3">
+                <div class="card-body small text-muted mb-0">
+                    <i class="fas fa-check mr-1"></i> Revisión mayorista completada.
+                </div>
+            </div>
+            @endif
+            </div>
+
+            @if(($puedeSolicitarProduccionPlanta ?? false) || ($pedido->requiere_coordinacion_planta && ! ($pedido->coordinacion_planta_resuelta ?? false)))
+            <div class="pdv-sidebar-paso" data-sidebar-paso="2">
+            <div class="card pdv-card card-outline card-info mb-3">
+                <div class="card-header bg-white py-2">
+                    <h3 class="card-title mb-0 font-weight-bold"><i class="fas fa-industry text-info mr-1"></i> Coordinación con planta</h3>
+                </div>
+                <div class="card-body">
+                    @if($pedido->requiere_coordinacion_planta && ! ($pedido->coordinacion_planta_resuelta ?? false))
+                        <p class="text-muted small mb-2">Este pedido requiere producción o abastecimiento desde planta antes de asignar transportista.</p>
+                        @if($solicitudActivaPlanta ?? null)
+                            <p class="mb-2"><strong>{{ $solicitudActivaPlanta->numero_solicitud }}</strong> · {{ \App\Support\SolicitudProduccionPlantaCatalogo::etiquetaEstado($solicitudActivaPlanta->estado) }}</p>
+                            <a href="{{ route('planta.solicitudes-produccion.show', $solicitudActivaPlanta) }}" class="btn btn-outline-info btn-sm btn-block">Ver solicitud en planta</a>
+                        @elseif($puedeSolicitarProduccionPlanta ?? false)
+                            <form method="POST" action="{{ route('punto-venta.pedidos.solicitar-produccion-planta', $pedido) }}">
+                                @csrf
+                                <button type="submit" class="btn btn-info btn-block">
+                                    <i class="fas fa-paper-plane mr-1"></i> Solicitar producción a planta
+                                </button>
+                            </form>
+                        @endif
+                    @elseif($pedido->coordinacion_planta_resuelta ?? false)
+                        <p class="text-success small mb-0"><i class="fas fa-check mr-1"></i>Planta completó la solicitud. Verifique stock y designe transportista.</p>
+                    @endif
+                </div>
+            </div>
+            </div>
+            @endif
+
+            <div class="pdv-sidebar-paso" data-sidebar-paso="3">
+            @if($puedeDesignarTransportista)
+            <div class="card pdv-card card-outline card-success mb-3">
+                <div class="card-header bg-white py-2"><h3 class="card-title mb-0 font-weight-bold"><i class="fas fa-user-tie text-success mr-1"></i> Designar transportista</h3></div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        Asigne un <strong>transportista de flota mayorista</strong> y su <strong>vehículo</strong>. La salida en ruta se marca en el paso siguiente.
+                    </p>
+                    <form method="POST" action="{{ route('punto-venta.pedidos.designar-transportista', $pedido) }}" id="formDespachoPedidoPdv">
                         @csrf
                         <div class="pdv-flota-panel pdv-flota-panel--chofer">
                             <label class="small font-weight-bold mb-2 d-block">
                                 <span class="panel-icon"><i class="fas fa-id-card"></i></span>
-                                Chofer planta <span class="text-danger">*</span>
+                                Chofer mayorista <span class="text-danger">*</span>
                             </label>
                             <div class="input-group">
                                 <input type="text" id="txtTransportistaPedidoPdv" class="form-control bg-white" readonly
-                                       placeholder="Buscar transportista de planta…" value="{{ old('transportista_label') }}" required>
+                                       placeholder="Buscar transportista mayorista…" value="{{ old('transportista_label') }}" required>
                                 <div class="input-group-append">
                                     <button type="button" class="btn btn-primary" id="btnBuscarTransportistaPedidoPdv" title="Buscar chofer">
                                         <i class="fas fa-search"></i>
@@ -333,33 +797,76 @@
                                 </div>
                             </div>
                             <input type="hidden" name="vehiculoid" id="vehiculo_pedido_pdv_id" value="{{ old('vehiculoid') }}" required>
-                            <p class="small text-muted mb-0 mt-2"><i class="fas fa-info-circle mr-1"></i>Primero elija el chofer; luego asigne su vehículo de planta.</p>
+                            <p class="small text-muted mb-0 mt-2"><i class="fas fa-info-circle mr-1"></i>Primero elija el chofer; luego asigne su vehículo mayorista.</p>
                         </div>
                         <button type="button" class="btn btn-success btn-block btn-lg"
                                 id="btnConfirmarDespachoPedidoPdv"
-                                data-confirm-title="Marcar envío en tránsito"
-                                data-confirm-message="¿Confirmar salida de planta con el transportista y vehículo asignados?"
+                                data-confirm-title="Designar transportista"
+                                data-confirm-message="¿Asignar este chofer y vehículo al pedido? Podrá marcar en ruta cuando el vehículo salga."
                                 data-confirm-tone="success">
-                            <i class="fas fa-shipping-fast mr-1"></i> Marcar en tránsito
+                            <i class="fas fa-user-check mr-1"></i> Designar transportista
                         </button>
                     </form>
                 </div>
             </div>
-            @elseif($puedeGestionarPlanta && $enRutaPlanificada)
+            @else
+            <div data-tiene-salida-ruta="{{ ($ruta && $puedeOperarSalidaRuta && ($puedeEmpezarRuta || $simulacionActiva)) ? '1' : '0' }}">
+                @if($transportistaDesignado && $ruta && $puedeOperarSalidaRuta && ($puedeEmpezarRuta || $simulacionActiva))
+                    @include('punto_venta.pedidos.partials.sidebar-salida-ruta', compact(
+                        'ruta', 'pedido', 'puedeOperarSalidaRuta', 'puedeEmpezarRuta', 'simulacionActiva',
+                        'puedeGestionarMayorista', 'transportistaEfectivo', 'urlTiempoRealPedido', 'esAdmin'
+                    ))
+                @else
+                <div class="card pdv-card card-outline card-secondary mb-3">
+                    <div class="card-body small text-muted mb-0">
+                        @if($transportistaDesignado && ($puedeGestionarMayorista ?? false) && $ruta && $pedido->estado === 'confirmado')
+                            <i class="fas fa-user-clock mr-1 text-warning"></i>
+                            Transportista asignado, esperando confirmación del transportista.
+                        @else
+                            <i class="fas fa-user-tie mr-1"></i> El transportista ya fue designado o el pedido avanzó a otro paso.
+                        @endif
+                    </div>
+                </div>
+                @endif
+            </div>
+            @endif
+            </div>
+
+            <div class="pdv-sidebar-paso" data-sidebar-paso="4">
+            @if($simulacionActiva && !empty($urlTiempoRealPedido))
             <div class="card pdv-card card-outline card-info mb-3">
-                <div class="card-body small mb-0">
-                    <i class="fas fa-route mr-1 text-info"></i>
-                    Este pedido está incluido en una <strong>ruta de distribución</strong>.
-                    Inicie la ruta desde
-                    <a href="{{ route('punto-venta.rutas.index') }}">Rutas planta → minoristas</a>
-                    para marcarlo en tránsito.
+                <div class="card-body">
+                    <p class="small text-muted mb-2">Siga el vehículo en vivo hasta su punto de venta.</p>
+                    @include('logistica.partials.enlace-tiempo-real', ['href' => $urlTiempoRealPedido, 'compacto' => true])
                 </div>
             </div>
-            @elseif($puedeAnunciarLlegada ?? false)
+            @else
+            <div class="card pdv-card card-outline card-secondary mb-3">
+                <div class="card-body small text-muted mb-0">
+                    @if($transportistaDesignado && ($puedeGestionarMayorista ?? false) && $pedido->estado === 'confirmado')
+                        <i class="fas fa-user-clock mr-1 text-warning"></i>
+                        Transportista asignado, esperando confirmación del transportista.
+                    @else
+                        <i class="fas fa-route mr-1"></i> Marque en ruta cuando el vehículo salga hacia el punto de venta.
+                    @endif
+                </div>
+            </div>
+            @endif
+            </div>
+
+            <div class="pdv-sidebar-paso" data-sidebar-paso="resumen">
+            @if($puedeAnunciarLlegada ?? false)
             <div class="card pdv-card card-outline card-success mb-3">
-                <div class="card-header bg-white py-2"><h3 class="card-title mb-0 font-weight-bold"><i class="fas fa-store text-success mr-1"></i> Recepción en tienda</h3></div>
+                <div class="card-header bg-white py-2"><h3 class="card-title mb-0 font-weight-bold"><i class="fas fa-store text-success mr-1"></i> Recepción en tienda (POD)</h3></div>
                 <div class="card-body">
-                    <p class="text-muted small mb-3">El pedido ya salió de planta. Anuncie la llegada cuando lo reciba en su punto de venta.</p>
+                    @if(!empty($estadoRecepcionPdv))
+                        @include('logistica.partials.accion-recepcion-pdv-minorista-traslado', [
+                            'estadoRecepcion' => $estadoRecepcionPdv,
+                            'ruta' => $ruta,
+                            'simulacionActiva' => $simulacionActiva ?? false,
+                        ])
+                    @else
+                    <p class="text-muted small mb-3">El pedido ya salió del centro mayorista. Anuncie la llegada cuando lo reciba en su punto de venta.</p>
                     <form method="POST" action="{{ route('punto-venta.pedidos.confirmar-recepcion', $pedido) }}">
                         @csrf
                         <button type="button" class="btn btn-success btn-block btn-lg"
@@ -367,11 +874,23 @@
                                 data-confirm-tone="success"
                                 data-confirm-title="Anunciar llegada del pedido"
                                 data-confirm-message="¿Confirma que el pedido ya llegó a su punto de venta? Se ingresará al inventario.">
-                            <i class="fas fa-bullhorn mr-1"></i> Anunciar llegada
+                            <i class="fas fa-check mr-1"></i> Anunciar llegada
                         </button>
                     </form>
+                    @endif
                 </div>
             </div>
+            @elseif(!empty($estadoRecepcionPdv) && ($estadoRecepcionPdv['clave'] ?? '') !== 'programado')
+            <div class="card pdv-card card-outline card-info mb-3">
+                <div class="card-body">
+                    @include('logistica.partials.accion-recepcion-pdv-minorista-traslado', [
+                        'estadoRecepcion' => $estadoRecepcionPdv,
+                        'ruta' => $ruta,
+                        'simulacionActiva' => $simulacionActiva ?? false,
+                    ])
+                </div>
+            </div>
+            @endif
             @elseif($pedido->estado === 'recibido')
             <div class="card pdv-card card-outline card-success mb-3">
                 <div class="card-body text-success small mb-0">
@@ -381,29 +900,30 @@
             @elseif($pedido->estado === 'rechazado')
             <div class="card pdv-card card-outline card-danger mb-3">
                 <div class="card-body text-danger small mb-0">
-                    <i class="fas fa-ban mr-1"></i> Solicitud rechazada por planta.
+                    <i class="fas fa-ban mr-1"></i> Solicitud rechazada por el centro mayorista.
                 </div>
             </div>
-            @elseif($pendientePlanta && $esMinoristaDueño)
+            @elseif($pendienteMayorista && $esMinoristaDueño)
             <div class="card pdv-card card-outline card-warning mb-3">
                 <div class="card-body small mb-0">
                     <i class="fas fa-hourglass-half mr-1 text-warning"></i>
-                    Su solicitud está pendiente de revisión por planta.
+                    Su solicitud está pendiente de revisión por el centro mayorista.
                 </div>
             </div>
-            @elseif($pedido->estado === 'confirmado')
+            @elseif($pedido->estado === 'confirmado' && ! $transportistaDesignado)
             <div class="card pdv-card card-outline card-success mb-3">
                 <div class="card-body small mb-0 text-success">
-                    <i class="fas fa-box mr-1"></i> Planta aceptó el pedido. Pendiente de salida hacia su punto de venta.
+                    <i class="fas fa-box mr-1"></i> El centro mayorista aceptó el pedido. Pendiente de designar transportista.
                 </div>
             </div>
             @elseif($pedido->estado === 'en_transito' && ! ($puedeAnunciarLlegada ?? false))
             <div class="card pdv-card card-outline card-success mb-3">
                 <div class="card-body small mb-0 text-success">
-                    <i class="fas fa-shipping-fast mr-1"></i> Producto en camino al punto de venta. El minorista confirmará la recepción.
+                    <i class="fas fa-shipping-fast mr-1"></i> Producto en ruta hacia el punto de venta. Al llegar, el inventario se actualizará automáticamente.
                 </div>
             </div>
             @endif
+            </div>
         </div>
     </div>
 
@@ -414,6 +934,93 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    const flujo = document.getElementById('pdvPedidoFlujo');
+    const pasoInicial = flujo ? (flujo.dataset.pasoInicial || 'resumen') : 'resumen';
+    const pasoFlujo = flujo ? parseInt(flujo.dataset.pasoFlujo || '3', 10) : 3;
+
+    function sidebarKeyForPaso(paso) {
+        var key = String(paso);
+        var salidaPendiente = document.querySelector('[data-tiene-salida-ruta="1"]');
+        if ((key === '4' || key === '5') && salidaPendiente) {
+            return '3';
+        }
+        return key;
+    }
+
+    function mostrarPaso(paso) {
+        const key = String(paso);
+        const sidebarKey = sidebarKeyForPaso(paso);
+
+        document.querySelectorAll('.pdv-paso-panel').forEach(function (panel) {
+            const pk = panel.getAttribute('data-panel');
+            var showPanel = false;
+            if (key === '1') showPanel = pk === '1';
+            else if (key === '2') showPanel = pk === '2';
+            else showPanel = pk === 'resumen';
+            panel.classList.toggle('is-visible', showPanel);
+        });
+
+        document.querySelectorAll('.pdv-sidebar-paso').forEach(function (side) {
+            const sk = side.getAttribute('data-sidebar-paso');
+            var showSide = false;
+            if (key === '1') showSide = sk === '1';
+            else if (key === '2') showSide = sk === '2';
+            else if (sidebarKey === '3') showSide = sk === '3';
+            else if (sidebarKey === '4') showSide = sk === '4';
+            else if (sidebarKey === '5') showSide = sk === '5';
+            else if (pasoFlujo === 2) showSide = sk === '2';
+            else if (pasoFlujo === 3) showSide = sk === '3';
+            else if (pasoFlujo === 4) showSide = sk === '4';
+            else showSide = sk === 'resumen';
+            side.classList.toggle('is-visible', showSide);
+        });
+
+        document.querySelectorAll('.pdv-paso-card[data-paso]').forEach(function (card) {
+            card.classList.toggle('vista-activa', card.getAttribute('data-paso') === key);
+        });
+
+        if (flujo) {
+            flujo.dataset.pasoVista = key;
+        }
+    }
+
+    function pasoVistaActual() {
+        if (flujo && flujo.dataset.pasoVista) {
+            return flujo.dataset.pasoVista;
+        }
+        var activa = flujo ? flujo.querySelector('.pdv-paso-card.vista-activa') : null;
+        return activa ? activa.getAttribute('data-paso') : String(pasoInicial);
+    }
+
+    document.querySelectorAll('.js-link-ubicacion-pedido').forEach(function (link) {
+        link.addEventListener('click', function () {
+            try {
+                var url = new URL(link.href, window.location.origin);
+                url.searchParams.set('paso', pasoVistaActual());
+                link.href = url.toString();
+            } catch (e) { /* noop */ }
+        });
+    });
+
+    if (flujo) {
+        flujo.querySelectorAll('.pdv-paso-card[data-navegable="1"]').forEach(function (card) {
+            card.addEventListener('click', function () {
+                mostrarPaso(card.getAttribute('data-paso'));
+            });
+        });
+        mostrarPaso(String(pasoInicial));
+        if (flujo) {
+            flujo.dataset.pasoVista = String(pasoInicial);
+        }
+    } else {
+        document.querySelectorAll('.pdv-paso-panel[data-panel="resumen"]').forEach(function (p) {
+            p.classList.add('is-visible');
+        });
+        document.querySelectorAll('.pdv-sidebar-paso[data-sidebar-paso="resumen"]').forEach(function (s) {
+            s.classList.add('is-visible');
+        });
+    }
+
     const form = document.getElementById('formDespachoPedidoPdv');
     if (!form || !window.CatalogoSelector) return;
 
@@ -428,25 +1035,32 @@ document.addEventListener('DOMContentLoaded', function () {
 
     CatalogoSelector.register('pdv_pedido_transportista', {
         endpoint: @json(route('catalogo-selector.usuarios')),
-        title: 'Transportista de planta',
+        title: 'Transportista mayorista',
         searchPlaceholder: 'Nombre o correo…',
         searchLabel: 'Buscar chofer',
         modalIcon: 'fa-id-card',
         rowIcon: 'fa-user-tie',
-        theme: 'planta',
+        theme: 'mayorista',
         colNombre: 'Chofer',
         colDetalle: 'Contacto',
-        params: { roles: 'transportista', ambito_flota: 'planta' },
+        params: { roles: 'transportista', ambito_flota: 'mayorista' },
         onSelect: function (item) {
             inputTransportista.value = item.id;
             document.getElementById('txtTransportistaPedidoPdv').value = item.label;
             inputVehiculo.value = '';
             document.getElementById('txtVehiculoPedidoPdv').value = '';
             btnVehiculo.disabled = false;
+            const vehiculoSugerido = item.extra?.vehiculoid || null;
             CatalogoSelector.instances.pdv_pedido_vehiculo.params = {
                 transportista_usuarioid: item.id,
                 solo_transportista: '1',
+                ambito_flota: 'mayorista',
             };
+            CatalogoSelector.instances.pdv_pedido_vehiculo.suggestedItemId = vehiculoSugerido;
+            if (vehiculoSugerido && item.extra?.placa) {
+                inputVehiculo.value = vehiculoSugerido;
+                document.getElementById('txtVehiculoPedidoPdv').value = item.extra.placa;
+            }
         },
     });
 
@@ -480,11 +1094,11 @@ document.addEventListener('DOMContentLoaded', function () {
         e.preventDefault();
         e.stopImmediatePropagation();
         if (!inputTransportista.value) {
-            window.ModalConfirmar?.aviso({ titulo: 'Falta chofer', mensaje: 'Asigne un transportista de flota planta.', tono: 'warning' });
+            window.ModalConfirmar?.aviso({ titulo: 'Falta chofer', mensaje: 'Asigne un transportista de flota mayorista.', tono: 'warning' });
             return;
         }
         if (!inputVehiculo.value) {
-            window.ModalConfirmar?.aviso({ titulo: 'Falta vehículo', mensaje: 'Asigne el vehículo del chofer antes de marcar en tránsito.', tono: 'warning' });
+            window.ModalConfirmar?.aviso({ titulo: 'Falta vehículo', mensaje: 'Asigne el vehículo del chofer antes de designar el transportista.', tono: 'warning' });
             return;
         }
         window.ModalConfirmar.abrir(

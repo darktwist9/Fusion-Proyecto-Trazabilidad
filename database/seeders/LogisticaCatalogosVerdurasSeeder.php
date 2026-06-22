@@ -284,28 +284,30 @@ class LogisticaCatalogosVerdurasSeeder extends Seeder
         ];
 
         foreach ($catalogo as $grupo) {
-            $insumo = Insumo::query()
+            $insumos = Insumo::query()
                 ->whereRaw('LOWER(nombre) LIKE ?', [strtolower($grupo['patron'])])
                 ->orderBy('insumoid')
-                ->first();
+                ->get();
 
-            if (! $insumo) {
+            if ($insumos->isEmpty()) {
                 continue;
             }
 
-            foreach ($grupo['calibres'] as $cal) {
-                CatalogoTamanoConteo::query()->updateOrCreate(
-                    [
-                        'insumoid' => $insumo->insumoid,
-                        'nombre' => $cal['nombre'],
-                    ],
-                    [
-                        'conteo_por_empaque' => $cal['conteo'],
-                        'peso_promedio_kg' => $cal['peso'],
-                        'tipoempaqueid' => $grupo['empaque']?->tipoempaqueid,
-                        'activo' => true,
-                    ]
-                );
+            foreach ($insumos as $insumo) {
+                foreach ($grupo['calibres'] as $cal) {
+                    CatalogoTamanoConteo::query()->updateOrCreate(
+                        [
+                            'insumoid' => $insumo->insumoid,
+                            'nombre' => $cal['nombre'],
+                        ],
+                        [
+                            'conteo_por_empaque' => $cal['conteo'],
+                            'peso_promedio_kg' => $cal['peso'],
+                            'tipoempaqueid' => $grupo['empaque']?->tipoempaqueid,
+                            'activo' => true,
+                        ]
+                    );
+                }
             }
         }
     }

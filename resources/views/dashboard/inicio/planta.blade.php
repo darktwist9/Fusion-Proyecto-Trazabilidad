@@ -37,6 +37,25 @@
 
         @include('partials.dashboard-alertas')
 
+        @if(($envios_pendientes_planta ?? []) !== [])
+            @php $envioPlanta = $envios_pendientes_planta[0]; @endphp
+            <div class="alert alert-success border-success shadow-sm mb-3" role="alert">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                    <div>
+                        <i class="fas fa-truck-loading mr-1"></i>
+                        <strong>Tiene {{ count($envios_pendientes_planta) }} envío(s) activo(s) que requieren seguimiento.</strong>
+                        <span class="d-block small mt-1">
+                            Próximo: <strong>{{ $envioPlanta['codigo'] }}</strong>
+                            — {{ $envioPlanta['producto'] }}
+                        </span>
+                    </div>
+                    <a href="{{ $envioPlanta['url'] }}" class="btn btn-success btn-sm font-weight-bold">
+                        <i class="fas fa-arrow-right mr-1"></i> Ir al envío
+                    </a>
+                </div>
+            </div>
+        @endif
+
         @include('dashboard.partials.filtros', [
             'filtros' => $filtros,
             'actionUrl' => route('dashboard'),

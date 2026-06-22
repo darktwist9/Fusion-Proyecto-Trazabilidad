@@ -186,13 +186,12 @@
                 texto.innerHTML = '';
                 return;
             }
+            const vehiculoYaElegido = !!this.vehiculoIdSeleccionado();
             const reqTransporte = this.cargaCodigoTransporteRequerido();
-            let html = 'Carga estimada: <strong>' + fmtNum(peso, 1) + ' kg</strong>. ';
-            html += 'Trayecto <strong>' + this.textoTrayectoTransporte() + '</strong>: sugerimos transporte '
-                + '<strong>' + etiquetaTransporte(reqTransporte) + '</strong>. ';
+            let html = '';
             const tid = this.transportistaIdSeleccionado();
             if (!tid) {
-                html += 'Elija un chofer para ver qué vehículo conviene.';
+                html = 'Carga: <strong>' + fmtNum(peso, 1) + ' kg</strong>. Elija un chofer para asignar vehículo.';
                 texto.innerHTML = html;
                 panel.classList.remove('d-none');
                 return;
@@ -235,37 +234,59 @@
                     this.sugerenciaVehiculoId = sugerido.id;
                     this.sugerenciaVehiculo = sugerido;
                     this.sugerenciaVehiculoResumen = sugerido.label + ' · ' + fmtNum(sugerido.cap) + ' kg · ' + sugerido.transporte;
-                    this.aplicarVehiculoSugerido(sugerido);
-                    html += 'Seleccionamos <strong>' + sugerido.label + '</strong> '
-                        + '(capacidad ' + fmtNum(sugerido.cap) + ' kg, ' + sugerido.transporte + '). '
-                        + 'Puede cambiarla con «Buscar o cambiar vehículo» — '
-                        + 'en el catálogo sigue marcada como <strong>Recomendado</strong>.';
+                    if (!vehiculoYaElegido) {
+                        this.aplicarVehiculoSugerido(sugerido);
+                    }
+                    if (vehiculoYaElegido) {
+                        panel.classList.add('d-none');
+                    } else {
+                        html = 'Asignamos <strong>' + sugerido.label + '</strong> (' + fmtNum(sugerido.cap) + ' kg, '
+                            + sugerido.transporte + '). Puede cambiarlo desde la tarjeta del vehículo.';
+                        texto.innerHTML = html;
+                        panel.classList.remove('d-none');
+                    }
                 } else {
-                    html += 'No hay vehículos con capacidad registrada para este envío.';
+                    html = 'Carga: <strong>' + fmtNum(peso, 1) + ' kg</strong>. No hay vehículos con capacidad registrada.';
+                    texto.innerHTML = html;
+                    panel.classList.remove('d-none');
                 }
             } catch (e) {
-                html += 'No se pudo consultar la flota disponible.';
+                html = 'No se pudo consultar la flota disponible.';
+                texto.innerHTML = html;
+                panel.classList.remove('d-none');
             }
-            texto.innerHTML = html;
-            panel.classList.remove('d-none');
             if (window.EnvioWizard?.syncTarjetaVehiculo) {
                 window.EnvioWizard.syncTarjetaVehiculo();
             }
+            return;
         },
 
         datosCalibre(fila) {
             const calibre = fila.querySelector('.js-calibre');
             if (!calibre || !calibre.value) return null;
             const id = parseInt(calibre.value, 10);
-            const cat = (this.catalogos.tamanoConteo || []).find((c) => parseInt(c.id, 10) === id);
+            const fuente = fila._calibresActivos || this.catalogos.tamanoConteo || [];
+            const cat = fuente.find((c) => parseInt(c.id, 10) === id);
             const opt = calibre.options[calibre.selectedIndex];
             return {
                 id,
-                nombre: opt?.textContent || cat?.nombre || '',
-                conteo: parseInt(opt?.dataset?.conteo || cat?.conteo_por_empaque || 0, 10) || 0,
-                pesoKg: parseFloat(cat?.peso_promedio_kg || 0) || 0,
+                nombre: cat?.nombre || opt?.textContent?.trim() || '',
+                conteo: parseInt(cat?.conteo_por_empaque || opt?.dataset?.conteo || 0, 10) || 0,
+                pesoKg: parseFloat(cat?.peso_promedio_kg || opt?.dataset?.pesoKg || 0) || 0,
                 idTipoEmpaque: cat?.id_tipo_empaque ? parseInt(cat.id_tipo_empaque, 10) : null,
             };
+        },
+
+        deduplicarCalibresLista(calibres) {
+            const vistos = new Set();
+            const lista = [];
+            (calibres || []).forEach((c) => {
+                const clave = (c.nombre || '').trim().toLowerCase();
+                if (!clave || vistos.has(clave)) return;
+                vistos.add(clave);
+                lista.push(c);
+            });
+            return lista;
         },
 
         conteoEfectivoPorEmpaque(calibre, empaque) {
@@ -594,8 +615,8 @@
                 const maxEmp = Math.floor(stock / pesoNetoEmpaque);
                 const kgUsados = Math.round(maxEmp * pesoNetoEmpaque);
                 const unidades = maxEmp * unidadesPorEmp;
-                texto = 'Con <strong>' + nombreEmpaque.toLowerCase() + '</strong> y tamaño '
-                    + calibre.nombre.toLowerCase() + ' puede armar hasta <strong>' + fmtNum(maxEmp) + ' empaques</strong>'
+                texto = 'Con tamaño <strong>' + calibre.nombre + '</strong> puede armar hasta <strong>' + fmtNum(maxEmp) + ' '
+                    + (nombreEmpaque.toLowerCase()) + 's</strong>'
                     + ' (unas ' + fmtNum(unidades) + ' unidades, ' + fmtNum(kgUsados, 1) + ' kg en total).';
             }
 
@@ -697,34 +718,94 @@
                 empaque.appendChild(opt);
             });
 
-            const recargarCalibres = () => {
+            const aplicarCalibreSugerido = () => {
                 if (!calibre) return;
-                calibre.innerHTML = '<option value="">Seleccione calibre…</option>';
-                const insumoId = this.insumoIdCalibreFila(fila);
-                let calibres = this.catalogos.tamanoConteo || [];
-
-                if (insumoId) {
-                    calibres = calibres.filter((c) => parseInt(c.id_producto, 10) === insumoId);
-                } else {
-                    const labelProd = (fila.querySelector('.selector-catalogo-label')?.value || '')
-                        .split('—')[0].trim().toLowerCase();
-                    if (labelProd) {
-                        calibres = calibres.filter((c) => {
-                            const nombre = (c.producto || '').toLowerCase();
-                            const raiz = labelProd.split(/\s+/)[0] || labelProd;
-                            return nombre && (nombre.includes(raiz) || labelProd.includes(nombre));
-                        });
-                    }
+                const sug = fila.dataset.calibreSugeridoId;
+                if (sug && calibre.querySelector('option[value="' + sug + '"]')) {
+                    calibre.value = sug;
                 }
+            };
 
-                calibres.forEach((c) => {
+            const poblarOpcionesCalibres = (calibres) => {
+                if (!calibre) return;
+                const lista = this.deduplicarCalibresLista(calibres);
+                fila._calibresActivos = lista;
+                calibre.innerHTML = '<option value="">Seleccione calibre…</option>';
+                if (!lista.length) {
+                    const vacio = document.createElement('option');
+                    vacio.value = '';
+                    vacio.textContent = 'Sin calibres — Catálogos logística → Tamaño/conteo';
+                    vacio.disabled = true;
+                    calibre.appendChild(vacio);
+                    return;
+                }
+                lista.forEach((c) => {
                     const opt = document.createElement('option');
                     opt.value = c.id;
                     opt.textContent = c.nombre;
+                    opt.title = c.peso_promedio_kg
+                        ? '~' + Math.round(parseFloat(c.peso_promedio_kg) * 1000) + ' g por unidad'
+                        : '';
                     opt.dataset.conteo = c.conteo_por_empaque;
+                    opt.dataset.pesoKg = c.peso_promedio_kg;
                     calibre.appendChild(opt);
                 });
-                this.actualizarSugerenciasEmpaque(fila);
+                aplicarCalibreSugerido();
+                if (calibre.value) {
+                    calibre.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            };
+
+            const calibresEstaticosFila = () => {
+                let calibres = this.catalogos.tamanoConteo || [];
+                const insumoId = this.insumoIdCalibreFila(fila);
+                if (insumoId) {
+                    const porInsumo = calibres.filter((c) => parseInt(c.id_producto, 10) === insumoId);
+                    if (porInsumo.length) {
+                        calibres = porInsumo;
+                    } else {
+                        const raiz = (this.nombreProductoFila(fila).split(/\s+/)[0] || '').toLowerCase();
+                        if (raiz) {
+                            calibres = calibres.filter((c) => {
+                                const nombre = (c.producto || '').toLowerCase();
+                                return nombre.includes(raiz);
+                            });
+                        }
+                    }
+                }
+                return this.deduplicarCalibresLista(calibres);
+            };
+
+            const recargarCalibres = async () => {
+                if (!calibre) return;
+                const productoRef = fila.querySelector('.selector-catalogo-value')?.value;
+                if (!productoRef) {
+                    poblarOpcionesCalibres([]);
+                    return;
+                }
+                calibre.disabled = true;
+                try {
+                    const params = new URLSearchParams({ producto_ref: productoRef });
+                    const res = await fetch(ENVIO_API + '/calibres?' + params.toString(), {
+                        headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                        credentials: 'same-origin',
+                    });
+                    if (res.ok) {
+                        const json = await res.json();
+                        poblarOpcionesCalibres(json.data || []);
+                    } else {
+                        poblarOpcionesCalibres(calibresEstaticosFila());
+                    }
+                } catch (e) {
+                    poblarOpcionesCalibres(calibresEstaticosFila());
+                }
+                calibre.disabled = false;
+                const formaVal = forma?.value;
+                if (formaVal === 'kg') {
+                    this.actualizarSugerenciaKg(fila);
+                } else {
+                    this.actualizarSugerenciasEmpaque(fila);
+                }
             };
 
             const toggleModo = () => {
@@ -742,7 +823,7 @@
                     campoCalibre?.classList.remove('d-none');
                     campoCant?.classList.add('d-none');
                     const lblCal = campoCalibre?.querySelector('label');
-                    if (lblCal) lblCal.textContent = 'Tamaño (para estimar unidades)';
+                    if (lblCal) lblCal.textContent = 'Calibre (estima unidades según el peso)';
                     sugerenciaEmp?.classList.add('d-none');
                     if (sugerenciaEmp) sugerenciaEmp.textContent = '';
                     this.limpiarResumenCarga(fila);
@@ -753,7 +834,7 @@
                     campoCalibre?.classList.remove('d-none');
                     campoCant?.classList.remove('d-none');
                     const lblCal = campoCalibre?.querySelector('label');
-                    if (lblCal) lblCal.textContent = 'Calibre / conteo';
+                    if (lblCal) lblCal.textContent = 'Calibre';
                     sugerenciaKg?.classList.add('d-none');
                     if (sugerenciaKg) sugerenciaKg.textContent = '';
                     this.actualizarEtiquetasForma(fila, val);
@@ -764,7 +845,7 @@
                     campoCalibre?.classList.remove('d-none');
                     campoCant?.classList.remove('d-none');
                     const lblCal = campoCalibre?.querySelector('label');
-                    if (lblCal) lblCal.textContent = 'Calibre / conteo';
+                    if (lblCal) lblCal.textContent = 'Calibre';
                     sugerenciaKg?.classList.add('d-none');
                     if (sugerenciaKg) sugerenciaKg.textContent = '';
                     this.actualizarEtiquetasForma(fila, val);
@@ -851,6 +932,7 @@
             });
             empaque?.addEventListener('change', () => {
                 this.actualizarHintEmpaque(fila);
+                recargarCalibres();
                 this.actualizarSugerenciasEmpaque(fila);
                 recalcular();
             });

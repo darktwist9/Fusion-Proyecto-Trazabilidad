@@ -94,6 +94,46 @@ class TrasladoPlantaMayoristaTest extends TestCase
 
 
 
+    private function jefePlanta(): Usuario
+
+    {
+
+        $this->seed(RolePermissionSeeder::class);
+
+        Role::findOrCreate('jefe_planta', 'web');
+
+
+
+        $user = Usuario::create([
+
+            'nombre' => 'Jhon',
+
+            'apellido' => 'Rojas',
+
+            'email' => 'jefe.planta@test.local',
+
+            'nombreusuario' => 'jhon_rojas',
+
+            'passwordhash' => Hash::make('secret'),
+
+            'role' => 'jefe_planta',
+
+            'fecharegistro' => now(),
+
+            'activo' => true,
+
+        ]);
+
+        $user->assignRole('jefe_planta');
+
+
+
+        return $user;
+
+    }
+
+
+
     private function almacen(string $nombre, string $ambito, string $ubicacion): Almacen
 
     {
@@ -284,7 +324,17 @@ class TrasladoPlantaMayoristaTest extends TestCase
 
         $this->assertSame(RutaDistribucionCatalogo::ESTADO_PLANIFICADA, $ruta->estado);
 
+        \App\Models\CondicionTransporte::create([
+            'codigo' => 'COND_TPM',
+            'titulo' => 'Luces delanteras',
+            'descripcion' => 'Test',
+        ]);
 
+        app(\App\Services\CierreEnvioPlantaMayoristaService::class)->registrarCondicionesVehiculo(
+            $ruta->fresh(),
+            $flota['transportista'],
+            true,
+        );
 
         app(SimulacionRutaService::class)->empezarDistribucion($ruta->fresh());
 
@@ -364,10 +414,31 @@ class TrasladoPlantaMayoristaTest extends TestCase
 
     }
 
+    public function test_jefe_planta_puede_crear_traslado_desde_formulario(): void
+    {
+        $jefe = $this->jefePlanta();
+        $planta = $this->almacen('Planta Jefe', AlmacenAmbito::PLANTA, 'GPS -17.77,-63.17');
+        $mayorista = $this->almacen('Mayorista Jefe', AlmacenAmbito::MAYORISTA, 'GPS -17.80,-63.20');
+        $insumo = $this->insumoPlanta($planta);
+        $flota = $this->flotaPlanta();
 
+        $response = $this->actingAs($jefe)->post(route('logistica.traslados-planta.store'), [
+            'almacen_planta_origenid' => $planta->almacenid,
+            'almacen_mayorista_destinoid' => $mayorista->almacenid,
+            'transportista_usuarioid' => $flota['transportista']->usuarioid,
+            'vehiculoid' => $flota['vehiculo']->vehiculoid,
+            'costo_bs' => 40,
+            'detalles' => [
+                ['insumoid' => $insumo->insumoid, 'cantidad' => 33],
+            ],
+        ]);
+
+        $response->assertRedirect();
+        $response->assertSessionHasNoErrors();
+        $this->assertNotNull(RutaDistribucion::query()->first());
+    }
 
     public function test_traslado_calcula_kg_desde_presentacion_comercial(): void
-
     {
 
         $admin = $this->admin();
@@ -657,6 +728,110 @@ class TrasladoPlantaMayoristaTest extends TestCase
         $response->assertSessionHas('error');
 
         $this->assertSame(RutaDistribucionCatalogo::ESTADO_PENDIENTE_APROBACION, $ruta->fresh()->estado);
+
+    }
+
+
+
+    public function test_jefe_planta_puede_ver_traslado_pendiente(): void
+
+    {
+
+        $admin = $this->admin();
+
+        $jefe = $this->jefePlanta();
+
+        $planta = $this->almacen('Planta Jefe', AlmacenAmbito::PLANTA, 'GPS -17.78,-63.18');
+
+        $mayorista = $this->almacen('Mayorista Jefe', AlmacenAmbito::MAYORISTA, 'GPS -17.79,-63.19');
+
+        $insumo = $this->insumoPlanta($planta);
+
+        $flota = $this->flotaPlanta();
+
+
+
+        $ruta = app(TrasladoPlantaMayoristaService::class)->crear(
+
+            $planta,
+
+            $mayorista,
+
+            (int) $flota['transportista']->usuarioid,
+
+            (int) $flota['vehiculo']->vehiculoid,
+
+            (int) $admin->usuarioid,
+
+            [['insumoid' => $insumo->insumoid, 'cantidad' => 16]],
+
+            null,
+
+            34.0
+
+        );
+
+
+
+        $this->actingAs($jefe)
+
+            ->get(route('logistica.traslados-planta.show', $ruta))
+
+            ->assertOk();
+
+    }
+
+
+
+    public function test_jefe_planta_puede_aprobar_traslado_pendiente(): void
+
+    {
+
+        $admin = $this->admin();
+
+        $jefe = $this->jefePlanta();
+
+        $planta = $this->almacen('Planta Aprobacion', AlmacenAmbito::PLANTA, 'GPS -17.78,-63.18');
+
+        $mayorista = $this->almacen('Mayorista Aprobacion', AlmacenAmbito::MAYORISTA, 'GPS -17.79,-63.19');
+
+        $insumo = $this->insumoPlanta($planta);
+
+        $flota = $this->flotaPlanta();
+
+
+
+        $ruta = app(TrasladoPlantaMayoristaService::class)->crear(
+
+            $planta,
+
+            $mayorista,
+
+            (int) $flota['transportista']->usuarioid,
+
+            (int) $flota['vehiculo']->vehiculoid,
+
+            (int) $admin->usuarioid,
+
+            [['insumoid' => $insumo->insumoid, 'cantidad' => 16]],
+
+            null,
+
+            34.0
+
+        );
+
+
+
+        $this->actingAs($jefe)
+
+            ->patch(route('logistica.traslados-planta.aceptar', $ruta))
+
+            ->assertRedirect(route('logistica.traslados-planta.show', $ruta));
+
+
+
+        $this->assertSame(RutaDistribucionCatalogo::ESTADO_PLANIFICADA, $ruta->fresh()->estado);
 
     }
 

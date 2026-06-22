@@ -7,50 +7,71 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 @include('logistica.partials.mapa-ruta-styles')
 <style>
+.ruta-show-compact { --ruta-gap: .75rem; }
 .ruta-hero {
-    border-radius: 16px;
+    border-radius: 12px;
     background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 45%, #fff 100%);
     border: 1px solid #bbf7d0;
-    padding: 1.25rem 1.5rem;
-    margin-bottom: 1.25rem;
+    padding: .85rem 1.1rem;
+    margin-bottom: var(--ruta-gap);
 }
-.ruta-hero-codigo { font-size: 1.35rem; font-weight: 800; color: #14532d; letter-spacing: .02em; }
-.ruta-dist-card { border: 0; border-radius: 14px; box-shadow: 0 4px 18px rgba(18,38,63,.08); margin-bottom: 1.25rem; }
-.ruta-dist-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: #64748b; font-weight: 600; }
-.ruta-dist-value { font-size: 1rem; font-weight: 600; color: #1e293b; }
+.ruta-hero-codigo { font-size: 1.15rem; font-weight: 800; color: #14532d; letter-spacing: .02em; }
+.ruta-dist-card { border: 0; border-radius: 12px; box-shadow: 0 2px 12px rgba(18,38,63,.06); margin-bottom: var(--ruta-gap); }
+.ruta-dist-card .card-header { padding: .65rem 1rem .35rem; }
+.ruta-dist-card .card-body { padding: .5rem 1rem .85rem; }
+.ruta-dist-label { font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; color: #64748b; font-weight: 600; }
+.ruta-dist-value { font-size: .9rem; font-weight: 600; color: #1e293b; line-height: 1.3; }
 .ruta-timeline { list-style: none; padding: 0; margin: 0; }
 .ruta-timeline li {
-    display: flex; gap: .85rem; padding: .85rem 0;
-    border-bottom: 1px solid #f1f5f9; position: relative;
+    display: flex; gap: .65rem; padding: .55rem 0;
+    border-bottom: 1px solid #f1f5f9;
 }
 .ruta-timeline li:last-child { border-bottom: 0; }
 .ruta-timeline-icon {
-    width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center; color: #fff; font-size: .9rem;
+    width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; color: #fff; font-size: .8rem;
 }
 .ruta-timeline-icon--carga { background: linear-gradient(135deg, #16a34a, #22c55e); }
 .ruta-timeline-icon--entrega { background: linear-gradient(135deg, #dc2626, #ef4444); }
+.ruta-log-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .5rem .75rem;
+}
 .ruta-log-item {
-    display: flex; align-items: flex-start; gap: .75rem;
-    padding: .75rem 0; border-bottom: 1px solid #f1f5f9;
+    display: flex; align-items: flex-start; gap: .55rem;
+    padding: .45rem 0;
 }
-.ruta-log-item:last-child { border-bottom: 0; }
+.ruta-log-item--wide { grid-column: 1 / -1; }
 .ruta-log-icon {
-    width: 32px; height: 32px; border-radius: 8px; background: #eff6ff; color: #2563eb;
-    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    width: 28px; height: 28px; border-radius: 7px; background: #eff6ff; color: #2563eb;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: .75rem;
 }
-#mapaRutaDistShow { height: 400px; width: 100%; min-height: 400px; border-radius: 10px; border: 1px solid #dee2e6; background: #e8eef4; }
+.ruta-pedidos-table th, .ruta-pedidos-table td { padding: .45rem .65rem; font-size: .82rem; vertical-align: middle; }
+#mapaRutaDistShow { height: 320px; width: 100%; min-height: 320px; border-radius: 10px; border: 1px solid #dee2e6; background: #e8eef4; }
+@media (max-width: 991px) {
+    .ruta-log-grid { grid-template-columns: 1fr; }
+}
 </style>
 @endpush
 
 @section('content')
-<div class="ruta-hero d-flex flex-wrap justify-content-between align-items-start gap-3">
-    <div>
-        <div class="ruta-hero-codigo mb-1">{{ $ruta->codigo }}</div>
+@php
+    use App\Support\RutaDistribucionNavegacion;
+    use App\Support\RutaDistribucionCatalogo;
+    $puedeOperarRuta = \App\Support\UsuarioRol::puedeMarcarEnRutaDistribucion(auth()->user(), $ruta);
+    $esTrasladoPlanta = $ruta->esTrasladoPlantaMayorista();
+    $esTransportista = \App\Support\UsuarioRol::esTransportista(auth()->user());
+    $fechaSalida = RutaDistribucionNavegacion::fechaSalida($ruta);
+@endphp
+<div class="ruta-show-compact">
+<div class="ruta-hero d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div class="d-flex flex-wrap align-items-center gap-2">
+        <div class="ruta-hero-codigo mb-0">{{ $ruta->codigo }}</div>
+        <span class="badge badge-{{ $badge['clase'] }} px-2 py-1">{{ $badge['etiqueta'] }}</span>
         @if($trayectoPartes)
-        <p class="mb-2">@include('punto_venta.partials.trayecto-distribucion-colores', ['trayectoPartes' => $trayectoPartes])</p>
+        <span class="small text-muted">@include('punto_venta.partials.trayecto-distribucion-colores', ['trayectoPartes' => $trayectoPartes])</span>
         @endif
-        <span class="badge badge-{{ $badge['clase'] }} px-3 py-2" style="font-size:.85rem">{{ $badge['etiqueta'] }}</span>
     </div>
     <a href="{{ route('punto-venta.rutas.index') }}" class="btn btn-outline-secondary btn-sm">
         <i class="fas fa-arrow-left mr-1"></i>Volver al listado
@@ -60,25 +81,29 @@
 <section class="content px-0">
     <div class="container-fluid px-0">
         <div class="row">
-            <div class="col-lg-8 mb-3">
-                <div class="card ruta-dist-card">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center border-0 pt-3">
-                        <h3 class="card-title font-weight-bold mb-0"><i class="fas fa-route text-success mr-2"></i>Recorrido</h3>
-                        @if(count($paradasMapa) >= 1)
-                        <button type="button" class="btn btn-sm btn-outline-primary" data-toggle="modal" data-target="#modalMapaRutaDist">
-                            <i class="fas fa-map-marked-alt mr-1"></i>Ver en mapa
+            <div class="col-lg-7 mb-2">
+                <div class="card ruta-dist-card mb-2">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center border-0">
+                        <h3 class="card-title font-weight-bold mb-0" style="font-size:1rem"><i class="fas fa-route text-success mr-1"></i>Recorrido y pedidos</h3>
+                        @if(! $esTrasladoPlanta && ! $esTransportista && !empty($urlTiempoReal))
+                        <a href="{{ $urlTiempoReal }}" class="btn btn-sm btn-primary py-0">
+                            <i class="fas fa-satellite-dish mr-1"></i>Tiempo real
+                        </a>
+                        @elseif(! $esTransportista && count($paradasMapa) >= 1)
+                        <button type="button" class="btn btn-sm btn-outline-primary py-0" data-toggle="modal" data-target="#modalMapaRutaDist">
+                            <i class="fas fa-map-marked-alt mr-1"></i>Mapa
                         </button>
                         @endif
                     </div>
                     <div class="card-body pt-0">
-                        <ul class="ruta-timeline">
+                        <ul class="ruta-timeline mb-2">
                             @foreach($ruta->paradas as $parada)
                             <li>
-                                @if($parada->tipo === 'carga_planta')
-                                <span class="ruta-timeline-icon ruta-timeline-icon--carga"><i class="fas fa-industry"></i></span>
+                                @if(in_array($parada->tipo, ['carga_mayorista', 'carga_planta'], true))
+                                <span class="ruta-timeline-icon ruta-timeline-icon--carga"><i class="fas fa-warehouse"></i></span>
                                 <div>
-                                    <div class="font-weight-bold text-success">{{ str_replace('Carga: ', '', $parada->destino) }}</div>
-                                    <span class="badge badge-light border text-success small">Carga en planta</span>
+                                    <div class="font-weight-bold text-warning">{{ str_replace(['Carga: ', 'Entrega: '], '', $parada->destino) }}</div>
+                                    <span class="badge badge-light border text-warning small">{{ RutaDistribucionNavegacion::etiquetaParadaCarga($parada->tipo) }}</span>
                                 </div>
                                 @else
                                 <span class="ruta-timeline-icon ruta-timeline-icon--entrega"><i class="fas fa-store"></i></span>
@@ -92,16 +117,8 @@
                             </li>
                             @endforeach
                         </ul>
-                    </div>
-                </div>
-
-                <div class="card ruta-dist-card">
-                    <div class="card-header bg-white border-0 pt-3">
-                        <h3 class="card-title font-weight-bold mb-0"><i class="fas fa-boxes text-primary mr-2"></i>Pedidos en esta ruta</h3>
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table table-hover mb-0">
+                        <div class="table-responsive border rounded">
+                            <table class="table table-sm table-hover mb-0 ruta-pedidos-table">
                                 <thead class="thead-light">
                                     <tr>
                                         <th>Solicitud</th>
@@ -111,17 +128,21 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach($ruta->pedidos as $pedido)
+                                    @forelse($ruta->pedidos as $pedido)
                                     @php $det = $pedido->detalles->first(); $pb = \App\Support\PedidoDistribucionCatalogo::badgeEstado($pedido); @endphp
                                     <tr>
                                         <td>
                                             <a href="{{ route('punto-venta.pedidos.show', $pedido) }}" class="font-weight-bold">{{ $pedido->numero_solicitud }}</a>
                                         </td>
-                                        <td>{{ $pedido->puntoVenta?->nombre }}</td>
+                                        <td>{{ $pedido->puntoVenta?->nombre ?? '—' }}</td>
                                         <td>{{ $det?->producto_nombre }} <span class="text-muted">({{ $det ? number_format((float) $det->cantidad, 2) : '—' }} kg)</span></td>
                                         <td><span class="badge badge-{{ $pb['clase'] }}">{{ $pb['etiqueta'] }}</span></td>
                                     </tr>
-                                    @endforeach
+                                    @empty
+                                    <tr>
+                                        <td colspan="4" class="text-center text-muted py-3">No hay pedidos vinculados a esta ruta.</td>
+                                    </tr>
+                                    @endforelse
                                 </tbody>
                             </table>
                         </div>
@@ -129,12 +150,13 @@
                 </div>
             </div>
 
-            <div class="col-lg-4 mb-3">
+            <div class="col-lg-5 mb-2">
                 <div class="card ruta-dist-card">
-                    <div class="card-header bg-white border-0 pt-3">
-                        <h3 class="card-title font-weight-bold mb-0"><i class="fas fa-truck text-info mr-2"></i>Logística</h3>
+                    <div class="card-header bg-white border-0">
+                        <h3 class="card-title font-weight-bold mb-0" style="font-size:1rem"><i class="fas fa-truck text-info mr-1"></i>Logística</h3>
                     </div>
                     <div class="card-body pt-0">
+                        <div class="ruta-log-grid">
                         <div class="ruta-log-item">
                             <span class="ruta-log-icon"><i class="fas fa-id-card"></i></span>
                             <div>
@@ -158,18 +180,18 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="ruta-log-item">
+                        <div class="ruta-log-item ruta-log-item--wide">
                             <span class="ruta-log-icon" style="background:#fef2f2;color:#dc2626"><i class="fas fa-industry"></i></span>
                             <div>
                                 <div class="ruta-dist-label">Almacén de carga</div>
-                                <div class="ruta-dist-value text-success">{{ $ruta->almacenOrigen?->nombre ?? '—' }}</div>
+                                <div class="ruta-dist-value">{{ RutaDistribucionNavegacion::nombreAlmacenCarga($ruta) }}</div>
                             </div>
                         </div>
                         <div class="ruta-log-item">
                             <span class="ruta-log-icon"><i class="fas fa-calendar-alt"></i></span>
                             <div>
                                 <div class="ruta-dist-label">Salida</div>
-                                <div class="ruta-dist-value">{{ optional($ruta->fecha_salida)->format('d/m/Y H:i') ?? '—' }}</div>
+                                <div class="ruta-dist-value">{{ $fechaSalida?->format('d/m/Y H:i') ?? '—' }}</div>
                             </div>
                         </div>
                         <div class="ruta-log-item">
@@ -179,16 +201,24 @@
                                 <div class="ruta-dist-value">{{ trim(($ruta->creadoPor?->nombre ?? '').' '.($ruta->creadoPor?->apellido ?? '')) ?: '—' }}</div>
                             </div>
                         </div>
+                        </div>
                     </div>
                 </div>
 
-                @if((int) auth()->id() === (int) ($ruta->transportista_usuarioid ?? 0))
-                <div class="card ruta-dist-card mt-3">
-                    <div class="card-header bg-white border-0 pt-3">
-                        <h3 class="card-title font-weight-bold mb-0"><i class="fas fa-play-circle text-success mr-2"></i>Su ruta</h3>
+                @if($puedeOperarRuta)
+                <div class="card ruta-dist-card">
+                    <div class="card-header bg-white border-0 py-2">
+                        <h3 class="card-title font-weight-bold mb-0" style="font-size:1rem">
+                            <i class="fas fa-play-circle text-success mr-1"></i>
+                            {{ \App\Support\UsuarioRol::esAdminGlobal(auth()->user()) ? 'Iniciar ruta' : 'Su ruta' }}
+                        </h3>
                     </div>
-                    <div class="card-body pt-0">
-                        @include('logistica.partials.accion-empezar-ruta-distribucion', ['ruta' => $ruta])
+                    <div class="card-body pt-0 pb-3">
+                        @if($esTrasladoPlanta)
+                            @include('logistica.partials.accion-empezar-ruta-cierre-traslado', ['ruta' => $ruta, 'bloque' => true])
+                        @else
+                            @include('logistica.partials.accion-empezar-ruta-distribucion', ['ruta' => $ruta])
+                        @endif
                     </div>
                 </div>
                 @endif
@@ -196,6 +226,7 @@
         </div>
     </div>
 </section>
+</div>
 
 @if(count($paradasMapa) >= 1)
 <div class="modal fade" id="modalMapaRutaDist" tabindex="-1">

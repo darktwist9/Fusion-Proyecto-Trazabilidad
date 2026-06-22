@@ -33,7 +33,7 @@ use App\Support\AlmacenAmbito;
 
 use App\Support\InsumoCatalogo;
 
-use App\Support\MayoristaAccess;
+use App\Support\PlantaAccess;
 
 use App\Support\RutaDistribucionCatalogo;
 
@@ -289,12 +289,12 @@ class TrasladoPlantaMayoristaService
 
     public function aceptar(RutaDistribucion $ruta, Usuario $usuario): RutaDistribucion
     {
-        if (! RutaDistribucionCatalogo::puedeAceptarMayorista($ruta)) {
+        if (! RutaDistribucionCatalogo::puedeAceptarPlanta($ruta)) {
             throw new InvalidArgumentException('Este traslado ya fue procesado o no está pendiente de aprobación.');
         }
 
-        if (! MayoristaAccess::puedeGestionarTraslado($usuario, $ruta)) {
-            throw new InvalidArgumentException('No tiene permiso para aprobar este traslado.');
+        if (! PlantaAccess::puedeAprobarTraslado($usuario, $ruta)) {
+            throw new InvalidArgumentException('No tiene permiso para aprobar este traslado desde planta.');
         }
 
         $ruta->update([
@@ -321,12 +321,12 @@ class TrasladoPlantaMayoristaService
 
     public function rechazar(RutaDistribucion $ruta, Usuario $usuario, ?string $motivo = null): RutaDistribucion
     {
-        if (! RutaDistribucionCatalogo::puedeAceptarMayorista($ruta)) {
+        if (! RutaDistribucionCatalogo::puedeAceptarPlanta($ruta)) {
             throw new InvalidArgumentException('Este traslado ya fue procesado o no está pendiente de aprobación.');
         }
 
-        if (! MayoristaAccess::puedeGestionarTraslado($usuario, $ruta)) {
-            throw new InvalidArgumentException('No tiene permiso para rechazar este traslado.');
+        if (! PlantaAccess::puedeAprobarTraslado($usuario, $ruta)) {
+            throw new InvalidArgumentException('No tiene permiso para rechazar este traslado desde planta.');
         }
 
         $ruta->update([

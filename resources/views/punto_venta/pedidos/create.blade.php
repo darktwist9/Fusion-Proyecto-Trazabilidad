@@ -1,473 +1,151 @@
 @extends('layouts.app')
 
-@section('title', 'Nuevo pedido de distribución')
-@section('page_title', 'Nuevo pedido de distribución')
+@section('title', 'Solicitar producto')
+@section('page_title', 'Solicitar producto')
 
 @push('styles')
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 @include('punto_venta.partials.modulo-styles')
 <style>
-.pedido-dist-page .pdv-hero {
-    background: linear-gradient(135deg, #14532d 0%, #166534 45%, #22c55e 100%);
-    border-radius: 14px 14px 0 0;
-    padding: .85rem 1.15rem;
-    color: #fff;
+.pedido-sol-page { max-width: 920px; margin: 0 auto; }
+.pedido-sol-page .sol-card {
+    border: 1px solid #e2e8f0; border-radius: 12px; background: #fff;
+    box-shadow: 0 1px 4px rgba(15,23,42,.06); overflow: hidden;
 }
-.pedido-dist-page .pdv-hero-kicker {
-    font-size: .72rem;
-    font-weight: 700;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-    opacity: .85;
-    margin-bottom: .25rem;
+.pedido-sol-page .sol-top {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem;
+    padding: .65rem .85rem; background: linear-gradient(90deg, #14532d, #16a34a); color: #fff;
 }
-.pedido-dist-page .pdv-hero-title {
-    font-size: 1.15rem;
-    font-weight: 800;
-    margin: 0;
-    line-height: 1.25;
+.pedido-sol-page .sol-top h2 { font-size: .95rem; font-weight: 800; margin: 0; }
+.pedido-sol-page .sol-top .sol-ref { font-size: .78rem; opacity: .9; }
+.pedido-sol-page .sol-body { padding: .85rem; }
+.pedido-sol-page .sol-grid {
+    display: grid; grid-template-columns: 1fr 1.15fr; gap: .85rem 1rem;
 }
-.pedido-dist-page .pdv-hero-code {
-    display: inline-flex;
-    align-items: center;
-    gap: .4rem;
-    margin-top: .35rem;
-    padding: .2rem .6rem;
-    background: rgba(255,255,255,.16);
-    border: 1px solid rgba(255,255,255,.22);
-    border-radius: 999px;
-    font-size: .82rem;
-    font-weight: 600;
+@media (max-width: 767.98px) { .pedido-sol-page .sol-grid { grid-template-columns: 1fr; } }
+.pedido-sol-page .sol-panel {
+    border: 1px solid #f1f5f9; border-radius: 10px; padding: .65rem .75rem; background: #fafafa;
 }
-.pedido-dist-page .pdv-intro {
-    background: #f0fdf4;
-    border: 1px solid #bbf7d0;
-    border-radius: 10px;
-    padding: .5rem .75rem;
-    color: #166534;
-    font-size: .82rem;
-    line-height: 1.4;
+.pedido-sol-page .sol-panel-title {
+    font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em;
+    color: #64748b; margin-bottom: .5rem;
 }
-.pedido-dist-page .pdv-form-block {
-    background: #fff;
-    border: 1px solid #e8f0ea;
-    border-radius: 12px;
-    padding: .65rem .85rem;
-    margin-bottom: .55rem;
+.pedido-sol-page .pdv-field-label {
+    font-size: .68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    color: #64748b; margin-bottom: .25rem;
 }
-.pedido-dist-page .pdv-form-block-head {
-    display: flex;
-    align-items: center;
-    gap: .5rem;
-    margin-bottom: .5rem;
-    padding-bottom: .4rem;
-    border-bottom: 1px solid #f1f5f9;
+.pedido-sol-page .sol-row-entrega { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-top: .5rem; }
+.pedido-sol-page .sol-map-btn {
+    display: flex; align-items: center; justify-content: center; gap: .45rem;
+    width: 100%; margin-top: .45rem; padding: .45rem .75rem;
+    font-size: .78rem; font-weight: 700; letter-spacing: .01em;
+    color: #1e3a5f; background: #f8fafc;
+    border: 1.5px solid #94a3b8; border-radius: 8px;
+    transition: background .15s ease, border-color .15s ease, box-shadow .15s ease;
 }
-.pedido-dist-page .pdv-form-block-icon {
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: .8rem;
-    flex-shrink: 0;
+.pedido-sol-page .sol-map-btn:hover:not(:disabled) {
+    background: #eff6ff; border-color: #64748b; color: #0f172a;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, .08);
 }
-.pedido-dist-page .pdv-form-block-icon--minorista { background: #e0e7ff; color: #4338ca; }
-.pedido-dist-page .pdv-form-block-icon--destino { background: #dbeafe; color: #1d4ed8; }
-.pedido-dist-page .pdv-minorista-pick {
-    border: 2px dashed #c7d2fe;
-    border-radius: 12px;
-    padding: .75rem 1rem;
-    background: #f8fafc;
-    margin-bottom: .75rem;
+.pedido-sol-page .sol-map-btn:disabled { opacity: .55; cursor: not-allowed; color: #94a3b8; border-color: #e2e8f0; }
+.pedido-sol-page .sol-map-btn i { font-size: .9rem; color: #334155; }
+#modalMapaPdvDestino .modal-dialog { max-width: min(960px, 94vw); }
+#modalMapaPdvDestino .modal-content { border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; }
+#modalMapaPdvDestino .modal-header {
+    background: #1e293b; border-bottom: 1px solid #334155; padding: .65rem 1rem;
 }
-.pedido-dist-page .pdv-minorista-pick.is-selected {
-    border-style: solid;
-    border-color: #a5b4fc;
-    background: #eef2ff;
-}
-.pedido-dist-page .pdv-destino-pick.is-locked {
-    opacity: .55;
-    pointer-events: none;
-}
-.pedido-dist-page .pdv-form-block-icon--producto { background: #fef3c7; color: #b45309; }
-.pedido-dist-page .pdv-form-block-icon--datos { background: #f3e8ff; color: #7c3aed; }
-.pedido-dist-page .pdv-form-block-title {
-    font-size: .88rem;
-    font-weight: 800;
-    color: #1e293b;
-    margin: 0;
-    line-height: 1.2;
-}
-.pedido-dist-page .pdv-form-block-sub {
-    font-size: .72rem;
-    color: #64748b;
-    margin: .1rem 0 0;
-}
-.pedido-dist-page .pdv-destino-pick {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    gap: .85rem;
-    border: 2px solid #e2e8f0;
-    border-radius: 14px;
-    background: linear-gradient(135deg, #f8fafc 0%, #fff 100%);
-    padding: .85rem 1rem;
-    transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
-}
-.pedido-dist-page .pdv-destino-pick.is-empty {
-    background: #f8fafc;
-    border-style: dashed;
-}
-.pedido-dist-page .pdv-destino-pick.is-selected {
-    border-color: #86efac;
-    background: linear-gradient(135deg, #f0fdf4 0%, #fff 100%);
-    box-shadow: 0 8px 22px rgba(22, 163, 74, .08);
-}
-.pedido-dist-page .pdv-destino-pick-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
-    color: #1d4ed8;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    font-size: 1.1rem;
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,.65);
-}
-.pedido-dist-page .pdv-destino-pick.is-selected .pdv-destino-pick-icon {
-    background: linear-gradient(135deg, #bbf7d0, #86efac);
-    color: #166534;
-}
-.pedido-dist-page .pdv-destino-pick-body {
-    flex: 1;
-    min-width: 0;
-}
-.pedido-dist-page .pdv-destino-kicker {
-    display: inline-flex;
-    align-items: center;
-    gap: .3rem;
-    font-size: .66rem;
-    font-weight: 700;
-    letter-spacing: .06em;
-    text-transform: uppercase;
-    color: #64748b;
-    margin-bottom: .2rem;
-}
-.pedido-dist-page .pdv-destino-pick.is-selected .pdv-destino-kicker {
-    color: #166534;
-}
-.pedido-dist-page .pdv-destino-nombre {
-    display: block;
-    font-weight: 800;
-    font-size: 1rem;
-    color: #0f172a;
-    line-height: 1.25;
-}
-.pedido-dist-page .pdv-destino-nombre.is-placeholder {
-    color: #94a3b8;
-    font-weight: 500;
-    font-size: .92rem;
-}
-.pedido-dist-page .pdv-destino-ubicacion {
-    display: flex;
-    align-items: flex-start;
-    gap: .35rem;
-    margin-top: .35rem;
-    font-size: .78rem;
-    color: #475569;
-    line-height: 1.35;
-}
-.pedido-dist-page .pdv-destino-ubicacion i {
-    color: #16a34a;
-    margin-top: .15rem;
-    flex-shrink: 0;
-}
-.pedido-dist-page .pdv-destino-ubicacion.is-empty {
-    color: #94a3b8;
-    font-style: italic;
-}
-.pedido-dist-page .pdv-destino-meta-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: .45rem;
-    margin-top: .45rem;
-}
-.pedido-dist-page .pdv-destino-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: .25rem;
-    padding: .15rem .5rem;
-    border-radius: 999px;
-    background: #dcfce7;
-    color: #166534;
-    font-size: .68rem;
-    font-weight: 700;
-}
-.pedido-dist-page .pdv-destino-map-link {
-    display: inline-flex;
-    align-items: center;
-    gap: .3rem;
-    padding: .2rem .55rem;
-    border: 1px solid #bbf7d0;
-    border-radius: 999px;
-    background: #fff;
-    color: #166534;
-    font-size: .72rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background .15s ease, border-color .15s ease;
-}
-.pedido-dist-page .pdv-destino-map-link:hover {
-    background: #f0fdf4;
-    border-color: #86efac;
-}
-.pedido-dist-page .pdv-destino-map-link:disabled {
-    color: #94a3b8;
-    border-color: #e2e8f0;
-    background: #f8fafc;
-    cursor: not-allowed;
-}
-.pedido-dist-page .pdv-destino-actions {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: .35rem;
-    flex-shrink: 0;
-}
-.pedido-dist-page .pdv-destino-btn {
-    border-radius: 10px;
-    font-size: .78rem;
-    font-weight: 700;
-    padding: .45rem .85rem;
-    white-space: nowrap;
-}
-.pedido-dist-page .pdv-destino-btn--ghost {
-    color: #64748b;
-    border-color: #cbd5e1;
-}
+#modalMapaPdvDestino .modal-title { font-size: .95rem; font-weight: 700; }
+#modalMapaPdvDestino .modal-body { padding: .75rem 1rem 1rem; background: #f8fafc; }
 #modalMapaPdvDestino .pdv-mapa-wrap {
-    height: 340px;
-    border-radius: 10px;
-    border: 1px solid #e2e8f0;
-    overflow: hidden;
+    height: min(62vh, 520px); min-height: 360px;
+    border-radius: 10px; border: 1px solid #cbd5e1;
+    box-shadow: inset 0 1px 3px rgba(15, 23, 42, .06);
+}
+#modalMapaPdvDestino .pdv-mapa-leyenda {
+    display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .75rem;
+    margin-top: .65rem; font-size: .72rem; color: #64748b;
 }
 #modalMapaPdvDestino .pdv-mapa-lista {
-    display: flex;
-    flex-wrap: wrap;
-    gap: .4rem;
-    margin-top: .75rem;
-    max-height: 110px;
-    overflow-y: auto;
+    display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .55rem;
+    max-height: 110px; overflow-y: auto;
 }
 #modalMapaPdvDestino .pdv-mapa-chip {
-    border: 1px solid #cbd5e1;
-    background: #fff;
-    border-radius: 999px;
-    padding: .25rem .65rem;
-    font-size: .75rem;
-    font-weight: 600;
-    color: #334155;
-    cursor: pointer;
+    border: 1px solid #cbd5e1; background: #fff; border-radius: 999px;
+    padding: .28rem .65rem; font-size: .74rem; font-weight: 600; color: #334155;
+    cursor: pointer; transition: all .12s ease;
 }
-#modalMapaPdvDestino .pdv-mapa-chip:hover,
+#modalMapaPdvDestino .pdv-mapa-chip:hover { border-color: #64748b; background: #f1f5f9; }
 #modalMapaPdvDestino .pdv-mapa-chip.is-active {
-    border-color: #22c55e;
-    background: #f0fdf4;
-    color: #166534;
+    border-color: #1e293b; background: #1e293b; color: #fff;
 }
-.pedido-dist-mapa-pin {
-    width: 30px; height: 30px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    color: #fff; font-size: .72rem;
-    border: 2px solid #fff;
-    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+.pdv-mapa-pin { background: transparent; border: 0; }
+.pdv-mapa-pin__bubble {
+    display: flex; flex-direction: column; align-items: center; filter: drop-shadow(0 3px 6px rgba(15, 23, 42, .28));
 }
-.pedido-dist-mapa-pin.is-selected { box-shadow: 0 0 0 3px rgba(34,197,94,.45); }
-.pedido-dist-page .pdv-field-label {
-    font-size: .68rem;
-    font-weight: 700;
-    letter-spacing: .05em;
-    text-transform: uppercase;
-    color: #64748b;
-    margin-bottom: .3rem;
+.pdv-mapa-pin__icon {
+    width: 34px; height: 34px; border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg); background: linear-gradient(145deg, #334155, #1e293b);
+    border: 2.5px solid #fff; display: flex; align-items: center; justify-content: center;
 }
-.pedido-dist-page .pdv-fecha-hint {
-    font-size: .72rem;
-    color: #b45309;
-    margin-top: .2rem;
-    line-height: 1.35;
+.pdv-mapa-pin__icon i {
+    transform: rotate(45deg); color: #fff; font-size: .78rem;
 }
-.pedido-dist-page .pdv-form-block .form-group {
-    margin-bottom: 0;
+.pdv-mapa-pin__label {
+    margin-top: 4px; max-width: 120px; padding: .15rem .45rem;
+    background: rgba(15, 23, 42, .88); color: #fff; border-radius: 6px;
+    font-size: .65rem; font-weight: 700; text-align: center; line-height: 1.2;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.pedido-dist-page .pdv-producto-cantidad-row > [class*="col-"] {
-    display: flex;
-    flex-direction: column;
+.pdv-mapa-pin.is-selected .pdv-mapa-pin__icon {
+    background: linear-gradient(145deg, #1e40af, #1e3a8a);
+    box-shadow: 0 0 0 3px rgba(30, 64, 175, .35);
 }
-.pedido-dist-page .pdv-producto-cantidad-row .selector-catalogo-wrapper,
-.pedido-dist-page .pdv-producto-cantidad-row .pdv-cantidad-wrap {
-    flex: 1 1 auto;
-    width: 100%;
+.pedido-sol-page .pdv-producto-pick.is-locked { opacity: .5; pointer-events: none; }
+.pedido-sol-page .sol-footer {
+    display: flex; justify-content: space-between; align-items: center; gap: .5rem;
+    padding: .65rem .85rem; border-top: 1px solid #f1f5f9; background: #f8fafc;
 }
-.pedido-dist-page .pdv-producto-cantidad-row .selector-catalogo-wrapper .input-group,
-.pedido-dist-page .pdv-producto-cantidad-row .pdv-cantidad-wrap.input-group {
-    width: 100%;
+.pedido-dist-mapa-pin { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: .65rem; border: 2px solid #fff; }
+#modalMapaMayoristaCatalogo { z-index: 1070 !important; }
+#modalMapaMayoristaCatalogo .modal-dialog { max-width: min(960px, 94vw); }
+#modalMapaMayoristaCatalogo .modal-content { border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; }
+#modalMapaMayoristaCatalogo .modal-body { padding: .75rem 1rem 1rem; background: #f8fafc; }
+#modalMapaMayoristaCatalogo .pdv-mapa-wrap {
+    height: min(62vh, 520px); min-height: 360px; width: 100%;
+    border-radius: 10px; border: 1px solid #cbd5e1;
+    box-shadow: inset 0 1px 3px rgba(15, 23, 42, .06);
+    background: #e2e8f0;
 }
-.pedido-dist-page .pdv-producto-cantidad-row .input-group .form-control,
-.pedido-dist-page .pdv-producto-cantidad-row .input-group .btn,
-.pedido-dist-page .pdv-producto-cantidad-row .input-group .input-group-text {
-    min-height: 40px;
-    border-width: 2px;
-    border-color: #e2e8f0;
+#modalMapaMayoristaCatalogo .pdv-mapa-leyenda {
+    margin-top: .65rem; font-size: .78rem; color: #64748b;
 }
-.pedido-dist-page .pdv-producto-cantidad-row .input-group .form-control {
-    border-radius: 10px 0 0 10px;
-    font-size: .95rem;
-    font-weight: 600;
-}
-.pedido-dist-page .pdv-producto-cantidad-row .input-group .btn {
-    border-radius: 0 10px 10px 0;
-    font-weight: 600;
-}
-.pedido-dist-page .pdv-producto-cantidad-row .input-group .form-control:focus {
-    border-color: #22c55e;
-    box-shadow: none;
-}
-.pedido-dist-page .pdv-producto-cantidad-row .input-group:focus-within .btn,
-.pedido-dist-page .pdv-producto-cantidad-row .input-group:focus-within .input-group-text {
-    border-color: #22c55e;
-}
-.pedido-dist-page .pdv-unidad-append {
-    background: #ecfdf5;
-    color: #047857;
-    font-weight: 700;
-    font-size: .85rem;
-    border-radius: 0 10px 10px 0;
-    min-width: 56px;
-    justify-content: center;
-}
-.pedido-dist-page .pdv-unidad-append.text-muted {
-    background: #f8fafc;
-    color: #94a3b8;
-    border-color: #e2e8f0;
-}
-.pedido-dist-page .pdv-producto-cantidad-row .form-text {
-    min-height: 1.25rem;
-    margin-top: .35rem;
-}
-.pedido-dist-page .pdv-field-readonly {
-    border-radius: 10px;
-    border: 1px solid #e2e8f0;
-    background: #f8fafc;
-    font-weight: 600;
-    color: #475569;
-}
-.pedido-dist-page .pdv-cantidad-wrap {
-    position: relative;
-}
-.pedido-dist-page .pdv-cantidad-wrap .form-control {
-    border-radius: 10px;
-    border: 2px solid #e2e8f0;
-    font-size: .95rem;
-    font-weight: 600;
-    padding: .45rem .75rem;
-    min-height: 40px;
-}
-.pedido-dist-page .pdv-cantidad-wrap .form-control:focus {
-    border-color: #22c55e;
-    box-shadow: 0 0 0 .15rem rgba(34,197,94,.12);
-}
-/* legacy: cantidad sin input-group */
-.pedido-dist-page .pdv-footer {
-    background: #f8fafc;
-    border-top: 1px solid #e8f0ea;
-    border-radius: 0 0 14px 14px;
-}
-.pedido-dist-page .btn-enviar-pedido {
-    border-radius: 10px;
-    font-weight: 700;
-    padding: .6rem 1.35rem;
-    box-shadow: 0 4px 14px rgba(22,163,74,.25);
-}
+body.modal-mapa-mayorista-open .modal-backdrop:last-of-type { z-index: 1065 !important; }
 </style>
 @endpush
 
 @section('content')
-<div class="pedido-dist-page">
-    <div class="card pdv-card border-0 shadow-sm overflow-hidden">
-        <div class="pdv-hero">
-            <div class="pdv-hero-kicker">Nueva solicitud</div>
-            <h2 class="pdv-hero-title"><i class="fas fa-truck-loading mr-2"></i>Pedido de distribución</h2>
-            <div class="pdv-hero-code"><i class="fas fa-hashtag"></i> {{ $numeroSolicitud }}</div>
+<div class="pedido-sol-page">
+    <div class="sol-card">
+        <div class="sol-top">
+            <h2><i class="fas fa-paper-plane mr-1"></i> Solicitar producto al mayorista</h2>
+            <span class="sol-ref"><i class="fas fa-hashtag"></i> {{ $numeroSolicitud }}</span>
         </div>
 
-        <div class="card-body px-3 py-3">
-            <div class="pdv-intro mb-3">
-                <i class="fas fa-info-circle mr-1"></i>
-                @if($esMinorista ?? false)
-                    Solicite producto terminado de planta para su punto de venta. Planta revisará stock y preparará el envío.
-                @else
-                    Registre una solicitud hacia un punto de venta. Planta revisará y despachará el producto.
-                @endif
-            </div>
-
-            @if($errors->any())
-                <div class="alert alert-danger">{{ $errors->first() }}</div>
-            @endif
-            @if(session('error'))
-                <div class="alert alert-danger">{{ session('error') }}</div>
-            @endif
+        <div class="sol-body">
+            @if($errors->any())<div class="alert alert-danger py-2 mb-2">{{ $errors->first() }}</div>@endif
+            @if(session('error'))<div class="alert alert-danger py-2 mb-2">{{ session('error') }}</div>@endif
 
             <form method="POST" action="{{ route('punto-venta.pedidos.store') }}" id="formPedidoDist">
                 @csrf
+                <input type="hidden" name="ctx" value="pdv">
 
-                <div class="pdv-form-block">
-                    <div class="pdv-form-block-head">
-                        <div class="pdv-form-block-icon pdv-form-block-icon--datos"><i class="fas fa-clipboard-list"></i></div>
-                        <div>
-                            <h3 class="pdv-form-block-title">Datos de la solicitud</h3>
-                            <p class="pdv-form-block-sub">Número de referencia y fecha deseada de entrega</p>
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group col-md-5 mb-md-0">
-                            <label class="pdv-field-label">N° solicitud</label>
-                            <input type="text" class="form-control pdv-field-readonly" value="{{ $numeroSolicitud }}" readonly>
-                        </div>
-                        <div class="form-group col-md-7 mb-0">
-                            <label class="pdv-field-label" for="fecha_entrega_deseada">Fecha entrega deseada</label>
-                            <input type="date" name="fecha_entrega_deseada" id="fecha_entrega_deseada" class="form-control form-control-sm"
-                                value="{{ old('fecha_entrega_deseada') }}">
-                            <small class="pdv-fecha-hint d-block">
-                                <i class="fas fa-exclamation-circle mr-1"></i>Si no marca fecha, el pedido quedará solicitado para hoy.
-                            </small>
-                        </div>
-                    </div>
-                </div>
+                <div class="sol-grid">
+                    <div class="sol-panel">
+                        <div class="sol-panel-title"><i class="fas fa-store mr-1"></i> Entrega</div>
 
-                <div class="pdv-form-block">
-                    <div class="pdv-form-block-head">
-                        <div class="pdv-form-block-icon pdv-form-block-icon--destino"><i class="fas fa-store"></i></div>
-                        <div>
-                            <h3 class="pdv-form-block-title">Destino del pedido</h3>
-                            <p class="pdv-form-block-sub">
-                                @if($esAdmin ?? false)
-                                    Designe el minorista y el punto de venta que recibirá la solicitud
-                                @else
-                                    Elija a qué local llegará el pedido
-                                @endif
-                            </p>
-                        </div>
-                    </div>
-
-                    @if($esAdmin ?? false)
-                        <div class="pdv-minorista-pick {{ ($oldMinoristaLabel ?? '') ? 'is-selected' : '' }}" id="pdvMinoristaPick">
-                            <label class="pdv-field-label mb-2">Minorista <span class="text-danger">*</span></label>
+                        @if($esAdmin ?? false)
+                        <div class="form-group mb-2">
+                            <label class="pdv-field-label">Minorista <span class="text-danger">*</span></label>
                             @include('partials.selector-catalogo', [
                                 'id' => 'dist_minorista',
                                 'name' => 'minorista_usuarioid',
@@ -475,168 +153,74 @@
                                 'labelSelected' => $oldMinoristaLabel ?? '',
                                 'endpoint' => route('catalogo-selector.usuarios'),
                                 'params' => ['roles' => 'minorista'],
-                                'title' => 'Buscar minorista',
-                                'searchPlaceholder' => 'Nombre, usuario o correo…',
-                                'searchLabel' => 'Buscar minorista',
-                                'modalIcon' => 'fa-user-tie',
-                                'rowIcon' => 'fa-user-tie',
+                                'title' => 'Minorista',
+                                'searchPlaceholder' => 'Nombre o correo…',
                                 'required' => true,
                                 'inputGroup' => true,
                             ])
-                            <small class="text-muted d-block mt-2">
-                                Primero elija el comercio minorista; luego podrá seleccionar uno de sus puntos de venta.
-                            </small>
                         </div>
-                    @endif
+                        @endif
 
-                    @if(($esMinorista ?? false) && ($puntosMinorista ?? collect())->isEmpty())
-                        <div class="alert alert-warning py-2 mb-0 small">
-                            Registre un punto de venta activo antes de solicitar producto.
-                            <a href="{{ route('punto-venta.puntos.create') }}">Crear punto de venta</a>
-                        </div>
-                    @else
-                        <label class="pdv-field-label mb-2">Punto de venta <span class="text-danger">*</span></label>
-                        <div class="pdv-destino-pick {{ ($oldPuntoLabel ?? '') ? 'is-selected' : 'is-empty' }} {{ ($esAdmin ?? false) && empty($oldMinoristaId) ? 'is-locked' : '' }}" id="pdvDestinoPick">
-                            <div class="pdv-destino-pick-icon"><i class="fas fa-store"></i></div>
-                            <div class="pdv-destino-pick-body">
-                                <div class="pdv-destino-kicker">
-                                    <i class="fas fa-map-pin"></i>
-                                    <span id="pdvDestinoKicker">{{ ($oldPuntoLabel ?? '') ? 'Punto de venta seleccionado' : 'Sin destino asignado' }}</span>
-                                </div>
-                                <span class="pdv-destino-nombre {{ ($oldPuntoLabel ?? '') ? '' : 'is-placeholder' }}" id="pdvDestinoNombre">
-                                    {{ $oldPuntoLabel ?: 'Seleccione el local que recibirá el pedido' }}
-                                </span>
-                                <div class="pdv-destino-ubicacion {{ ($oldPuntoResumen ?? '') ? '' : 'is-empty' }}" id="pdvDestinoUbicacion">
-                                    @if($oldPuntoResumen ?? '')
-                                        <i class="fas fa-location-dot"></i>
-                                        <span>{{ $oldPuntoResumen }}</span>
-                                    @else
-                                        <span>La dirección aparecerá al elegir un punto de venta.</span>
-                                    @endif
-                                </div>
-                                <div class="pdv-destino-meta-row">
-                                    <span class="pdv-destino-badge d-none" id="pdvDestinoBadge">
-                                        <i class="fas fa-check-circle"></i> Listo para solicitar
-                                    </span>
-                                    <button type="button" class="pdv-destino-map-link" id="btnVerMapaPdvDestino"
-                                        @if(empty($puntosVentaMapa)) disabled @endif>
-                                        <i class="fas fa-map-marked-alt"></i> Ver en mapa
-                                    </button>
-                                </div>
+                        @if(($esMinorista ?? false) && ($puntosMinorista ?? collect())->isEmpty())
+                            <div class="alert alert-warning py-2 mb-0 small">
+                                Registre un punto de venta activo.
+                                <a href="{{ route('punto-venta.puntos.create') }}">Crear PDV</a>
                             </div>
-                            <div class="pdv-destino-actions">
-                                <button type="button" class="btn btn-outline-success pdv-destino-btn" id="btnBuscarPdvDestino"
-                                    @if(($esAdmin ?? false) && empty($oldMinoristaId)) disabled @endif>
-                                    <i class="fas fa-search mr-1"></i>Elegir destino
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary pdv-destino-btn pdv-destino-btn--ghost d-none" id="btnCambiarPdvDestino">
-                                    Cambiar
+                        @else
+                            <div class="form-group mb-1 {{ ($esAdmin ?? false) && empty($oldMinoristaId) ? 'opacity-50' : '' }}" id="wrapPdvSelector">
+                                <label class="pdv-field-label">Punto de venta <span class="text-danger">*</span></label>
+                                @include('partials.selector-catalogo', [
+                                    'id' => 'dist_punto_venta',
+                                    'name' => 'puntoventaid',
+                                    'value' => old('puntoventaid', $oldPuntoId ?? ''),
+                                    'labelSelected' => $oldPuntoLabel ?? '',
+                                    'endpoint' => route('catalogo-selector.puntos-venta'),
+                                    'title' => ($esMinorista ?? false) ? 'Mis puntos de venta' : 'Puntos del minorista',
+                                    'searchPlaceholder' => 'Nombre o dirección…',
+                                    'required' => true,
+                                    'inputGroup' => true,
+                                    'params' => ($esAdmin ?? false) && ! empty($oldMinoristaId)
+                                        ? ['minorista_usuarioid' => (string) $oldMinoristaId]
+                                        : [],
+                                ])
+                                <button type="button" class="sol-map-btn" id="btnVerMapaPdvDestino" @if(empty($puntosVentaMapa)) disabled @endif>
+                                    <i class="fas fa-map-marked-alt"></i>
+                                    <span>Ver puntos de venta en mapa</span>
                                 </button>
                             </div>
-                        </div>
-                        <div class="d-none" aria-hidden="true">
-                            @include('partials.selector-catalogo', [
-                                'id' => 'dist_punto_venta',
-                                'name' => 'puntoventaid',
-                                'value' => old('puntoventaid', $oldPuntoId ?? ''),
-                                'labelSelected' => $oldPuntoLabel,
-                                'endpoint' => route('catalogo-selector.puntos-venta'),
-                                'title' => ($esMinorista ?? false) ? 'Mis puntos de venta' : 'Puntos de venta del minorista',
-                                'searchPlaceholder' => ($esMinorista ?? false)
-                                    ? 'Nombre o dirección del punto…'
-                                    : 'Nombre o dirección del punto…',
-                                'searchLabel' => 'Buscar punto de venta',
-                                'modalIcon' => 'fa-store',
-                                'rowIcon' => 'fa-store',
-                                'colDetalle' => 'Ubicación',
-                                'required' => true,
-                                'inputGroup' => true,
-                                'params' => ($esAdmin ?? false) && ! empty($oldMinoristaId)
-                                    ? ['minorista_usuarioid' => (string) $oldMinoristaId]
-                                    : [],
-                            ])
-                        </div>
-                    @endif
+                        @endif
 
-                    @if($esAdmin ?? false)
-                    <div class="mt-3">
-                        <label class="pdv-field-label">Almacén planta (origen)</label>
-                        @include('partials.selector-catalogo', [
-                            'id' => 'dist_almacen_planta',
-                            'name' => 'almacen_planta_origenid',
-                            'value' => old('almacen_planta_origenid', ''),
-                            'labelSelected' => $oldAlmacenLabel,
-                            'endpoint' => route('catalogo-selector.almacenes'),
-                            'params' => ['ambito' => 'planta'],
-                            'title' => 'Buscar almacén de planta',
-                            'searchPlaceholder' => 'Nombre o ubicación…',
-                            'allowEmpty' => true,
-                            'placeholderEmpty' => 'Automático según producto',
-                            'inputGroup' => true,
-                        ])
-                    </div>
-                    @endif
-                </div>
-
-                <div class="pdv-form-block">
-                    <div class="pdv-form-block-head">
-                        <div class="pdv-form-block-icon pdv-form-block-icon--producto"><i class="fas fa-box"></i></div>
-                        <div>
-                            <h3 class="pdv-form-block-title">Producto y cantidad</h3>
-                            <p class="pdv-form-block-sub">Qué necesita y en qué cantidad</p>
-                        </div>
-                    </div>
-                    <div class="form-row pdv-producto-cantidad-row">
-                        <div class="form-group col-md-6">
-                            <label class="pdv-field-label">Producto (stock planta) <span class="text-danger">*</span></label>
-                            @include('partials.selector-catalogo', [
-                                'id' => 'dist_producto_planta',
-                                'name' => 'insumoid',
-                                'value' => old('insumoid', ''),
-                                'labelSelected' => $oldProductoLabel,
-                                'endpoint' => route('catalogo-selector.insumos'),
-                                'params' => ['ambito_planta' => '1'],
-                                'title' => 'Buscar producto en planta',
-                                'searchPlaceholder' => 'Nombre del producto…',
-                                'required' => true,
-                                'inputGroup' => true,
-                            ])
-                            <small id="txtStockDisponible" class="form-text text-success font-weight-bold"></small>
-                        </div>
-                        <div class="form-group col-md-6">
-                            <label class="pdv-field-label" for="cantidad">Cantidad <span class="text-danger">*</span></label>
-                            <div class="pdv-cantidad-wrap input-group">
-                                <input type="number" step="0.01" min="0.01" name="cantidad" id="cantidad" class="form-control" required
-                                    value="{{ old('cantidad') }}" placeholder="0.00">
-                                <div class="input-group-append">
-                                    <span class="input-group-text pdv-unidad-append {{ $oldProductoUnidad ? '' : 'text-muted' }}" id="badgeUnidad">{{ $oldProductoUnidad ?: '—' }}</span>
-                                </div>
+                        <div class="sol-row-entrega">
+                            <div>
+                                <label class="pdv-field-label" for="fecha_entrega_deseada">Fecha <span class="text-danger">*</span></label>
+                                <input type="date" name="fecha_entrega_deseada" id="fecha_entrega_deseada" class="form-control form-control-sm" required
+                                    min="{{ now()->toDateString() }}" value="{{ old('fecha_entrega_deseada') }}">
                             </div>
-                            <small class="form-text text-muted" id="txtAyudaCantidad">
-                                @if($oldProductoUnidad)
-                                    Indique la cantidad en {{ $oldProductoUnidad }}.
-                                @else
-                                    La unidad aparece al elegir el producto.
-                                @endif
-                            </small>
+                            <div>
+                                <label class="pdv-field-label" for="hora_entrega_deseada">Hora</label>
+                                <input type="time" name="hora_entrega_deseada" id="hora_entrega_deseada" class="form-control form-control-sm"
+                                    value="{{ old('hora_entrega_deseada') }}">
+                            </div>
                         </div>
+                    </div>
+
+                    <div class="sol-panel">
+                        <div class="sol-panel-title"><i class="fas fa-box mr-1"></i> Producto</div>
+                        @include('punto_venta.pedidos.partials.form-producto-fase3')
                     </div>
                 </div>
 
-                <div class="form-group mb-0">
+                <div class="form-group mt-2 mb-0">
                     <label class="pdv-field-label" for="observaciones">Observaciones</label>
-                    <textarea name="observaciones" id="observaciones" rows="2" class="form-control"
-                        style="border-radius:10px;border:2px solid #e2e8f0;"
-                        placeholder="Instrucciones de entrega, horario preferido…">{{ old('observaciones') }}</textarea>
+                    <textarea name="observaciones" id="observaciones" rows="2" class="form-control form-control-sm"
+                        placeholder="Instrucciones de entrega (opcional)">{{ old('observaciones') }}</textarea>
                 </div>
             </form>
         </div>
 
-        <div class="card-footer pdv-footer d-flex justify-content-between align-items-center py-2 px-3">
-            <a href="{{ route('punto-venta.pedidos.index') }}" class="btn btn-light border">
-                <i class="fas fa-arrow-left mr-1"></i> Cancelar
-            </a>
-            <button type="submit" form="formPedidoDist" class="btn btn-success btn-enviar-pedido" id="btnEnviarPedido">
+        <div class="sol-footer">
+            <a href="{{ route('punto-venta.pedidos.index', ['ctx' => 'pdv']) }}" class="btn btn-light btn-sm border">Cancelar</a>
+            <button type="submit" form="formPedidoDist" class="btn btn-success btn-sm" id="btnEnviarPedido">
                 <i class="fas fa-paper-plane mr-1"></i> Enviar solicitud
             </button>
         </div>
@@ -644,432 +228,694 @@
 </div>
 
 @if(! (($esMinorista ?? false) && ($puntosMinorista ?? collect())->isEmpty()))
-<div class="modal fade" id="modalMapaPdvDestino" tabindex="-1" role="dialog" aria-labelledby="modalMapaPdvDestinoLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
-        <div class="modal-content" style="border-radius:14px;overflow:hidden;border:0;">
-            <div class="modal-header py-2" style="background:linear-gradient(135deg,#14532d,#22c55e);color:#fff;border:0;">
-                <h5 class="modal-title font-weight-bold" id="modalMapaPdvDestinoLabel">
-                    <i class="fas fa-map-marked-alt mr-2"></i>
-                    {{ ($esMinorista ?? false) ? 'Mis puntos de venta' : 'Puntos de venta en mapa' }}
-                </h5>
-                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Cerrar">
-                    <span aria-hidden="true">&times;</span>
-                </button>
+<div class="modal fade" id="modalMapaPdvDestino" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header text-white">
+                <h5 class="modal-title"><i class="fas fa-map-marked-alt mr-1"></i> Seleccione punto de venta en el mapa</h5>
+                <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
             </div>
-            <div class="modal-body py-3">
-                <p class="small text-muted mb-2">Clic en un marcador o en la lista para elegir el destino del pedido.</p>
+            <div class="modal-body">
                 <div id="mapaPdvDestino" class="pdv-mapa-wrap"></div>
+                <p class="pdv-mapa-leyenda mb-0">
+                    <i class="fas fa-hand-pointer mr-1"></i> Haga clic en un pin o en la lista para elegir el destino de entrega.
+                </p>
                 <div class="pdv-mapa-lista" id="listaPdvMapaDestino"></div>
-            </div>
-            <div class="modal-footer py-2 bg-light">
-                <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Cerrar</button>
             </div>
         </div>
     </div>
 </div>
 @endif
+
+<div class="modal fade" id="modalMapaMayoristaCatalogo" tabindex="-1" role="dialog" aria-hidden="true" data-backdrop="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header text-white" style="background:linear-gradient(135deg,#047857,#10b981);">
+                <h5 class="modal-title" id="tituloMapaMayoristaCatalogo"><i class="fas fa-warehouse mr-1"></i> Ubicación del mayorista</h5>
+                <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body" style="background:#f8fafc;padding:.75rem 1rem 1rem;">
+                <div id="mapaMayoristaCatalogo" class="pdv-mapa-wrap"></div>
+                <p class="pdv-mapa-leyenda mb-0" id="txtMapaMayoristaCatalogo"></p>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (function () {
-    var stockActual = {{ $oldProductoStock !== null ? json_encode($oldProductoStock) : 'null' }};
-    var unidadActual = @json($oldProductoUnidad ?: '');
     var puntosVentaMapa = @json($puntosVentaMapa ?? []);
     var pdvSeleccionadoId = @json(old('puntoventaid', $oldPuntoId ?? ''));
     var esAdmin = @json($esAdmin ?? false);
     var minoristaSeleccionadoId = @json(old('minorista_usuarioid', $oldMinoristaId ?? ''));
+    var tipoSolicitudActual = @json(old('tipo_solicitud', 'stock'));
+    var stockMaxUnidades = null;
+    var stockUnidadEtiqueta = 'unidades';
+    var presentacionesEndpoint = @json(route('catalogo-selector.presentaciones-producto'));
+    var presentacionesExtra = {};
+    var oldPresentacionId = @json(old('insumo_presentacionid', ''));
+    var oldInsumoId = @json(old('insumoid', ''));
+    var oldAlmacenMayoristaId = @json(old('almacen_mayorista_origenid', ''));
+    var productoMayoristaExtra = null;
+    var nombreProductoActual = '';
 
-    function puntosMapaFiltrados() {
-        if (!esAdmin || !minoristaSeleccionadoId) {
-            return puntosVentaMapa;
+    function renderMapaMayoristaCatalogo(lat, lng, popupText) {
+        var el = document.getElementById('mapaMayoristaCatalogo');
+        if (!el || !window.L) return;
+        if (window._mapaMayoristaCatalogo) {
+            try { window._mapaMayoristaCatalogo.remove(); } catch (e) { /* noop */ }
+            window._mapaMayoristaCatalogo = null;
+            window._markerMayoristaCatalogo = null;
+            el.innerHTML = '';
         }
-        return puntosVentaMapa.filter(function (p) {
-            return String(p.minorista_usuarioid) === String(minoristaSeleccionadoId);
+        window._mapaMayoristaCatalogo = L.map(el, { scrollWheelZoom: true }).setView([lat, lng], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap',
+        }).addTo(window._mapaMayoristaCatalogo);
+        window._markerMayoristaCatalogo = L.marker([lat, lng]).addTo(window._mapaMayoristaCatalogo);
+        if (popupText) {
+            window._markerMayoristaCatalogo.bindPopup(popupText).openPopup();
+        }
+        setTimeout(function () {
+            if (window._mapaMayoristaCatalogo) {
+                window._mapaMayoristaCatalogo.invalidateSize();
+            }
+        }, 220);
+    }
+
+    function abrirMapaMayoristaDesdeCatalogo(extra) {
+        if (extra.lat == null || extra.lng == null || !window.L) return;
+        var lat = parseFloat(extra.lat);
+        var lng = parseFloat(extra.lng);
+        if (isNaN(lat) || isNaN(lng)) return;
+
+        var titulo = document.getElementById('tituloMapaMayoristaCatalogo');
+        var txt = document.getElementById('txtMapaMayoristaCatalogo');
+        var popupText = [extra.almacen_nombre, extra.ubicacion].filter(Boolean).join(' · ');
+        if (titulo) {
+            titulo.innerHTML = '<i class="fas fa-warehouse mr-1"></i> ' + (extra.mayorista_nombre || 'Mayorista');
+        }
+        if (txt) {
+            txt.textContent = popupText || 'Ubicación del almacén mayorista';
+        }
+
+        var $mapModal = window.jQuery('#modalMapaMayoristaCatalogo');
+        if (!$mapModal.parent().is('body')) {
+            $mapModal.appendTo('body');
+        }
+
+        $mapModal.off('show.bs.modal.mapaMayorista shown.bs.modal.mapaMayorista hidden.bs.modal.mapaMayorista');
+        $mapModal.on('show.bs.modal.mapaMayorista', function () {
+            document.body.classList.add('modal-mapa-mayorista-open');
+            var zIndex = 1050 + (10 * window.jQuery('.modal.show').length);
+            window.jQuery(this).css('z-index', zIndex);
+            setTimeout(function () {
+                window.jQuery('.modal-backdrop').last()
+                    .css('z-index', zIndex - 5)
+                    .addClass('mapa-mayorista-backdrop');
+            }, 0);
+        });
+        $mapModal.on('shown.bs.modal.mapaMayorista', function () {
+            renderMapaMayoristaCatalogo(lat, lng, popupText);
+        });
+        $mapModal.on('hidden.bs.modal.mapaMayorista', function () {
+            document.body.classList.remove('modal-mapa-mayorista-open');
+        });
+
+        $mapModal.modal('show');
+    }
+
+    function aplicarSeleccionProductoMayorista(item) {
+        var extra = item?.extra || {};
+        productoMayoristaExtra = extra;
+        nombreProductoActual = extra.producto_nombre || (item?.label ? String(item.label).split('·')[0].trim() : '');
+
+        var insumoReal = document.getElementById('insumoid_real');
+        var almacenMay = document.getElementById('almacen_mayorista_origenid');
+        if (insumoReal) insumoReal.value = extra.insumoid ? String(extra.insumoid) : '';
+        if (almacenMay) almacenMay.value = extra.almacen_mayorista_origenid ? String(extra.almacen_mayorista_origenid) : '';
+
+        var panelMeta = document.getElementById('panelProductoMeta');
+        if (panelMeta) {
+            actualizarMetaProducto(extra);
+        }
+
+        actualizarPanelStock(extra, null);
+
+        if (extra.insumoid) {
+            document.getElementById('pdvPresentacionPick')?.classList.remove('is-locked');
+            cargarPresentaciones(extra.insumoid, null, extra);
+        } else {
+            limpiarPresentacion();
+        }
+    }
+
+    function obtenerNombreProducto() {
+        if (nombreProductoActual) return nombreProductoActual;
+        var wrap = document.getElementById('selector_wrap_dist_producto_mayorista');
+        var label = wrap?.querySelector('.selector-catalogo-label')?.value || '';
+        return label.split('·')[0].trim() || 'este producto';
+    }
+
+    function extraPresentacionSeleccionada() {
+        var id = document.getElementById('selectPresentacionMayorista')?.value || '';
+        return id ? presentacionesExtra[id] : null;
+    }
+
+    function actualizarMetaProducto(extra) {
+        var panel = document.getElementById('panelProductoMeta');
+        if (!panel) return;
+        if (!extra || (!extra.mayorista_nombre && !extra.almacen_nombre && !extra.ubicacion)) {
+            panel.classList.add('d-none');
+            return;
+        }
+        var txtMay = document.getElementById('txtMetaMayorista');
+        var txtUbi = document.getElementById('txtMetaUbicacion');
+        var rowStock = document.getElementById('rowMetaStock');
+        var txtStock = document.getElementById('txtMetaStockKg');
+        if (txtMay) txtMay.textContent = extra.mayorista_nombre || '—';
+        if (txtUbi) txtUbi.textContent = extra.ubicacion || extra.almacen_nombre || '—';
+        if (extra.stock_kg != null && rowStock && txtStock) {
+            txtStock.textContent = extra.stock_kg > 0
+                ? Number(extra.stock_kg).toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' kg'
+                : 'Sin stock';
+            rowStock.classList.remove('d-none');
+        } else {
+            rowStock?.classList.add('d-none');
+        }
+        panel.classList.remove('d-none');
+    }
+
+    function cantidadSolicitada() {
+        var v = parseFloat(String(document.getElementById('cantidad')?.value || '').trim());
+        return isNaN(v) ? 0 : v;
+    }
+
+    function necesitaEsperaStock(extra, cantidad) {
+        if (!extra) return false;
+        var qty = cantidad != null ? cantidad : cantidadSolicitada();
+        if (qty <= 0) return false;
+        var disp = parseFloat(extra.stock_unidades || 0);
+        if (extra.tiene_stock && disp > 0) return qty > disp;
+        return true;
+    }
+
+    function avisoPresentacionSinStock(extra) {
+        if (!extra || extra.tiene_stock) return;
+        var producto = obtenerNombreProducto();
+        var pres = extra.presentacion_nombre || 'esta presentación';
+        var mensaje = 'No hay stock de ' + producto + ' en ' + pres + ' en este momento. Puede enviar la solicitud y el mayorista la aceptará cuando haya disponibilidad, o elija otra presentación.';
+        if (window.Swal) {
+            Swal.fire({ icon: 'info', title: 'Sin stock actual', text: mensaje, confirmButtonText: 'Entendido' });
+        } else {
+            window.alert(mensaje);
+        }
+    }
+
+    function sugerirPresentacionAlternativa(extraActual, idActual) {
+        if (!extraActual || extraActual.tiene_stock) return;
+        var alternativa = null;
+        var altId = null;
+        Object.keys(presentacionesExtra).forEach(function (id) {
+            if (String(id) === String(idActual)) return;
+            var ex = presentacionesExtra[id];
+            if (ex && ex.tiene_stock && parseFloat(ex.stock_unidades || 0) > 0) {
+                alternativa = ex;
+                altId = id;
+            }
+        });
+        if (!alternativa || !window.Swal) return;
+
+        Swal.fire({
+            icon: 'question',
+            title: 'Hay stock en otra presentación',
+            html: 'Hay <strong>' + Math.floor(alternativa.stock_unidades) + ' ' + (alternativa.unidad_etiqueta || 'unidades') +
+                '</strong> disponibles en <strong>' + (alternativa.presentacion_nombre || 'otra presentación') + '</strong>. ¿Desea cambiar?',
+            showCancelButton: true,
+            confirmButtonText: 'Cambiar presentación',
+            cancelButtonText: 'Mantener mi elección',
+        }).then(function (result) {
+            if (result.isConfirmed) {
+                var select = document.getElementById('selectPresentacionMayorista');
+                if (select) {
+                    select.value = String(altId);
+                    manejarCambioPresentacion(alternativa, false);
+                }
+            }
         });
     }
 
-    function limpiarPdvDestino() {
-        var wrap = getPdvWrap();
-        if (!wrap) return;
-        wrap.querySelector('.selector-catalogo-value').value = '';
-        var display = wrap.querySelector('.selector-catalogo-label');
-        if (display) {
-            display.value = '';
-            display.classList.add('text-muted');
+    function manejarCambioPresentacion(extra, mostrarAviso) {
+        if (mostrarAviso === undefined) mostrarAviso = true;
+        aplicarPresentacionExtra(extra);
+        if (mostrarAviso && extra && !extra.tiene_stock) {
+            avisoPresentacionSinStock(extra);
+            sugerirPresentacionAlternativa(extra, document.getElementById('selectPresentacionMayorista')?.value);
         }
-        if (window.CatalogoSelector) {
-            CatalogoSelector.clear('dist_punto_venta');
-        }
-        actualizarDestinoVisible('', '', {});
+        validarStockCantidad();
     }
+
+    function avisoValidacion(titulo, texto) {
+        if (window.Swal) {
+            Swal.fire({ icon: 'warning', title: titulo, text: texto, confirmButtonText: 'Entendido' });
+        } else {
+            window.alert(texto || titulo);
+        }
+    }
+
+    function limpiarPresentacion() {
+        var select = document.getElementById('selectPresentacionMayorista');
+        if (!select) return;
+        select.innerHTML = '<option value="">Elegir producto primero…</option>';
+        select.value = '';
+        select.disabled = true;
+        presentacionesExtra = {};
+        document.getElementById('txtPresentacionAyuda')?.classList.add('d-none');
+        document.getElementById('txtPresentacionVacia')?.classList.add('d-none');
+        document.getElementById('pdvPresentacionPick')?.classList.add('is-locked');
+        document.getElementById('panelEsperaStock')?.classList.add('d-none');
+        stockMaxUnidades = null;
+        actualizarPanelStock(null, null);
+    }
+
+    function aplicarPresentacionExtra(extra) {
+        if (!extra) {
+            document.getElementById('panelEsperaStock')?.classList.add('d-none');
+            document.getElementById('alertaStockExcedido')?.classList.add('d-none');
+            return;
+        }
+        actualizarUnidadPresentacion(extra);
+        actualizarPanelStock(null, extra);
+    }
+
+    function cargarPresentaciones(insumoId, preseleccionId, extraProducto) {
+        var select = document.getElementById('selectPresentacionMayorista');
+        var ayuda = document.getElementById('txtPresentacionAyuda');
+        var vacio = document.getElementById('txtPresentacionVacia');
+        extraProducto = extraProducto || productoMayoristaExtra || {};
+        if (!select || !insumoId) {
+            limpiarPresentacion();
+            return;
+        }
+
+        select.disabled = true;
+        select.innerHTML = '<option value="">Cargando…</option>';
+        ayuda?.classList.remove('d-none');
+        vacio?.classList.add('d-none');
+        presentacionesExtra = {};
+
+        var params = new URLSearchParams({
+            insumoid: String(insumoId),
+            catalogo_mayorista_pdv: '1',
+            per_page: '50',
+            page: '1',
+        });
+        if (extraProducto.almacen_mayorista_origenid) {
+            params.set('almacen_mayorista_origenid', String(extraProducto.almacen_mayorista_origenid));
+        }
+
+        fetch(presentacionesEndpoint + '?' + params.toString(), {
+            headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        })
+            .then(function (r) {
+                if (!r.ok) throw new Error('Error al cargar presentaciones');
+                return r.json();
+            })
+            .then(function (json) {
+                var items = json.data || [];
+                ayuda?.classList.add('d-none');
+                select.innerHTML = '';
+
+                if (!items.length) {
+                    select.innerHTML = '<option value="">Sin presentaciones disponibles</option>';
+                    select.disabled = true;
+                    vacio?.classList.remove('d-none');
+                    stockMaxUnidades = null;
+                    actualizarPanelStock(null, null);
+                    return;
+                }
+
+                select.appendChild(new Option('Seleccione presentación…', ''));
+                items.forEach(function (item) {
+                    var extra = item.extra || {};
+                    presentacionesExtra[String(item.id)] = extra;
+                    var label = item.label || ('Presentación #' + item.id);
+                    if (extra.tiene_stock && item.meta) {
+                        label += ' · ' + item.meta;
+                    } else if (!extra.tiene_stock) {
+                        label += ' · sin stock ahora';
+                    }
+                    select.appendChild(new Option(label, String(item.id)));
+                });
+
+                select.disabled = false;
+                document.getElementById('pdvPresentacionPick')?.classList.remove('is-locked');
+
+                var elegido = preseleccionId ? String(preseleccionId) : '';
+                if (elegido && presentacionesExtra[elegido]) {
+                    select.value = elegido;
+                    manejarCambioPresentacion(presentacionesExtra[elegido], false);
+                } else {
+                    var conStock = items.find(function (it) { return it.extra && it.extra.tiene_stock; });
+                    if (conStock) {
+                        select.value = String(conStock.id);
+                        manejarCambioPresentacion(presentacionesExtra[select.value], false);
+                    }
+                }
+            })
+            .catch(function () {
+                ayuda?.classList.add('d-none');
+                select.innerHTML = '<option value="">No se pudieron cargar las presentaciones</option>';
+                select.disabled = true;
+            });
+    }
+
+    function actualizarPanelStock(extraProducto, extraPresentacion) {
+        if (extraProducto) actualizarMetaProducto(extraProducto);
+        var panelDisp = document.getElementById('panelStockDisponible');
+        var txtDisp = document.getElementById('txtStockDisponible');
+        var inputCantidad = document.getElementById('cantidad');
+        if (extraPresentacion && extraPresentacion.tiene_stock && parseFloat(extraPresentacion.stock_unidades || 0) > 0 && panelDisp && txtDisp) {
+            stockMaxUnidades = parseFloat(extraPresentacion.stock_unidades);
+            stockUnidadEtiqueta = extraPresentacion.unidad_etiqueta || 'unidades';
+            var kgPres = extraPresentacion.stock_kg != null ? Number(extraPresentacion.stock_kg).toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : null;
+            txtDisp.textContent = 'Puede pedir hasta ' + Math.floor(stockMaxUnidades) + ' ' + stockUnidadEtiqueta + (kgPres ? ' (' + kgPres + ' kg)' : '');
+            panelDisp.classList.remove('d-none');
+            if (inputCantidad) inputCantidad.removeAttribute('max');
+        } else {
+            stockMaxUnidades = extraPresentacion ? parseFloat(extraPresentacion.stock_unidades || 0) : null;
+            panelDisp?.classList.add('d-none');
+            if (inputCantidad) inputCantidad.removeAttribute('max');
+        }
+        validarStockCantidad();
+    }
+
+    function validarStockCantidad() {
+        var wrap = document.getElementById('wrapCantidad');
+        var alerta = document.getElementById('alertaStockExcedido');
+        var txtAlerta = document.getElementById('txtAlertaStockExcedido');
+        var extra = extraPresentacionSeleccionada();
+        document.getElementById('panelEsperaStock')?.classList.add('d-none');
+
+        if (!document.getElementById('cantidad') || tipoSolicitudActual !== 'stock') {
+            wrap?.classList.remove('is-invalid');
+            alerta?.classList.add('d-none');
+            return true;
+        }
+
+        var qty = cantidadSolicitada();
+        var disp = extra ? parseFloat(extra.stock_unidades || 0) : 0;
+        var tieneStock = extra && extra.tiene_stock && disp > 0;
+
+        if (qty <= 0 || !extra) {
+            wrap?.classList.remove('is-invalid');
+            alerta?.classList.add('d-none');
+            return true;
+        }
+
+        if (tieneStock && qty > disp) {
+            wrap?.classList.add('is-invalid');
+            if (txtAlerta) {
+                txtAlerta.textContent = 'Supera el stock disponible (' + Math.floor(disp) + ' ' + (extra.unidad_etiqueta || 'unid.') + ').';
+            }
+            alerta?.classList.remove('d-none');
+            return true;
+        }
+
+        if (!tieneStock) {
+            wrap?.classList.add('is-invalid');
+            if (txtAlerta) txtAlerta.textContent = 'Sin stock ahora para esta cantidad.';
+            alerta?.classList.remove('d-none');
+            return true;
+        }
+
+        wrap?.classList.remove('is-invalid');
+        alerta?.classList.add('d-none');
+        return true;
+    }
+
+    function setTipoSolicitud(tipo) {
+        tipoSolicitudActual = tipo;
+        document.getElementById('tipo_solicitud').value = tipo;
+        document.getElementById('bloqueStock')?.classList.toggle('d-none', tipo !== 'stock');
+        document.getElementById('bloqueCustom')?.classList.toggle('d-none', tipo !== 'custom');
+        document.querySelectorAll('.pdv-tipo-btn').forEach(function (btn) {
+            btn.classList.toggle('is-active', btn.getAttribute('data-tipo') === tipo);
+        });
+        if (tipo === 'custom') {
+            stockMaxUnidades = null;
+            document.getElementById('wrapCantidad')?.classList.remove('is-invalid');
+            document.getElementById('alertaStockExcedido')?.classList.add('d-none');
+            document.getElementById('badgeUnidad').textContent = 'unidades';
+        } else validarStockCantidad();
+    }
+
+    function puntosMapaFiltrados() {
+        if (!esAdmin || !minoristaSeleccionadoId) return puntosVentaMapa;
+        return puntosVentaMapa.filter(function (p) { return String(p.minorista_usuarioid) === String(minoristaSeleccionadoId); });
+    }
+
+    function getPdvWrap() { return document.getElementById('selector_wrap_dist_punto_venta'); }
 
     function syncBloqueoDestinoAdmin() {
         if (!esAdmin) return;
-        var pickEl = document.getElementById('pdvDestinoPick');
-        var btnBuscar = document.getElementById('btnBuscarPdvDestino');
+        var wrap = document.getElementById('wrapPdvSelector');
         var btnMapa = document.getElementById('btnVerMapaPdvDestino');
         var bloqueado = !minoristaSeleccionadoId;
-        if (pickEl) pickEl.classList.toggle('is-locked', bloqueado);
-        if (btnBuscar) btnBuscar.disabled = bloqueado;
+        if (wrap) wrap.classList.toggle('opacity-50', bloqueado);
         if (btnMapa) btnMapa.disabled = bloqueado || !puntosMapaFiltrados().length;
     }
 
     function paramsPuntoVenta() {
-        if (esAdmin && minoristaSeleccionadoId) {
-            return { minorista_usuarioid: String(minoristaSeleccionadoId) };
-        }
-        return {};
-    }
-
-    function getPdvWrap() {
-        return document.getElementById('selector_wrap_dist_punto_venta');
-    }
-
-    function actualizarDestinoVisible(id, label, extra) {
-        var nombreEl = document.getElementById('pdvDestinoNombre');
-        var pickEl = document.getElementById('pdvDestinoPick');
-        var ubicacionEl = document.getElementById('pdvDestinoUbicacion');
-        var kickerEl = document.getElementById('pdvDestinoKicker');
-        var badgeEl = document.getElementById('pdvDestinoBadge');
-        var btnCambiar = document.getElementById('btnCambiarPdvDestino');
-        if (!nombreEl || !pickEl) return;
-
-        extra = extra || {};
-        var resumen = extra.ubicacion_resumen || extra.direccion || '';
-        pdvSeleccionadoId = id ? String(id) : '';
-
-        if (id && label) {
-            nombreEl.textContent = label;
-            nombreEl.classList.remove('is-placeholder');
-            pickEl.classList.remove('is-empty');
-            pickEl.classList.add('is-selected');
-            if (kickerEl) kickerEl.textContent = 'Punto de venta seleccionado';
-            if (badgeEl) badgeEl.classList.remove('d-none');
-            if (btnCambiar) btnCambiar.classList.remove('d-none');
-            if (ubicacionEl) {
-                ubicacionEl.classList.remove('is-empty');
-                ubicacionEl.innerHTML = resumen
-                    ? '<i class="fas fa-location-dot"></i><span>' + resumen + '</span>'
-                    : '<span>Sin dirección registrada para este punto.</span>';
-            }
-        } else {
-            nombreEl.textContent = 'Seleccione el local que recibirá el pedido';
-            nombreEl.classList.add('is-placeholder');
-            pickEl.classList.add('is-empty');
-            pickEl.classList.remove('is-selected');
-            if (kickerEl) kickerEl.textContent = 'Sin destino asignado';
-            if (badgeEl) badgeEl.classList.add('d-none');
-            if (btnCambiar) btnCambiar.classList.add('d-none');
-            if (ubicacionEl) {
-                ubicacionEl.classList.add('is-empty');
-                ubicacionEl.innerHTML = '<span>La dirección aparecerá al elegir un punto de venta.</span>';
-            }
-        }
+        return esAdmin && minoristaSeleccionadoId ? { minorista_usuarioid: String(minoristaSeleccionadoId) } : {};
     }
 
     function aplicarPdvSeleccionado(pdv) {
         if (!pdv || !pdv.id) return;
         var wrap = getPdvWrap();
         if (!wrap) return;
-
         wrap.querySelector('.selector-catalogo-value').value = pdv.id;
         var display = wrap.querySelector('.selector-catalogo-label');
-        if (display) {
-            display.value = pdv.label;
-            display.classList.remove('text-muted');
-        }
-        actualizarDestinoVisible(pdv.id, pdv.label, {
-            ubicacion_resumen: pdv.resumen || '',
-            direccion: pdv.direccion || '',
+        if (display) { display.value = pdv.label; display.classList.remove('text-muted', 'is-empty'); }
+        pdvSeleccionadoId = String(pdv.id);
+        document.querySelectorAll('#listaPdvMapaDestino .pdv-mapa-chip').forEach(function (chip) {
+            chip.classList.toggle('is-active', chip.getAttribute('data-pdv-id') === pdvSeleccionadoId);
         });
-        wrap.dispatchEvent(new CustomEvent('selector-catalogo:change', {
-            bubbles: true,
-            detail: {
-                id: pdv.id,
-                label: pdv.label,
-                extra: {
-                    ubicacion_resumen: pdv.resumen || '',
-                    direccion: pdv.direccion || '',
-                    lat: pdv.lat,
-                    lng: pdv.lng,
-                },
-            },
-        }));
     }
 
-    function buscarPdvEnMapa(id) {
-        return puntosVentaMapa.find(function (p) { return String(p.id) === String(id); }) || null;
+    function crearIconoPdv(pdv, seleccionado) {
+        var nombre = (pdv.label || 'PDV').replace(/"/g, '&quot;');
+        var cls = seleccionado ? 'pdv-mapa-pin is-selected' : 'pdv-mapa-pin';
+        return L.divIcon({
+            className: '',
+            html: '<div class="' + cls + '" data-pdv-id="' + pdv.id + '">' +
+                '<div class="pdv-mapa-pin__bubble">' +
+                '<div class="pdv-mapa-pin__icon"><i class="fas fa-store"></i></div>' +
+                '<span class="pdv-mapa-pin__label">' + nombre + '</span>' +
+                '</div></div>',
+            iconSize: [120, 58],
+            iconAnchor: [60, 42],
+            popupAnchor: [0, -42],
+        });
     }
 
-    function actualizarUnidad(extra) {
+    function renderListaPdvMapa(puntos, onPick) {
+        var lista = document.getElementById('listaPdvMapaDestino');
+        if (!lista) return;
+        lista.innerHTML = '';
+        puntos.forEach(function (pdv) {
+            var chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'pdv-mapa-chip' + (String(pdv.id) === String(pdvSeleccionadoId) ? ' is-active' : '');
+            chip.setAttribute('data-pdv-id', pdv.id);
+            chip.textContent = pdv.label;
+            chip.addEventListener('click', function () { onPick(pdv); });
+            lista.appendChild(chip);
+        });
+    }
+
+    function seleccionarPdvDesdeMapa(pdv) {
+        aplicarPdvSeleccionado(pdv);
+        window.jQuery('#modalMapaPdvDestino').modal('hide');
+    }
+
+    function actualizarUnidadPresentacion(extra) {
+        var unidad = (extra && extra.unidad_etiqueta) ? String(extra.unidad_etiqueta).trim() : 'unidades';
         var badge = document.getElementById('badgeUnidad');
         var ayuda = document.getElementById('txtAyudaCantidad');
-        var unidad = (extra && extra.unidad) ? String(extra.unidad).trim() : '';
-        unidadActual = unidad;
-        if (badge) {
-            badge.textContent = unidad || '—';
-            badge.classList.toggle('text-muted', !unidad);
-        }
-        if (ayuda) {
-            ayuda.textContent = unidad
-                ? 'Indique la cantidad en ' + unidad + '.'
-                : 'La unidad aparece al elegir el producto.';
-        }
-        stockActual = extra && typeof extra.stock === 'number' ? extra.stock : null;
-        var txt = document.getElementById('txtStockDisponible');
-        if (stockActual !== null && unidad) {
-            txt.textContent = 'Disponible en planta: ' + stockActual.toFixed(2) + ' ' + unidad;
-        } else {
-            txt.textContent = '';
-        }
-    }
-
-    if (unidadActual) {
-        actualizarUnidad({ unidad: unidadActual, stock: stockActual });
+        if (badge) badge.textContent = unidad;
+        if (ayuda) ayuda.textContent = 'Indique cuántas ' + unidad + ' necesita.';
     }
 
     document.addEventListener('DOMContentLoaded', function () {
         if (!window.CatalogoSelector) return;
+        var mapaPdv = null, capasPdvMapa = null;
 
-        var almWrap = document.getElementById('selector_wrap_dist_almacen_planta');
-        var pdvWrap = getPdvWrap();
-        var mapaPdv = null;
-        var capasPdvMapa = null;
-
-        document.getElementById('btnBuscarPdvDestino')?.addEventListener('click', function () {
+        document.getElementById('btnVerMapaPdvDestino')?.addEventListener('click', function () {
             if (esAdmin && !minoristaSeleccionadoId) {
-                alert('Primero seleccione el minorista.');
-                return;
-            }
-            CatalogoSelector.open('dist_punto_venta');
-        });
-        document.getElementById('btnCambiarPdvDestino')?.addEventListener('click', function () {
-            if (esAdmin && !minoristaSeleccionadoId) {
-                alert('Primero seleccione el minorista.');
-                return;
-            }
-            CatalogoSelector.open('dist_punto_venta');
-        });
-
-        function iconoPdvMapa(seleccionado) {
-            var cls = seleccionado ? ' is-selected' : '';
-            return L.divIcon({
-                html: '<div class="pedido-dist-mapa-pin' + cls + '" style="background:#2563eb"><i class="fas fa-store"></i></div>',
-                className: '',
-                iconSize: [30, 30],
-                iconAnchor: [15, 15],
-            });
-        }
-
-        function pintarListaPdvMapa() {
-            var lista = document.getElementById('listaPdvMapaDestino');
-            if (!lista) return;
-            lista.innerHTML = '';
-            puntosMapaFiltrados().forEach(function (pdv) {
-                var chip = document.createElement('button');
-                chip.type = 'button';
-                chip.className = 'pdv-mapa-chip' + (String(pdvSeleccionadoId) === String(pdv.id) ? ' is-active' : '');
-                chip.textContent = pdv.label;
-                chip.addEventListener('click', function () {
-                    aplicarPdvSeleccionado(pdv);
-                    if (mapaPdv && pdv.lat && pdv.lng) {
-                        mapaPdv.setView([parseFloat(pdv.lat), parseFloat(pdv.lng)], 15);
-                    }
-                    pintarMapaPdvDestino();
-                    window.jQuery('#modalMapaPdvDestino').modal('hide');
-                });
-                lista.appendChild(chip);
-            });
-        }
-
-        function pintarMapaPdvDestino() {
-            if (!mapaPdv || !capasPdvMapa) return;
-            capasPdvMapa.clearLayers();
-            var bounds = [];
-            var conCoords = puntosMapaFiltrados().filter(function (p) {
-                return p.lat != null && p.lng != null && !isNaN(parseFloat(p.lat)) && !isNaN(parseFloat(p.lng));
-            });
-
-            conCoords.forEach(function (pdv) {
-                var lat = parseFloat(pdv.lat);
-                var lng = parseFloat(pdv.lng);
-                var seleccionado = String(pdvSeleccionadoId) === String(pdv.id);
-                var marker = L.marker([lat, lng], { icon: iconoPdvMapa(seleccionado) })
-                    .bindTooltip(pdv.label, { direction: 'top', offset: [0, -12] })
-                    .addTo(capasPdvMapa);
-                marker.on('click', function () {
-                    aplicarPdvSeleccionado(pdv);
-                    pintarMapaPdvDestino();
-                    pintarListaPdvMapa();
-                    window.jQuery('#modalMapaPdvDestino').modal('hide');
-                });
-                bounds.push([lat, lng]);
-            });
-
-            if (bounds.length === 1) {
-                mapaPdv.setView(bounds[0], 14);
-            } else if (bounds.length > 1) {
-                mapaPdv.fitBounds(bounds, { padding: [28, 28], maxZoom: 14 });
-            }
-            pintarListaPdvMapa();
-        }
-
-        function abrirMapaPdvDestino() {
-            if (esAdmin && !minoristaSeleccionadoId) {
-                alert('Primero seleccione el minorista.');
+                avisoValidacion('Minorista requerido', 'Primero seleccione el minorista.');
                 return;
             }
             if (!puntosMapaFiltrados().length) return;
             window.jQuery('#modalMapaPdvDestino').modal('show');
-        }
+        });
 
         window.jQuery('#modalMapaPdvDestino').on('shown.bs.modal', function () {
             if (!window.L) return;
+            var puntos = puntosMapaFiltrados();
             if (!mapaPdv) {
                 mapaPdv = L.map('mapaPdvDestino').setView([-17.7833, -63.1821], 12);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    maxZoom: 19,
-                    attribution: '© OpenStreetMap',
-                }).addTo(mapaPdv);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OSM' }).addTo(mapaPdv);
                 capasPdvMapa = L.layerGroup().addTo(mapaPdv);
             }
-            window.setTimeout(function () {
+            setTimeout(function () {
                 mapaPdv.invalidateSize();
-                pintarMapaPdvDestino();
-                var sel = buscarPdvEnMapa(pdvSeleccionadoId);
-                if (sel && sel.lat && sel.lng) {
-                    mapaPdv.setView([parseFloat(sel.lat), parseFloat(sel.lng)], 15);
+                capasPdvMapa.clearLayers();
+                renderListaPdvMapa(puntos, seleccionarPdvDesdeMapa);
+                var bounds = [];
+                puntos.forEach(function (pdv) {
+                    if (pdv.lat == null || pdv.lng == null) return;
+                    var lat = parseFloat(pdv.lat);
+                    var lng = parseFloat(pdv.lng);
+                    var seleccionado = String(pdv.id) === String(pdvSeleccionadoId);
+                    L.marker([lat, lng], { icon: crearIconoPdv(pdv, seleccionado) })
+                        .bindTooltip('<strong>' + pdv.label + '</strong>' + (pdv.resumen ? '<br><span style="font-size:11px">' + pdv.resumen + '</span>' : ''), { direction: 'top', offset: [0, -36] })
+                        .on('click', function () { seleccionarPdvDesdeMapa(pdv); })
+                        .addTo(capasPdvMapa);
+                    bounds.push([lat, lng]);
+                });
+                if (bounds.length === 1) {
+                    mapaPdv.setView(bounds[0], 15);
+                } else if (bounds.length > 1) {
+                    mapaPdv.fitBounds(bounds, { padding: [48, 48], maxZoom: 15 });
                 }
             }, 180);
         });
 
-        document.getElementById('btnVerMapaPdvDestino')?.addEventListener('click', abrirMapaPdvDestino);
-
-        function paramsProducto() {
-            var almId = document.querySelector('#selector_wrap_dist_almacen_planta .selector-catalogo-value')?.value || '';
-            return {
-                ambito_planta: '1',
-                almacenid: almId,
-            };
-        }
-
-        if (pdvWrap) {
-            pdvWrap.addEventListener('selector-catalogo:change', function (e) {
-                actualizarDestinoVisible(e.detail?.id, e.detail?.label, e.detail?.extra || {});
-            });
-        }
-
         @if($esAdmin ?? false)
-        var minoristaWrap = document.getElementById('selector_wrap_dist_minorista');
         CatalogoSelector.register('dist_minorista', {
             endpoint: @json(route('catalogo-selector.usuarios')),
-            title: 'Minorista',
-            searchPlaceholder: 'Nombre, usuario o correo…',
-            params: { roles: 'minorista' },
+            title: 'Minorista', params: { roles: 'minorista' },
             onSelect: function (item) {
                 minoristaSeleccionadoId = item.id ? String(item.id) : '';
-                document.getElementById('pdvMinoristaPick')?.classList.toggle('is-selected', !!minoristaSeleccionadoId);
-                if (CatalogoSelector.instances.dist_punto_venta) {
-                    CatalogoSelector.instances.dist_punto_venta.params = paramsPuntoVenta();
-                }
-                limpiarPdvDestino();
+                if (CatalogoSelector.instances.dist_punto_venta) CatalogoSelector.instances.dist_punto_venta.params = paramsPuntoVenta();
+                CatalogoSelector.clear('dist_punto_venta');
                 syncBloqueoDestinoAdmin();
             },
         });
-        if (minoristaWrap) {
-            minoristaWrap.addEventListener('selector-catalogo:change', function (e) {
-                minoristaSeleccionadoId = e.detail?.id ? String(e.detail.id) : '';
-                document.getElementById('pdvMinoristaPick')?.classList.toggle('is-selected', !!minoristaSeleccionadoId);
-                if (CatalogoSelector.instances.dist_punto_venta) {
-                    CatalogoSelector.instances.dist_punto_venta.params = paramsPuntoVenta();
-                }
-                if (!minoristaSeleccionadoId) {
-                    limpiarPdvDestino();
-                }
-                syncBloqueoDestinoAdmin();
-            });
-        }
         CatalogoSelector.register('dist_punto_venta', {
             endpoint: @json(route('catalogo-selector.puntos-venta')),
-            title: 'Puntos de venta del minorista',
-            searchPlaceholder: 'Nombre o dirección del punto…',
-            params: paramsPuntoVenta(),
-            onSelect: function (item) {
-                actualizarDestinoVisible(item.id, item.label, item.extra || {});
-            },
+            title: 'Puntos de venta', params: paramsPuntoVenta(),
         });
         syncBloqueoDestinoAdmin();
         @endif
 
-        if (pdvSeleccionadoId) {
-            var pdvInicial = buscarPdvEnMapa(pdvSeleccionadoId);
-            if (pdvInicial) {
-                actualizarDestinoVisible(pdvInicial.id, pdvInicial.label, {
-                    ubicacion_resumen: pdvInicial.resumen || '',
-                    direccion: pdvInicial.direccion || '',
-                });
-            } else if (@json($oldPuntoLabel ?? '')) {
-                document.getElementById('pdvDestinoBadge')?.classList.remove('d-none');
-                document.getElementById('btnCambiarPdvDestino')?.classList.remove('d-none');
-            }
-        }
-
-        @if($esAdmin ?? false)
-        CatalogoSelector.register('dist_almacen_planta', {
-            endpoint: @json(route('catalogo-selector.almacenes')),
-            title: 'Almacén de planta',
-            searchPlaceholder: 'Nombre o ubicación…',
-            params: { ambito: 'planta' },
-            allowEmpty: true,
-            emptyLabel: '— Automático según producto —',
-            placeholderEmpty: 'Automático según producto',
-            onSelect: function () {
-                CatalogoSelector.instances.dist_producto_planta.params = paramsProducto();
-                CatalogoSelector.clear('dist_producto_planta');
-                actualizarUnidad(null);
-            },
+        document.querySelectorAll('.pdv-tipo-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () { setTipoSolicitud(btn.getAttribute('data-tipo')); });
         });
-        @endif
 
-        CatalogoSelector.register('dist_producto_planta', {
-            endpoint: @json(route('catalogo-selector.insumos')),
-            title: 'Producto terminado (planta)',
-            searchPlaceholder: 'Nombre del producto…',
-            params: paramsProducto(),
+        CatalogoSelector.register('dist_producto_mayorista', {
+            endpoint: @json(route('catalogo-selector.productos-mayorista-pdv')),
+            title: 'Productos por mayorista',
             onSelect: function (item) {
-                actualizarUnidad(item.extra || {});
+                aplicarSeleccionProductoMayorista(item);
+            },
+            onMapClick: function (item) {
+                abrirMapaMayoristaDesdeCatalogo(item.extra || {});
             },
         });
 
-        if (almWrap) {
-            almWrap.addEventListener('selector-catalogo:change', function (e) {
-                if (!e.detail.id) {
-                    CatalogoSelector.instances.dist_producto_planta.params = paramsProducto();
-                    actualizarUnidad(null);
-                }
-            });
-        }
-
-        document.getElementById('formPedidoDist').addEventListener('submit', function (e) {
-            if (esAdmin) {
-                var minoristaOk = document.querySelector('#selector_wrap_dist_minorista .selector-catalogo-value')?.value;
-                if (!minoristaOk) {
-                    e.preventDefault();
-                    alert('Seleccione el minorista destino.');
-                    return;
-                }
-            }
-            var pdvOk = document.querySelector('#selector_wrap_dist_punto_venta .selector-catalogo-value')?.value;
-            if (!pdvOk) {
-                e.preventDefault();
-                alert('Seleccione un punto de venta destino.');
+        document.getElementById('selector_wrap_dist_producto_mayorista')?.addEventListener('selector-catalogo:change', function (e) {
+            if (!e.detail?.id) {
+                nombreProductoActual = '';
+                productoMayoristaExtra = null;
+                document.getElementById('insumoid_real').value = '';
+                document.getElementById('almacen_mayorista_origenid').value = '';
+                document.getElementById('panelProductoMeta')?.classList.add('d-none');
+                limpiarPresentacion();
                 return;
             }
-            if (!document.querySelector('#selector_wrap_dist_producto_planta .selector-catalogo-value')?.value) {
+            aplicarSeleccionProductoMayorista(e.detail);
+        });
+
+        document.getElementById('selectPresentacionMayorista')?.addEventListener('change', function () {
+            var id = this.value;
+            manejarCambioPresentacion(id ? presentacionesExtra[id] : null);
+        });
+
+        if (oldInsumoId) {
+            productoMayoristaExtra = {
+                insumoid: oldInsumoId,
+                almacen_mayorista_origenid: oldAlmacenMayoristaId || null,
+            };
+            cargarPresentaciones(oldInsumoId, oldPresentacionId, productoMayoristaExtra);
+        }
+
+        document.getElementById('cantidad')?.addEventListener('input', validarStockCantidad);
+
+        document.getElementById('formPedidoDist').addEventListener('submit', function (e) {
+            var form = this;
+            if (esAdmin && !document.querySelector('#selector_wrap_dist_minorista .selector-catalogo-value')?.value) {
                 e.preventDefault();
-                alert('Seleccione un producto de planta.');
+                avisoValidacion('Datos incompletos', 'Seleccione el minorista.');
+                return;
+            }
+            if (!document.querySelector('#selector_wrap_dist_punto_venta .selector-catalogo-value')?.value) {
+                e.preventDefault();
+                avisoValidacion('Datos incompletos', 'Seleccione un punto de venta.');
+                return;
+            }
+            if (!document.getElementById('fecha_entrega_deseada')?.value) {
+                e.preventDefault();
+                avisoValidacion('Datos incompletos', 'Indique la fecha de entrega deseada.');
+                return;
+            }
+            if (tipoSolicitudActual === 'stock') {
+                if (!document.querySelector('#selector_wrap_dist_producto_mayorista .selector-catalogo-value')?.value) {
+                    e.preventDefault();
+                    avisoValidacion('Producto requerido', 'Seleccione un producto disponible en almacén mayorista.');
+                    return;
+                }
+                if (!document.getElementById('selectPresentacionMayorista')?.value) {
+                    e.preventDefault();
+                    avisoValidacion('Presentación requerida', 'Seleccione la presentación del producto.');
+                    return;
+                }
+                if (!cantidadSolicitada()) {
+                    e.preventDefault();
+                    avisoValidacion('Cantidad requerida', 'Indique cuántas unidades necesita.');
+                    return;
+                }
+                var extra = extraPresentacionSeleccionada();
+                if (necesitaEsperaStock(extra, cantidadSolicitada())) {
+                    e.preventDefault();
+                    var qty = cantidadSolicitada();
+                    var unidad = extra?.unidad_etiqueta || 'unidades';
+                    var disp = parseFloat(extra?.stock_unidades || 0);
+                    var html = disp > 0
+                        ? 'Solicita <strong>' + qty + ' ' + unidad + '</strong> y solo hay <strong>' + Math.floor(disp) + '</strong> disponibles.<br><br>¿Enviar la solicitud igual?'
+                        : 'No hay stock ahora para <strong>' + qty + ' ' + unidad + '</strong>.<br><br>¿Enviar la solicitud igual? El mayorista la revisará.';
+                    if (window.Swal) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Stock insuficiente',
+                            html: html,
+                            showCancelButton: true,
+                            confirmButtonText: 'Enviar solicitud',
+                            cancelButtonText: 'Revisar datos',
+                        }).then(function (r) { if (r.isConfirmed) form.submit(); });
+                    } else if (window.confirm('Stock insuficiente. ¿Enviar solicitud igual?')) {
+                        form.submit();
+                    }
+                    return;
+                }
+            } else if (!document.getElementById('producto_nombre')?.value.trim() || !document.getElementById('tipo_envase')?.value) {
+                e.preventDefault();
+                avisoValidacion('Datos incompletos', 'Complete la descripción y el tipo de envase.');
             }
         });
     });

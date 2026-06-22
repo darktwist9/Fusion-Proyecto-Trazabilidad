@@ -253,11 +253,20 @@
         }
 
         .ag-subnav.open { max-height: 600px; }
-        .ag-subnav-nested {
-            padding-left: 12px;
-            margin-top: 2px;
+
+        /* Submenús anidados (Catálogos, Reportes): colapsados no ocupan espacio */
+        .ag-subnav.ag-subnav-nested:not(.open) {
+            display: none;
+            padding: 0;
+            margin: 0;
         }
-        .ag-subnav-nested.open { max-height: 220px; }
+
+        .ag-subnav.ag-subnav-nested.open {
+            display: block;
+            padding: 2px 0 0 12px;
+            margin-top: 2px;
+            max-height: 280px;
+        }
         .ag-sub-a[data-toggle-sub] { justify-content: space-between; }
         .ag-sub-a .ag-sub-arrow {
             font-size: .62rem;
@@ -323,6 +332,8 @@
         }
 
         .ag-sb-foot-btn:hover { background: rgba(239,68,68,.08); color: #f87171; }
+        a.ag-sb-foot-btn { text-decoration: none; }
+        a.ag-sb-foot-btn:hover { text-decoration: none; color: #f87171; }
         .ag-sidebar.mini .ag-sb-foot-btn { justify-content: center; }
         .ag-sidebar.mini .ag-sb-foot-btn span { display: none; }
 
@@ -563,13 +574,13 @@
             border: none !important;
             box-shadow: var(--sh-sm) !important;
             overflow: hidden;
-            transition: transform .18s, box-shadow .18s;
+            transition: none;
             position: relative;
         }
 
         .small-box:hover {
-            transform: translateY(-3px);
-            box-shadow: var(--sh-md) !important;
+            transform: none;
+            box-shadow: var(--sh-sm) !important;
         }
 
         .small-box .inner {
@@ -592,20 +603,16 @@
 
         .small-box > .icon {
             position: absolute;
-            right: 14px;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 2.8rem !important;
-            opacity: .18;
+            right: 10px;
+            top: 10px;
+            transform: none;
+            font-size: 2.5rem !important;
+            opacity: 1;
         }
 
         /* Pie de stat box: ver partials/small-box-footer-styles.blade.php */
 
-        .bg-success, .small-box-green  { background: linear-gradient(135deg, #059669, #10b981) !important; color: #fff !important; }
-        .bg-info,    .small-box-blue   { background: linear-gradient(135deg, #2563eb, #3b82f6) !important; color: #fff !important; }
-        .bg-warning, .small-box-yellow { background: linear-gradient(135deg, #b45309, #d97706) !important; color: #fff !important; }
-        .bg-danger,  .small-box-red    { background: linear-gradient(135deg, #b91c1c, #ef4444) !important; color: #fff !important; }
-        .bg-purple   { background: linear-gradient(135deg, #6d28d9, #8b5cf6) !important; color: #fff !important; }
+        /* KPI de módulos: ver partials/estilos-kpi-ejecutivo.blade.php */
 
         /* Tables */
         .table { font-size: .83rem; }
@@ -939,11 +946,11 @@
         }
 
         .info-box.bg-secondary { background: #64748b !important; color: #fff !important; }
-        .info-box.bg-info      { background: linear-gradient(135deg,#2563eb,#3b82f6) !important; color: #fff !important; }
-        .info-box.bg-primary   { background: linear-gradient(135deg,var(--brand-dk),var(--brand)) !important; color: #fff !important; }
-        .info-box.bg-success   { background: linear-gradient(135deg,#059669,#10b981) !important; color: #fff !important; }
-        .info-box.bg-warning   { background: linear-gradient(135deg,#b45309,#d97706) !important; color: #fff !important; }
-        .info-box.bg-dark      { background: linear-gradient(135deg,#1e293b,#334155) !important; color: #fff !important; }
+        .info-box.bg-info      { background: #fff !important; color: #1e293b !important; border-top: 3px solid #2563eb; }
+        .info-box.bg-primary   { background: #fff !important; color: #1e293b !important; border-top: 3px solid #2c5530; }
+        .info-box.bg-success   { background: #fff !important; color: #1e293b !important; border-top: 3px solid #2c5530; }
+        .info-box.bg-warning   { background: #fff !important; color: #1e293b !important; border-top: 3px solid #d97706; }
+        .info-box.bg-dark      { background: #fff !important; color: #1e293b !important; border-top: 3px solid #64748b; }
 
         /* Compat wrappers (AdminLTE remnants used in some views) */
         .content-wrapper { background: transparent !important; }
@@ -980,6 +987,9 @@
     </style>
 
     @stack('styles')
+    @include('partials.estilos-kpi-ejecutivo')
+    @include('partials.estilos-ejecutivo-global')
+    @include('dashboard.partials.estilos-dash-ejecutivo')
     @include('partials.small-box-footer-styles')
 </head>
 
@@ -996,6 +1006,7 @@
     $esPlantaOperativo = $authUser && \App\Support\UsuarioRol::esPlantaOperativo($authUser) && ! $isAdmin;
     $esTransportistaOperativo = $authUser && \App\Support\UsuarioRol::esTransportista($authUser) && ! $isAdmin;
     $esMinoristaOperativo = $authUser && \App\Support\UsuarioRol::esMinorista($authUser) && ! $isAdmin;
+    $esMayoristaOperativo = $authUser && \App\Support\UsuarioRol::esMayorista($authUser) && ! $isAdmin;
     $pendientesSolicitudes = $isAdmin
         ? \App\Models\Usuario::where('estado_cuenta', \App\Support\CuentaEstado::PENDIENTE)->count()
         : 0;
@@ -1051,14 +1062,30 @@
 
                 @php
                     $puedeAlmacenAgricola = $isAdmin || ($authUser && $authUser->hasRole('agricultor')) || $esJefeAgr;
-                    $puedeAlmacenPlanta = $isAdmin || $esPlantaOperativo;
+                    $puedeAlmacenMayorista = $isAdmin || \App\Support\UsuarioRol::esMayorista($authUser);
+                    $puedeMenuMayorista = $puedeAlmacenMayorista;
+                    $mayMenuOpen = request()->routeIs('almacen-mayorista.*');
+                    $enPedidosDist = request()->routeIs('punto-venta.pedidos.*') && ! request()->routeIs('punto-venta.rutas.*');
+                    $ctxPedidosDist = request()->query('ctx');
+                    $esFlujoSolicitudMinorista = request()->routeIs(
+                        'punto-venta.pedidos.create',
+                        'punto-venta.pedidos.store'
+                    ) || $ctxPedidosDist === 'pdv';
+                    $esBandejaMayoristaNav = request()->routeIs('punto-venta.pedidos.*')
+                        && ! request()->routeIs('punto-venta.rutas.*')
+                        && ($ctxPedidosDist === 'mayorista'
+                            || (\App\Support\UsuarioRol::esMayorista($authUser) && ! \App\Support\UsuarioRol::esMinorista($authUser) && $ctxPedidosDist !== 'pdv'));
+                    $pedidosEnSeccionPdv = $enPedidosDist && ($esMinoristaOperativo || $esFlujoSolicitudMinorista);
+                    $pedidosEnSeccionMayorista = $enPedidosDist && ! $pedidosEnSeccionPdv && ($esMayoristaOperativo || ($isAdmin && $puedeMenuMayorista) || $esBandejaMayoristaNav);
+                    $mayMenuOpen = $mayMenuOpen || $pedidosEnSeccionMayorista;
                     $almAgrOpen = request()->routeIs('almacen-agricola.*');
                     $almPlaOpen = request()->routeIs('almacen-planta.*');
+                    $almMayOpen = request()->routeIs('almacen-mayorista.*');
                     $prodAgrOpen = request()->routeIs('producciones.*', 'climas.*');
                     if (! ($esJefeAgr && ! $isAdmin)) {
                         $prodAgrOpen = $prodAgrOpen || request()->routeIs('agricola.pedidos.*');
                     }
-                    $prodPlaMenuOpen = request()->routeIs('procesos-planta.*', 'plantillas-transformacion.*', 'maquinas-planta.*', 'procesamiento.*', 'tareas-planta.*', 'certificaciones-planta.*');
+                    $prodPlaMenuOpen = request()->routeIs('procesos-planta.*', 'plantillas-transformacion.*', 'maquinas-planta.*', 'procesamiento.*', 'tareas-planta.*', 'certificaciones-planta.*', 'produccion-planta.catalogos.*');
                     $envListadoActivo = request()->routeIs(
                         'logistica.asignaciones.listado',
                         'logistica.asignaciones.show',
@@ -1066,10 +1093,11 @@
                         'pedidos.index',
                         'pedidos.show',
                         'pedidos.edit',
-                        'pedidos.create'
-                    ) && ! request()->routeIs('logistica.rutas-tiempo-real.*');
-                    $puedeProdPlanta = $isAdmin || $esPlantaOperativo;
-                    $showProdAgricola = ! $esPlantaOperativo && ! $esTransportistaOperativo && (
+                        'pedidos.create',
+                        'envios.mandar',
+                        'envios.crear'
+                    ) && ! request()->routeIs('logistica.rutas-tiempo-real.*', 'logistica.documentos.*');
+                    $showProdAgricola = ! $esPlantaOperativo && ! $esTransportistaOperativo && ! $esMayoristaOperativo && (
                         $isAdmin
                         || $esJefeAgr
                         || ($authUser && $authUser->hasRole('agricultor'))
@@ -1085,14 +1113,14 @@
                         'asignaciones.view', 'rutas_multi.view', 'rutas_multi.create',
                         'documentos.view', 'incidentes.view',
                     ];
-                    $puedeReportesLogistica = $isAdmin || ($authUser && $authUser->canany([
-                        'documentos.view', 'incidentes.view', 'envios.view',
-                    ]));
-                    $logMasOpen = request()->routeIs(
-                        'logistica.documentos.*',
-                        'logistica.incidentes.*',
-                        'envios.reportes-distribucion'
-                    );
+                    $puedeReportesLogistica = $isAdmin;
+                    $puedeSubmenuEnviosScoped = \App\Support\RutaTiempoRealAcceso::puedeAccederModulo($authUser)
+                        || \App\Support\DocumentoEntregaAcceso::puedeAccederModulo($authUser);
+                    $logMasOpen = request()->routeIs('envios.reportes-distribucion');
+                    $catalogoLogisticaOpen = request()->routeIs('envios.catalogos.*');
+                    $catalogoTipoActivo = $catalogoLogisticaOpen ? request()->route('tipo') : null;
+                    $esJefePlantaNav = $authUser && \App\Support\UsuarioRol::esJefePlanta($authUser);
+                    $usaEnviosEnSeccionRol = ($esJefePlantaNav || $esJefeAgr || $esMayoristaOperativo) && ! $isAdmin;
                     $envOpen = request()->routeIs(
                         'envios.*',
                         'pedidos.create',
@@ -1100,14 +1128,18 @@
                         'pedidos.edit',
                         'logistica.asignaciones.*',
                         'logistica.documentos.*',
-                        'logistica.incidentes.*',
                         'logistica.rutas-tiempo-real.*'
                     ) || $logMasOpen || request()->routeIs('pedidos.index');
+                    $envPlantaOpen = $envOpen && ($esJefePlantaNav || $esPlantaOperativo);
+                    $envAgrOpen = $envOpen && $esJefeAgr;
+                    $envMayOpen = $envOpen && $esMayoristaOperativo;
                     $puedeEnvios = $isAdmin || ($authUser && $authUser->hasAnyPermission($envPerm));
                     $showOperLogistica = $isAdmin || $esTransportistaOperativo || (
-                        $puedeEnvios && ! $esPlantaOperativo && ! $esAgricultorOperativo && ! $esJefeAgr
+                        $puedeEnvios && ! $esPlantaOperativo && ! $esAgricultorOperativo && ! $usaEnviosEnSeccionRol
                     );
-                    $showProdPlantaSection = $isAdmin || $esPlantaOperativo;
+                    $showProdPlantaSection = $isAdmin || $esPlantaOperativo || ($esJefePlantaNav && ! $isAdmin);
+                    $puedeProdPlanta = $isAdmin || $esPlantaOperativo || $esJefePlantaNav;
+                    $puedeAlmacenPlanta = $isAdmin || $esPlantaOperativo || $esJefePlantaNav;
                 @endphp
 
                 @if($showProdAgricola)
@@ -1197,6 +1229,9 @@
                         @can('almacen.reportes.view')
                         <li class="ag-sub-li"><a href="{{ route('almacen-agricola.movimientos.reportes') }}" class="ag-sub-a {{ request()->routeIs('almacen-agricola.movimientos.reportes') ? 'active' : '' }}">Reportes</a></li>
                         @endcan
+                        @if($authUser && \App\Support\EnvioTrayectoCatalogo::puedeUsarTrayecto($authUser, \App\Support\EnvioTrayectoCatalogo::TRAYECTO_PLANTA))
+                        <li class="ag-sub-li"><a href="{{ route('pedidos.create', ['destino' => 'planta']) }}" class="ag-sub-a {{ request()->routeIs('pedidos.create') && request('destino', 'planta') === 'planta' ? 'active' : '' }}">Nuevo envío a planta</a></li>
+                        @endif
                     </ul>
                 </li>
                 @endif
@@ -1211,6 +1246,18 @@
                             <span class="badge badge-warning ml-auto">{{ $pedidosPendientesJefeAgr }}</span>
                         @endif
                     </a>
+                </li>
+                @endif
+                @if($esJefeAgr && ! $isAdmin && ($puedeEnvios || $puedeSubmenuEnviosScoped))
+                <li class="ag-nav-li">
+                    <a href="#" class="ag-nav-a {{ $envAgrOpen ? 'active group-open' : '' }}" data-toggle-sub="sub-env-agr">
+                        <i class="ag-nav-icon fas fa-truck"></i>
+                        <span class="ag-nav-text">Envíos</span>
+                        <i class="ag-nav-arrow fas fa-chevron-right"></i>
+                    </a>
+                    <ul class="ag-subnav {{ $envAgrOpen ? 'open' : '' }}" id="sub-env-agr">
+                        @include('layouts.partials.submenu-envios-items', ['envListadoActivo' => $envListadoActivo])
+                    </ul>
                 </li>
                 @endif
                 @endcan
@@ -1232,12 +1279,7 @@
                         <i class="ag-nav-arrow fas fa-chevron-right"></i>
                     </a>
                     <ul class="ag-subnav {{ $envOpen ? 'open' : '' }}" id="sub-env">
-                        @if(auth()->user()?->can('asignaciones.view') || auth()->user()?->can('pedidos.view'))
-                        <li class="ag-sub-li"><a href="{{ route('logistica.asignaciones.listado') }}" class="ag-sub-a {{ $envListadoActivo ? 'active' : '' }}">{{ auth()->user()?->hasRole('transportista') ? 'Mis envíos' : 'Envíos' }}</a></li>
-                        @endif
-                        @if(! auth()->user()?->hasRole('transportista') && (auth()->user()?->can('asignaciones.read') || $isAdmin))
-                        <li class="ag-sub-li"><a href="{{ route('logistica.rutas-tiempo-real.index') }}" class="ag-sub-a {{ request()->routeIs('logistica.rutas-tiempo-real.*') ? 'active' : '' }}">Ruta en tiempo real</a></li>
-                        @endif
+                        @include('layouts.partials.submenu-envios-items', ['envListadoActivo' => $envListadoActivo])
                         {{-- Rutas multientrega ocultas: el flujo operativo es almacén agrícola → planta (un solo trayecto). --}}
                         @unless(auth()->user()?->hasRole('transportista'))
                         @if($isAdmin || auth()->user()?->can('transportistas.view'))
@@ -1245,6 +1287,22 @@
                         @endif
                         @if($isAdmin || auth()->user()?->can('vehiculos.view'))
                         <li class="ag-sub-li"><a href="{{ route('envios.vehiculos') }}" class="ag-sub-a {{ request()->routeIs('envios.vehiculos*') ? 'active' : '' }}">Vehículos</a></li>
+                        @endif
+                        @if(($isAdmin || auth()->user()?->can('envios.view')) && ! auth()->user()?->hasRole('transportista'))
+                        <li class="ag-sub-li">
+                            <a href="#" class="ag-sub-a {{ $catalogoLogisticaOpen ? 'group-open active' : '' }}" data-toggle-sub="sub-env-catalogos">
+                                Catálogos logística
+                                <i class="fas fa-chevron-right ag-sub-arrow"></i>
+                            </a>
+                            <ul class="ag-subnav ag-subnav-nested {{ $catalogoLogisticaOpen ? 'open' : '' }}" id="sub-env-catalogos">
+                                <li class="ag-sub-li"><a href="{{ route('envios.catalogos.index', 'tipos-empaque') }}" class="ag-sub-a {{ $catalogoTipoActivo === 'tipos-empaque' ? 'active' : '' }}">Tipos de empaque</a></li>
+                                <li class="ag-sub-li"><a href="{{ route('envios.catalogos.index', 'tamano-conteo') }}" class="ag-sub-a {{ $catalogoTipoActivo === 'tamano-conteo' ? 'active' : '' }}">Tamaño / conteo</a></li>
+                                <li class="ag-sub-li"><a href="{{ route('envios.catalogos.index', 'tipos-vehiculo') }}" class="ag-sub-a {{ $catalogoTipoActivo === 'tipos-vehiculo' ? 'active' : '' }}">Tipos de vehículo</a></li>
+                                <li class="ag-sub-li"><a href="{{ route('envios.catalogos.index', 'tipos-transporte') }}" class="ag-sub-a {{ $catalogoTipoActivo === 'tipos-transporte' ? 'active' : '' }}">Tipos de transporte</a></li>
+                                <li class="ag-sub-li"><a href="{{ route('envios.catalogos.index', 'condiciones') }}" class="ag-sub-a {{ $catalogoTipoActivo === 'condiciones' ? 'active' : '' }}">Condiciones</a></li>
+                                <li class="ag-sub-li"><a href="{{ route('envios.catalogos.index', 'incidentes') }}" class="ag-sub-a {{ $catalogoTipoActivo === 'incidentes' ? 'active' : '' }}">Incidentes</a></li>
+                            </ul>
+                        </li>
                         @endif
                         @endunless
                         @if($puedeReportesLogistica)
@@ -1254,12 +1312,6 @@
                                 <i class="fas fa-chevron-right ag-sub-arrow"></i>
                             </a>
                             <ul class="ag-subnav ag-subnav-nested {{ $logMasOpen ? 'open' : '' }}" id="sub-log-mas">
-                                @can('documentos.view')
-                                <li class="ag-sub-li"><a href="{{ route('logistica.documentos.index') }}" class="ag-sub-a {{ request()->routeIs('logistica.documentos.*') ? 'active' : '' }}">Documentos entrega</a></li>
-                                @endcan
-                                @can('incidentes.view')
-                                <li class="ag-sub-li"><a href="{{ route('logistica.incidentes.index') }}" class="ag-sub-a {{ request()->routeIs('logistica.incidentes.*') ? 'active' : '' }}">Incidentes</a></li>
-                                @endcan
                                 @if(($isAdmin || auth()->user()?->can('envios.view')) && ! auth()->user()?->hasRole('transportista'))
                                 <li class="ag-sub-li"><a href="{{ route('envios.reportes-distribucion') }}" class="ag-sub-a {{ request()->routeIs('envios.reportes-distribucion') ? 'active' : '' }}">Reportes distribución</a></li>
                                 @endif
@@ -1296,6 +1348,7 @@
                         <li class="ag-sub-li"><a href="{{ route('procesos-planta.index') }}" class="ag-sub-a {{ request()->routeIs('procesos-planta.*') ? 'active' : '' }}">Procesos de planta</a></li>
                         <li class="ag-sub-li"><a href="{{ route('plantillas-transformacion.index') }}" class="ag-sub-a {{ request()->routeIs('plantillas-transformacion.*') ? 'active' : '' }}">Procesos de transformación</a></li>
                         <li class="ag-sub-li"><a href="{{ route('maquinas-planta.index') }}" class="ag-sub-a {{ request()->routeIs('maquinas-planta.*') ? 'active' : '' }}">Máquinas de planta</a></li>
+                        <li class="ag-sub-li"><a href="{{ route('produccion-planta.catalogos.index', 'tipos-empaque') }}" class="ag-sub-a {{ request()->routeIs('produccion-planta.catalogos.*') ? 'active' : '' }}">Tipos de empaque</a></li>
                     </ul>
                 </li>
                 @endif
@@ -1308,7 +1361,7 @@
                         <i class="ag-nav-arrow fas fa-chevron-right"></i>
                     </a>
                     <ul class="ag-subnav {{ $almPlaOpen ? 'open' : '' }}" id="sub-alm-pla">
-                        <li class="ag-sub-li"><a href="{{ route('almacen-planta.index') }}" class="ag-sub-a {{ request()->routeIs('almacen-planta.index', 'almacen-planta.show', 'almacen-planta.create', 'almacen-planta.edit') ? 'active' : '' }}">Almacenes</a></li>
+                        <li class="ag-sub-li"><a href="{{ route('almacen-planta.index') }}" class="ag-sub-a {{ request()->routeIs('almacen-planta.index', 'almacen-planta.show', 'almacen-planta.create', 'almacen-planta.edit', 'almacen-planta.inventario.*') ? 'active' : '' }}">Almacenes</a></li>
                         @can('almacen.movimientos.view')
                         <li class="ag-sub-li"><a href="{{ route('almacen-planta.movimientos.index') }}" class="ag-sub-a {{ request()->routeIs('almacen-planta.movimientos.*') && !request()->routeIs('almacen-planta.movimientos.reportes') ? 'active' : '' }}">Movimientos</a></li>
                         @endcan
@@ -1318,28 +1371,94 @@
                     </ul>
                 </li>
                 @endif
-                @endif
 
-                @can('pedidos.view')
-                @if($esPlantaOperativo && ! $isAdmin && ! auth()->user()?->can('asignaciones.view'))
+                @if(($esJefePlantaNav || $esPlantaOperativo) && ! $isAdmin && ($puedeEnvios || $puedeSubmenuEnviosScoped))
                 <li class="ag-nav-li">
-                    <a href="{{ route('pedidos.index') }}" class="ag-nav-a {{ $envListadoActivo ? 'active' : '' }}">
+                    <a href="#" class="ag-nav-a {{ $envPlantaOpen ? 'active group-open' : '' }}" data-toggle-sub="sub-env-planta">
                         <i class="ag-nav-icon fas fa-truck"></i>
                         <span class="ag-nav-text">Envíos</span>
+                        <i class="ag-nav-arrow fas fa-chevron-right"></i>
+                    </a>
+                    <ul class="ag-subnav {{ $envPlantaOpen ? 'open' : '' }}" id="sub-env-planta">
+                        @include('layouts.partials.submenu-envios-items', ['envListadoActivo' => $envListadoActivo])
+                    </ul>
+                </li>
+                @endif
+                @endif
+
+                @php
+                    $puedePedidosDistMenuPdv = $isAdmin || $esMinoristaOperativo;
+                    $puedePuntoVentaMenu = $isAdmin || $esMinoristaOperativo
+                        || ($authUser && $authUser->can('punto_venta.view') && ! $esMayoristaOperativo);
+                    $pvMenuOpen = request()->routeIs('punto-venta.puntos.*', 'punto-venta.inventario.*')
+                        || ($pedidosEnSeccionPdv ?? false);
+                @endphp
+
+                @if($puedeMenuMayorista)
+                <span class="ag-nav-label">Mayorista</span>
+
+                @if($esMayoristaOperativo || $isAdmin)
+                <li class="ag-nav-li">
+                    <a href="{{ route('dashboard.panel-mayorista') }}" class="ag-nav-a {{ request()->routeIs('dashboard.panel-mayorista') ? 'active' : '' }}">
+                        <i class="ag-nav-icon fas fa-warehouse"></i>
+                        <span class="ag-nav-text">Panel Mayorista</span>
                     </a>
                 </li>
                 @endif
-                @endcan
 
-                @php
-                    $pvMenuOpen = request()->routeIs('punto-venta.*');
-                    $puedePuntoVentaMenu = $isAdmin || $esMinoristaOperativo
-                        || ($authUser && $authUser->can('punto_venta.view'));
-                    $puedePedidosDistMenu = $isAdmin || $esMinoristaOperativo
-                        || ($authUser && $authUser->can('pedidos_distribucion.view'));
-                @endphp
+                <li class="ag-nav-li">
+                    <a href="#" class="ag-nav-a {{ $mayMenuOpen ? 'active group-open' : '' }}" data-toggle-sub="sub-mayorista">
+                        <i class="ag-nav-icon fas fa-boxes"></i>
+                        <span class="ag-nav-text">Operación mayorista</span>
+                        <i class="ag-nav-arrow fas fa-chevron-right"></i>
+                    </a>
+                    <ul class="ag-subnav {{ $mayMenuOpen ? 'open' : '' }}" id="sub-mayorista">
+                        <li class="ag-sub-li">
+                            <a href="{{ route('almacen-mayorista.index') }}" class="ag-sub-a {{ request()->routeIs('almacen-mayorista.index', 'almacen-mayorista.show', 'almacen-mayorista.create', 'almacen-mayorista.edit', 'almacen-mayorista.inventario.*') ? 'active' : '' }}">Almacenes</a>
+                        </li>
+                        @can('inventario.read')
+                        <li class="ag-sub-li">
+                            <a href="{{ route('almacen-mayorista.traslados-planta.index') }}" class="ag-sub-a {{ request()->routeIs('almacen-mayorista.traslados-planta.*') ? 'active' : '' }}">Recepciones de planta</a>
+                        </li>
+                        @endcan
+                        @can('almacen.movimientos.view')
+                        <li class="ag-sub-li">
+                            <a href="{{ route('almacen-mayorista.movimientos.index') }}" class="ag-sub-a {{ request()->routeIs('almacen-mayorista.movimientos.*') && !request()->routeIs('almacen-mayorista.movimientos.reportes') ? 'active' : '' }}">Movimientos</a>
+                        </li>
+                        @endcan
+                        @can('almacen.reportes.view')
+                        <li class="ag-sub-li">
+                            <a href="{{ route('almacen-mayorista.movimientos.reportes') }}" class="ag-sub-a {{ request()->routeIs('almacen-mayorista.movimientos.reportes') ? 'active' : '' }}">Reportes</a>
+                        </li>
+                        @endcan
+                        @can('pedidos_distribucion.view')
+                        <li class="ag-sub-li">
+                            <a href="{{ route('punto-venta.pedidos.index', ['ctx' => 'mayorista']) }}" class="ag-sub-a {{ ($pedidosEnSeccionMayorista ?? false) ? 'active' : '' }}">Pedidos minoristas</a>
+                        </li>
+                        @endcan
+                        @if($authUser && \App\Support\EnvioTrayectoCatalogo::puedeUsarTrayecto($authUser, \App\Support\EnvioTrayectoCatalogo::TRAYECTO_PDV))
+                        <li class="ag-sub-li">
+                            <a href="{{ route('pedidos.create', ['destino' => 'punto-venta']) }}" class="ag-sub-a {{ request()->routeIs('pedidos.create') && request('destino') === 'punto-venta' ? 'active' : '' }}">Nuevo envío a punto de venta</a>
+                        </li>
+                        @endif
+                    </ul>
+                </li>
 
-                @if($puedePuntoVentaMenu || $puedePedidosDistMenu)
+                @if($esMayoristaOperativo && ! $isAdmin && ($puedeEnvios || $puedeSubmenuEnviosScoped))
+                <li class="ag-nav-li">
+                    <a href="#" class="ag-nav-a {{ $envMayOpen ? 'active group-open' : '' }}" data-toggle-sub="sub-env-may">
+                        <i class="ag-nav-icon fas fa-truck"></i>
+                        <span class="ag-nav-text">Envíos</span>
+                        <i class="ag-nav-arrow fas fa-chevron-right"></i>
+                    </a>
+                    <ul class="ag-subnav {{ $envMayOpen ? 'open' : '' }}" id="sub-env-may">
+                        @include('layouts.partials.submenu-envios-items', ['envListadoActivo' => $envListadoActivo])
+                    </ul>
+                </li>
+                @endif
+                @endif
+
+                @if($puedePuntoVentaMenu || $puedePedidosDistMenuPdv)
                 <span class="ag-nav-label">Punto de venta</span>
 
                 @if($esMinoristaOperativo || $isAdmin)
@@ -1366,12 +1485,13 @@
                             <a href="{{ route('punto-venta.inventario.index') }}" class="ag-sub-a {{ request()->routeIs('punto-venta.inventario.*') ? 'active' : '' }}">Inventario</a>
                         </li>
                         @endif
-                        @if($puedePedidosDistMenu)
+                        @if($puedePedidosDistMenuPdv)
                         <li class="ag-sub-li">
-                            <a href="{{ route('punto-venta.pedidos.index') }}" class="ag-sub-a {{ request()->routeIs('punto-venta.pedidos.*') && !request()->routeIs('punto-venta.rutas.*') ? 'active' : '' }}">Pedidos de distribución</a>
+                            <a href="{{ route('punto-venta.pedidos.index', ['ctx' => 'pdv']) }}" class="ag-sub-a {{ ($pedidosEnSeccionPdv ?? false) ? 'active' : '' }}">Pedidos de distribución</a>
                         </li>
                         @endif
-                        @if(\App\Support\UsuarioRol::puedeGestionarDistribucionPlanta($authUser))
+                        {{-- Planificar distribución: deshabilitado temporalmente --}}
+                        @if(false && $isAdmin && \App\Support\UsuarioRol::puedePlanificarDistribucion($authUser))
                         <li class="ag-sub-li">
                             <a href="{{ route('punto-venta.rutas.index') }}" class="ag-sub-a {{ request()->routeIs('punto-venta.rutas.*') ? 'active' : '' }}">Planificar distribución</a>
                         </li>
@@ -1408,13 +1528,10 @@
 
         {{-- Footer --}}
         <div class="ag-sb-footer">
-            <form action="{{ route('logout') }}" method="POST">
-                @csrf
-                <button type="submit" class="ag-sb-foot-btn">
-                    <i class="fas fa-sign-out-alt" style="width:16px;text-align:center;"></i>
-                    <span>Cerrar sesión</span>
-                </button>
-            </form>
+            <a href="{{ route('logout') }}" class="ag-sb-foot-btn ag-sb-foot-btn--link">
+                <i class="fas fa-sign-out-alt" style="width:16px;text-align:center;"></i>
+                <span>Cerrar sesión</span>
+            </a>
         </div>
 
     </aside>
@@ -1469,12 +1586,9 @@
                                 <i class="fas fa-user-circle" style="width:14px;"></i> Mi perfil
                             </a>
                             <div class="ag-dd-sep"></div>
-                            <form action="{{ route('logout') }}" method="POST">
-                                @csrf
-                                <button type="submit" class="ag-dd-item danger">
-                                    <i class="fas fa-sign-out-alt" style="width:14px;"></i> Cerrar sesión
-                                </button>
-                            </form>
+                            <a href="{{ route('logout') }}" class="ag-dd-item danger">
+                                <i class="fas fa-sign-out-alt" style="width:14px;"></i> Cerrar sesión
+                            </a>
                         </div>
                     </div>
                 </div>
@@ -1499,6 +1613,7 @@
 
         @include('partials.modal-bienvenida')
         @include('partials.modal-aviso')
+        @include('partials.transportista-asignacion-login-modal')
         @once
             @include('partials.selector-catalogo-assets')
             @include('partials.selector-catalogo-modal')
@@ -1517,6 +1632,7 @@
 
 <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
 (function () {
@@ -1638,6 +1754,13 @@
             }
         });
     }
+
+    // Borrador del wizard «Nuevo envío»: no debe sobrevivir al cerrar sesión
+    document.querySelectorAll('a[href*="logout"]').forEach(function (link) {
+        link.addEventListener('click', function () {
+            try { sessionStorage.removeItem('agrofusion_envio_borrador_v1'); } catch (err) {}
+        });
+    });
 
 })();
 </script>

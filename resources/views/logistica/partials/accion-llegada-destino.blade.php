@@ -6,16 +6,9 @@
 @endphp
 
 @if($enCamino && $puedeConfirmar && ! $asignacion->fecha_recepcion_planta)
-    <form method="POST" action="{{ route('logistica.asignaciones.llegada-destino', $asignacion) }}" class="d-inline">
-        @csrf
-        @method('PATCH')
-        <button type="button" class="btn btn-sm {{ $compacto ? 'btn-outline-success' : 'btn-success' }}"
-                title="Llegada a destino"
-                data-confirm-modal
-                data-confirm-tone="success"
-                data-confirm-title="Llegada a destino"
-                data-confirm-message="¿Confirma que el envío {{ $asignacion->externo_envio_id }} llegó a destino?">
-            <i class="fas fa-map-marker-alt{{ $compacto ? '' : ' mr-1' }}"></i>{{ $compacto ? '' : 'Llegada a destino' }}
-        </button>
-    </form>
+    <a href="{{ route('logistica.asignaciones.cierre.panel', $asignacion) }}"
+       class="btn btn-sm {{ $compacto ? 'btn-outline-success' : 'btn-success' }}"
+       title="Cierre operativo — llegada, incidentes y firmas">
+        <i class="fas fa-clipboard-list{{ $compacto ? '' : ' mr-1' }}"></i>{{ $compacto ? '' : 'Cierre de entrega' }}
+    </a>
 @endif

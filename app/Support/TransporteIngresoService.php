@@ -23,6 +23,36 @@ final class TransporteIngresoService
         $filtros->aplicarFecha($agricola, 'fecha_recepcion_planta');
         $filtros->aplicarFecha($distribucion, 'fecha_salida');
 
+        return self::totalesDesdeQueries($agricola, $distribucion);
+    }
+
+    /** Resumen agregado de todos los transportistas (vista admin global). */
+    public static function resumenPeriodoGlobal(?DashboardFiltros $filtros = null): array
+    {
+        $filtros ??= DashboardFiltros::desdeRequest(request());
+
+        $agricola = EnvioAsignacionMultiple::query()
+            ->whereNotNull('transportista_usuarioid')
+            ->whereNotNull('costo_bs')
+            ->where(function (Builder $q) {
+                $q->whereIn('estado', ['recibido_planta', 'entregado', 'entregada'])
+                    ->orWhereNotNull('fecha_recepcion_planta');
+            });
+        $distribucion = RutaDistribucion::query()
+            ->whereNotNull('transportista_usuarioid')
+            ->where('estado', RutaDistribucionCatalogo::ESTADO_COMPLETADA)
+            ->whereNotNull('costo_bs');
+        $filtros->aplicarFecha($agricola, 'fecha_recepcion_planta');
+        $filtros->aplicarFecha($distribucion, 'fecha_salida');
+
+        return self::totalesDesdeQueries($agricola, $distribucion);
+    }
+
+    /**
+     * @return array{total_bs: float, servicios: int, agricola_bs: float, distribucion_bs: float}
+     */
+    private static function totalesDesdeQueries(Builder $agricola, Builder $distribucion): array
+    {
         $agricolaBs = (float) (clone $agricola)->sum('costo_bs');
         $distribucionBs = (float) (clone $distribucion)->sum('costo_bs');
 
@@ -37,17 +67,54 @@ final class TransporteIngresoService
     /**
      * @return Collection<int, array<string, mixed>>
      */
+    public static function listarCompletadosGlobal(?DashboardFiltros $filtros = null): Collection
+    {
+        $filtros ??= DashboardFiltros::desdeRequest(request());
+
+        $envios = EnvioAsignacionMultiple::query()
+            ->whereNotNull('transportista_usuarioid')
+            ->whereNotNull('costo_bs')
+            ->where(function (Builder $q) {
+                $q->whereIn('estado', ['recibido_planta', 'entregado', 'entregada'])
+                    ->orWhereNotNull('fecha_recepcion_planta');
+            })
+            ->with(['pedido.detalles', 'transportista'])
+            ->get();
+
+        $rutas = RutaDistribucion::query()
+            ->whereNotNull('transportista_usuarioid')
+            ->where('estado', RutaDistribucionCatalogo::ESTADO_COMPLETADA)
+            ->whereNotNull('costo_bs')
+            ->with(['paradas', 'almacenOrigen', 'almacenPlantaOrigen', 'almacenMayoristaDestino', 'transportista', 'vehiculo'])
+            ->get();
+
+        return self::armarListadoDesdeColecciones($envios, $rutas, $filtros);
+    }
+
+    /**
+     * @return Collection<int, array<string, mixed>>
+     */
     public static function listarCompletados(int $transportistaId, ?DashboardFiltros $filtros = null): Collection
     {
         $filtros ??= DashboardFiltros::desdeRequest(request());
 
         $envios = self::queryEnviosCompletados($transportistaId)
-            ->with(['pedido.detalles'])
+            ->with(['pedido.detalles', 'transportista'])
             ->get();
         $rutas = self::queryRutasCompletadas($transportistaId)
-            ->with(['paradas', 'almacenOrigen', 'vehiculo'])
+            ->with(['paradas', 'almacenOrigen', 'almacenPlantaOrigen', 'almacenMayoristaDestino', 'transportista', 'vehiculo'])
             ->get();
 
+        return self::armarListadoDesdeColecciones($envios, $rutas, $filtros);
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, EnvioAsignacionMultiple>  $envios
+     * @param  \Illuminate\Support\Collection<int, RutaDistribucion>  $rutas
+     * @return Collection<int, array<string, mixed>>
+     */
+    private static function armarListadoDesdeColecciones(Collection $envios, Collection $rutas, DashboardFiltros $filtros): Collection
+    {
         $items = collect();
 
         foreach ($envios as $envio) {
@@ -119,6 +186,7 @@ final class TransporteIngresoService
             'tipo_etiqueta' => 'Almacén → Planta',
             'codigo' => $envio->externo_envio_id ?? ('#'.$envio->envioasignacionmultipleid),
             'descripcion' => $detalle?->cultivo_personalizado ?? 'Envío agrícola',
+            'transportista' => $envio->transportista?->nombreCompleto(),
             'costo_bs' => (float) $envio->costo_bs,
             'fecha' => $fecha,
             'fecha_orden' => $fecha?->timestamp ?? 0,
@@ -129,6 +197,23 @@ final class TransporteIngresoService
     /** @return array<string, mixed> */
     private static function mapearRuta(RutaDistribucion $ruta, ?Carbon $fecha): array
     {
+        if (RutaDistribucionCatalogo::esTrasladoPlantaMayorista($ruta)) {
+            $origen = $ruta->almacenPlantaOrigen?->nombre ?? 'Planta';
+            $destino = $ruta->almacenMayoristaDestino?->nombre ?? 'Mayorista';
+
+            return [
+                'tipo' => 'planta_mayorista',
+                'tipo_etiqueta' => 'Planta → Mayorista',
+                'codigo' => $ruta->codigo,
+                'descripcion' => $origen.' → '.$destino,
+                'transportista' => $ruta->transportista?->nombreCompleto(),
+                'costo_bs' => (float) $ruta->costo_bs,
+                'fecha' => $fecha,
+                'fecha_orden' => $fecha?->timestamp ?? 0,
+                'ver_url' => \App\Support\RutaDistribucionNavegacion::urlVer($ruta, auth()->user()),
+            ];
+        }
+
         $paradas = $ruta->paradas?->where('tipo', RutaDistribucionCatalogo::PARADA_ENTREGA_PDV)->count() ?? 0;
 
         return [
@@ -136,10 +221,11 @@ final class TransporteIngresoService
             'tipo_etiqueta' => 'Planta → PDV',
             'codigo' => $ruta->codigo,
             'descripcion' => ($ruta->almacenOrigen?->nombre ?? 'Planta').' · '.$paradas.' entrega(s)',
+            'transportista' => $ruta->transportista?->nombreCompleto(),
             'costo_bs' => (float) $ruta->costo_bs,
             'fecha' => $fecha,
             'fecha_orden' => $fecha?->timestamp ?? 0,
-            'ver_url' => route('punto-venta.rutas.show', $ruta),
+            'ver_url' => \App\Support\RutaDistribucionNavegacion::urlVer($ruta),
         ];
     }
 }

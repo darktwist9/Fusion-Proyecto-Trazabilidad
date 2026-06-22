@@ -30,6 +30,8 @@ use App\Models\Usuario;
 
 use App\Models\Vehiculo;
 
+use App\Models\CondicionTransporte;
+use App\Services\CierreEnvioDistribucionPdvService;
 use App\Services\SimulacionRutaService;
 
 use App\Support\AlmacenAmbito;
@@ -396,6 +398,8 @@ class PedidoDistribucionFase2Test extends TestCase
 
         $pedido->refresh();
 
+        $this->registrarCondicionesRutaPdv($pedido->rutaDistribucion, $admin);
+
         $response = $this->patch(route('punto-venta.pedidos.empezar-ruta', $pedido));
 
 
@@ -474,7 +478,7 @@ class PedidoDistribucionFase2Test extends TestCase
 
         $this->assertNotNull($ruta);
 
-
+        $this->registrarCondicionesRutaPdv($ruta, $admin);
 
         app(SimulacionRutaService::class)->empezarDistribucion($ruta);
 
@@ -506,6 +510,22 @@ class PedidoDistribucionFase2Test extends TestCase
 
     }
 
+    private function registrarCondicionesRutaPdv(?\App\Models\RutaDistribucion $ruta, Usuario $usuario): void
+    {
+        if ($ruta === null) {
+            $this->fail('Ruta de distribución no creada.');
+        }
+
+        CondicionTransporte::query()->firstOrCreate(
+            ['codigo' => 'COND_PDV_TEST'],
+            ['titulo' => 'Frenos', 'descripcion' => 'Test PDV']
+        );
+
+        app(CierreEnvioDistribucionPdvService::class)->registrarCondicionesVehiculo(
+            $ruta->fresh(),
+            $usuario,
+            true,
+        );
+    }
+
 }
-
-

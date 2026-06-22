@@ -22,8 +22,13 @@ class PedidoDistribucion extends Model
         'transportista_usuarioid',
         'vehiculoid',
         'estado',
+        'tipo_solicitud',
+        'espera_stock',
+        'requiere_coordinacion_planta',
+        'coordinacion_planta_resuelta',
         'fechapedido',
         'fecha_entrega_deseada',
+        'hora_entrega_deseada',
         'observaciones',
         'fecha_aceptacion',
         'aceptado_por_usuarioid',
@@ -41,6 +46,9 @@ class PedidoDistribucion extends Model
         'vehiculoid' => 'integer',
         'fechapedido' => 'datetime',
         'fecha_entrega_deseada' => 'date',
+        'espera_stock' => 'boolean',
+        'requiere_coordinacion_planta' => 'boolean',
+        'coordinacion_planta_resuelta' => 'boolean',
         'fecha_aceptacion' => 'datetime',
         'fecha_envio' => 'datetime',
         'fecha_recepcion' => 'datetime',
@@ -71,6 +79,11 @@ class PedidoDistribucion extends Model
     public function detalles(): HasMany
     {
         return $this->hasMany(DetallePedidoDistribucion::class, 'pedidodistribucionid', 'pedidodistribucionid');
+    }
+
+    public function solicitudesProduccionPlanta(): HasMany
+    {
+        return $this->hasMany(SolicitudProduccionPlanta::class, 'pedidodistribucionid', 'pedidodistribucionid');
     }
 
     public function rutaDistribucion(): BelongsTo

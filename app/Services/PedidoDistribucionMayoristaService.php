@@ -18,6 +18,8 @@ use App\Support\PedidoDistribucionCatalogo;
 
 use App\Support\TransportistaFlotaCatalogo;
 
+use App\Support\UbicacionGpsParser;
+
 use Illuminate\Support\Facades\DB;
 
 use InvalidArgumentException;
@@ -45,6 +47,18 @@ class PedidoDistribucionMayoristaService
             $nombre = $detalle->producto_nombre ?: 'Producto';
 
             $cantidad = (float) $detalle->cantidad;
+
+            if ($pedido->espera_stock) {
+
+                continue;
+
+            }
+
+            if ($detalle->es_solicitud_custom || $pedido->requiere_coordinacion_planta) {
+
+                continue;
+
+            }
 
             $insumo = $detalle->insumo;
 
@@ -75,6 +89,86 @@ class PedidoDistribucionMayoristaService
 
 
         return $errores;
+
+    }
+
+    public function aceptarPedido(PedidoDistribucion $pedido, int $aceptadoPorId): PedidoDistribucion
+
+    {
+
+        if (! PedidoDistribucionCatalogo::puedeAceptarMayorista($pedido)) {
+
+            throw new InvalidArgumentException('Este pedido ya fue procesado.');
+
+        }
+
+        $pedido->loadMissing(['detalles.presentacion', 'detalles.insumoPlantaReferencia', 'puntoVenta']);
+
+        $detalle = $pedido->detalles->first();
+
+        $esCustom = $detalle !== null && ($detalle->es_solicitud_custom || $pedido->tipo_solicitud === PedidoDistribucionCatalogo::TIPO_SOLICITUD_CUSTOM);
+
+        $resolucion = $esCustom ? null : app(AlmacenMayoristaProximoService::class)->resolverParaPedido($pedido);
+
+        $requierePlanta = $esCustom || $resolucion === null;
+
+        return DB::transaction(function () use ($pedido, $aceptadoPorId, $detalle, $resolucion, $requierePlanta) {
+
+            $updates = [
+
+                'estado' => PedidoDistribucionCatalogo::ESTADO_CONFIRMADO,
+
+                'fecha_aceptacion' => now(),
+
+                'aceptado_por_usuarioid' => $aceptadoPorId,
+
+                'espera_stock' => false,
+
+                'requiere_coordinacion_planta' => $requierePlanta,
+
+                'coordinacion_planta_resuelta' => ! $requierePlanta,
+
+            ];
+
+            if ($resolucion !== null) {
+
+                if (! $pedido->almacen_mayorista_origenid) {
+                    $updates['almacen_mayorista_origenid'] = $resolucion['almacen']->almacenid;
+                }
+
+                if ($detalle !== null) {
+
+                    $detalle->update([
+
+                        'insumoid' => $resolucion['insumo']->insumoid,
+
+                        'producto_nombre' => $resolucion['insumo']->nombre,
+
+                    ]);
+
+                }
+
+            } else {
+
+                $updates['almacen_mayorista_origenid'] = null;
+
+            }
+
+            $pedido->update($updates);
+
+            return $pedido->fresh([
+
+                'detalles.insumo.unidadMedida',
+
+                'detalles.presentacion',
+
+                'puntoVenta.minorista',
+
+                'almacenMayoristaOrigen',
+
+            ]);
+
+        });
 
     }
 
@@ -134,7 +228,23 @@ class PedidoDistribucionMayoristaService
 
 
 
-        return DB::transaction(function () use ($pedido, $transportistaId, $vehiculoId, $creadoPorId, $almacen, $transportista, $vehiculo) {
+        return DB::transaction(function () use ($pedido, $transportistaId, $vehiculoId, $creadoPorId, $almacen, $pdv) {
+
+            $coordsOrigen = UbicacionGpsParser::resolverAlmacen(
+                (int) $almacen->almacenid,
+                $almacen->nombre,
+                $almacen->ubicacion
+            );
+            $costoBs = null;
+            if ($coordsOrigen['lat'] !== null && $coordsOrigen['lng'] !== null) {
+                $estimacion = app(CostoEnvioRutaService::class)->calcular([
+                    ['lat' => (float) $coordsOrigen['lat'], 'lng' => (float) $coordsOrigen['lng']],
+                    ['lat' => (float) $pdv->latitud, 'lng' => (float) $pdv->longitud],
+                ]);
+                if (($estimacion['costo_bs'] ?? 0) > 0) {
+                    $costoBs = (float) $estimacion['costo_bs'];
+                }
+            }
 
             app(DistribucionRutaService::class)->crear(
 
@@ -150,7 +260,7 @@ class PedidoDistribucionMayoristaService
 
                 'Envío directo '.$pedido->numero_solicitud,
 
-                null
+                $costoBs
 
             );
 

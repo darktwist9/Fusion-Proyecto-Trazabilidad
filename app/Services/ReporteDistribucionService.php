@@ -178,7 +178,7 @@ class ReporteDistribucionService
             'estado_etiqueta' => RutaDistribucionCatalogo::etiquetaEstado($ruta->estado),
             'destino' => $this->resolverDestinoRuta($ruta),
             'transportista_id' => $ruta->transportista_usuarioid,
-            'ver_url' => route('punto-venta.rutas.show', $ruta),
+            'ver_url' => \App\Support\RutaDistribucionNavegacion::urlVer($ruta),
         ];
     }
 

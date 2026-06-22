@@ -6,8 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Clima;
 use App\Models\Lote;
 use App\Models\Produccion;
+use App\Models\Almacen;
+use App\Support\AlmacenAmbito;
 use App\Support\DashboardCharts;
 use App\Support\DashboardFiltros;
+use App\Support\DashboardPanelUsuario;
 use App\Support\DashboardPresentacion;
 use App\Models\Actividad;
 use App\Models\DocumentoEntrega;
@@ -33,9 +36,11 @@ use Illuminate\Support\Facades\Http;
 use App\Models\UsuarioNotificacion;
 use App\Models\AsignacionEtapaPlanta;
 use App\Services\NotificacionUsuarioService;
+use App\Services\RecepcionPlantaMayoristaService;
 use App\Support\UsuarioRol;
 use App\Support\EtiquetaDemo;
 use App\Support\InsumoCatalogo;
+use App\Support\MayoristaAccess;
 
 class DashboardController extends Controller
 {
@@ -56,6 +61,13 @@ class DashboardController extends Controller
             return view('dashboard.inicio.agricultor', array_merge(
                 $this->buildAgricultorInicioData($user, $filtros),
                 $this->filtrosContextoAgricultor($user),
+                $extras,
+            ));
+        }
+
+        if (! $this->isAdmin($user) && UsuarioRol::esMayorista($user)) {
+            return view('dashboard.inicio.mayorista', array_merge(
+                $this->buildMayoristaInicioData($user, $filtros),
                 $extras,
             ));
         }
@@ -133,11 +145,17 @@ class DashboardController extends Controller
         abort_unless($user && ($user->can('panel_planta.view') || $this->isAdmin($user)), 403);
 
         $filtros = DashboardFiltros::desdeRequest($request);
+        $ctxPanel = $this->contextoPanelUsuario($filtros, DashboardPanelUsuario::PANEL_PLANTA);
         $alertas = $notificaciones->noLeidasPara((int) $user->usuarioid, 8, $user);
         $totalAlertas = $notificaciones->contarNoLeidas((int) $user->usuarioid, $user);
 
         return view('dashboard.roles.planta', array_merge(
-            $this->buildPlantaData($user, $filtros),
+            $this->buildPlantaData($user, $filtros, $ctxPanel['usuarioFiltrado'], $ctxPanel['vistaTodosUsuarios']),
+            $ctxPanel,
+            [
+                'charts' => DashboardCharts::paraPlanta($filtros, $ctxPanel['usuarioFiltrado']?->usuarioid),
+                'etiquetaGrafico' => $filtros->etiquetaGrafico(),
+            ],
             compact('alertas', 'totalAlertas', 'filtros'),
         ));
     }
@@ -148,11 +166,26 @@ class DashboardController extends Controller
         abort_unless($user && ($user->can('panel_transportista.view') || $this->isAdmin($user)), 403);
 
         $filtros = DashboardFiltros::desdeRequest($request);
+        $ctxPanel = $this->contextoPanelUsuario($filtros, DashboardPanelUsuario::PANEL_TRANSPORTISTA);
         $alertas = $notificaciones->noLeidasPara((int) $user->usuarioid, 8, $user);
         $totalAlertas = $notificaciones->contarNoLeidas((int) $user->usuarioid, $user);
 
         return view('dashboard.roles.transportista', array_merge(
-            $this->buildTransportistaData($user, $filtros),
+            $this->buildTransportistaData(
+                $user,
+                $filtros,
+                $ctxPanel['usuarioFiltrado'],
+                $ctxPanel['vistaTodosUsuarios'],
+            ),
+            $ctxPanel,
+            [
+                'charts' => DashboardCharts::paraTransportista(
+                    $filtros,
+                    $ctxPanel['usuarioFiltrado']?->usuarioid,
+                    $ctxPanel['vistaTodosUsuarios'],
+                ),
+                'etiquetaGrafico' => $filtros->etiquetaGrafico(),
+            ],
             compact('alertas', 'totalAlertas', 'filtros'),
         ));
     }
@@ -163,12 +196,22 @@ class DashboardController extends Controller
         abort_unless($user && ($user->can('panel_agricultor.view') || $this->isAdmin($user)), 403);
 
         $filtros = DashboardFiltros::desdeRequest($request);
+        $ctxPanel = $this->contextoPanelUsuario($filtros, DashboardPanelUsuario::PANEL_AGRICOLA);
         $alertas = $notificaciones->noLeidasPara((int) $user->usuarioid, 8, $user);
         $totalAlertas = $notificaciones->contarNoLeidas((int) $user->usuarioid, $user);
 
         return view('dashboard.roles.agricola', array_merge(
-            $this->buildJefeAgricolaData($user, $filtros),
+            $this->buildJefeAgricolaData($filtros, $ctxPanel['usuarioFiltrado'], $ctxPanel['vistaTodosUsuarios']),
             $this->filtrosContextoCampo(),
+            $ctxPanel,
+            [
+                'charts' => DashboardCharts::paraJefeAgricola(
+                    $filtros,
+                    $ctxPanel['usuarioFiltrado']?->usuarioid,
+                    $ctxPanel['vistaTodosUsuarios'],
+                ),
+                'etiquetaGrafico' => $filtros->etiquetaGrafico(),
+            ],
             compact('alertas', 'totalAlertas', 'filtros'),
         ));
     }
@@ -179,13 +222,54 @@ class DashboardController extends Controller
         abort_unless($user && (UsuarioRol::esMinorista($user) || $this->isAdmin($user)), 403);
 
         $filtros = DashboardFiltros::desdeRequest($request);
+        $ctxPanel = $this->contextoPanelUsuario($filtros, DashboardPanelUsuario::PANEL_MINORISTA);
         $alertas = $notificaciones->noLeidasPara((int) $user->usuarioid, 8, $user);
         $totalAlertas = $notificaciones->contarNoLeidas((int) $user->usuarioid, $user);
 
         return view('dashboard.roles.minorista', array_merge(
-            $this->buildMinoristaData($user, $filtros),
+            $this->buildMinoristaData(
+                $user,
+                $filtros,
+                $ctxPanel['usuarioFiltrado'],
+                $ctxPanel['vistaTodosUsuarios'],
+            ),
+            $ctxPanel,
             [
-                'charts' => DashboardCharts::paraMinorista($user, $filtros),
+                'charts' => DashboardCharts::paraMinorista(
+                    $filtros,
+                    $ctxPanel['usuarioFiltrado']?->usuarioid,
+                    $ctxPanel['vistaTodosUsuarios'],
+                ),
+                'etiquetaGrafico' => $filtros->etiquetaGrafico(),
+            ],
+            compact('alertas', 'totalAlertas', 'filtros'),
+        ));
+    }
+
+    public function panelMayorista(Request $request, NotificacionUsuarioService $notificaciones)
+    {
+        $user = auth()->user();
+        abort_unless($user && ($user->can('panel_mayorista.view') || $this->isAdmin($user)), 403);
+
+        $filtros = DashboardFiltros::desdeRequest($request);
+        $ctxPanel = $this->contextoPanelUsuario($filtros, DashboardPanelUsuario::PANEL_MAYORISTA);
+        $alertas = $notificaciones->noLeidasPara((int) $user->usuarioid, 8, $user);
+        $totalAlertas = $notificaciones->contarNoLeidas((int) $user->usuarioid, $user);
+
+        return view('dashboard.roles.mayorista', array_merge(
+            $this->buildMayoristaData(
+                $user,
+                $filtros,
+                $ctxPanel['usuarioFiltrado'],
+                $ctxPanel['vistaTodosUsuarios'],
+            ),
+            $ctxPanel,
+            [
+                'charts' => DashboardCharts::paraMayorista(
+                    $filtros,
+                    $ctxPanel['usuarioFiltrado'],
+                    $ctxPanel['vistaTodosUsuarios'],
+                ),
                 'etiquetaGrafico' => $filtros->etiquetaGrafico(),
             ],
             compact('alertas', 'totalAlertas', 'filtros'),
@@ -449,6 +533,7 @@ class DashboardController extends Controller
         return array_merge($this->buildPlantaData($user, $filtros), [
             'charts' => DashboardCharts::paraPlanta($filtros),
             'etiquetaGrafico' => $filtros->etiquetaGrafico(),
+            'envios_pendientes_planta' => \App\Support\PlantaLoginEnvio::enviosPendientesPlanta($user),
         ]);
     }
 
@@ -457,7 +542,7 @@ class DashboardController extends Controller
         $filtros ??= DashboardFiltros::desdeRequest(request());
 
         return array_merge($this->buildTransportistaData($user, $filtros), [
-            'charts' => DashboardCharts::paraTransportista($user, $filtros),
+            'charts' => DashboardCharts::paraTransportista($filtros, (int) $user->usuarioid),
             'etiquetaGrafico' => $filtros->etiquetaGrafico(),
         ]);
     }
@@ -466,7 +551,7 @@ class DashboardController extends Controller
     {
         $filtros ??= DashboardFiltros::desdeRequest(request());
 
-        return array_merge($this->buildJefeAgricolaData($user, $filtros), [
+        return array_merge($this->buildJefeAgricolaData($filtros), [
             'charts' => DashboardCharts::paraJefeAgricola($filtros),
             'etiquetaGrafico' => $filtros->etiquetaGrafico(),
         ]);
@@ -487,12 +572,102 @@ class DashboardController extends Controller
         $filtros ??= DashboardFiltros::desdeRequest(request());
 
         return array_merge($this->buildMinoristaData($user, $filtros), [
-            'charts' => DashboardCharts::paraMinorista($user, $filtros),
+            'charts' => DashboardCharts::paraMinorista($filtros, (int) $user->usuarioid),
             'etiquetaGrafico' => $filtros->etiquetaGrafico(),
         ]);
     }
 
-    private function buildPlantaData($user = null, ?DashboardFiltros $filtros = null): array
+    private function buildMayoristaInicioData($user, ?DashboardFiltros $filtros = null): array
+    {
+        $filtros ??= DashboardFiltros::desdeRequest(request());
+
+        return array_merge($this->buildMayoristaData($user, $filtros), [
+            'charts' => DashboardCharts::paraMayorista($filtros, $user),
+            'etiquetaGrafico' => $filtros->etiquetaGrafico(),
+        ]);
+    }
+
+    private function buildMayoristaData($user, ?DashboardFiltros $filtros = null, ?Usuario $sujeto = null, bool $todos = false): array
+    {
+        $filtros ??= DashboardFiltros::desdeRequest(request());
+        $usuarioScope = $sujeto ?? ($todos ? null : $user);
+        $almacenIds = [];
+
+        if ($usuarioScope) {
+            $almacenIds = MayoristaAccess::idsAlmacenesMayorista($usuarioScope);
+        } elseif ($todos || $this->isAdmin($user)) {
+            $almacenIds = AlmacenAmbito::scope(Almacen::query(), AlmacenAmbito::MAYORISTA)
+                ->pluck('almacenid')
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
+        } else {
+            $almacenIds = MayoristaAccess::idsAlmacenesMayorista($user);
+        }
+
+        $pedidosQuery = PedidoDistribucion::query()->with('puntoVenta');
+        $filtros->aplicarFecha($pedidosQuery, 'fechapedido');
+        if ($almacenIds !== []) {
+            $pedidosQuery->whereIn('almacen_mayorista_origenid', $almacenIds);
+        } else {
+            $pedidosQuery->whereRaw('1 = 0');
+        }
+
+        $inventarioQuery = Insumo::query();
+        if ($almacenIds !== []) {
+            $inventarioQuery->whereIn('almacenid', $almacenIds);
+        } else {
+            $inventarioQuery->whereRaw('1 = 0');
+        }
+
+        $almacenes = $usuarioScope
+            ? AlmacenAmbito::scopeParaUsuario(
+                Almacen::query()->orderBy('nombre'),
+                AlmacenAmbito::MAYORISTA,
+                $usuarioScope
+            )->get()
+            : AlmacenAmbito::scope(Almacen::query()->orderBy('nombre'), AlmacenAmbito::MAYORISTA)->get();
+
+        $recepcionesPlanta = app(RecepcionPlantaMayoristaService::class)->conteos($user ?? $usuarioScope ?? $user);
+
+        return [
+            'stats' => [
+                'almacenes' => $almacenes->count(),
+                'pedidos_pendientes' => (clone $pedidosQuery)
+                    ->where('estado', PedidoDistribucionCatalogo::ESTADO_PENDIENTE)
+                    ->count(),
+                'pedidos_activos' => (clone $pedidosQuery)
+                    ->whereNotIn('estado', [
+                        PedidoDistribucionCatalogo::ESTADO_RECIBIDO,
+                        PedidoDistribucionCatalogo::ESTADO_RECHAZADO,
+                        PedidoDistribucionCatalogo::ESTADO_CANCELADO,
+                    ])
+                    ->count(),
+                'en_transito' => (clone $pedidosQuery)
+                    ->where('estado', PedidoDistribucionCatalogo::ESTADO_EN_TRANSITO)
+                    ->count(),
+                'productos_stock' => (clone $inventarioQuery)->count(),
+                'stock_bajo' => (clone $inventarioQuery)
+                    ->where('stockminimo', '>', 0)
+                    ->whereColumn('stock', '<=', 'stockminimo')
+                    ->count(),
+                'recepciones_en_camino' => $recepcionesPlanta['en_camino'] ?? 0,
+                'recepciones_pendiente_firma' => $recepcionesPlanta['esperando_firma'] ?? 0,
+                'recepciones_recibidas' => $recepcionesPlanta['recibidos'] ?? 0,
+            ],
+            'almacenesResumen' => $almacenes,
+            'recepcionesPlanta' => $recepcionesPlanta,
+            'pedidosRecientes' => PedidoDistribucion::query()
+                ->with('puntoVenta')
+                ->when($almacenIds !== [], fn ($q) => $q->whereIn('almacen_mayorista_origenid', $almacenIds), fn ($q) => $q->whereRaw('1 = 0'))
+                ->when($filtros->tieneRango(), fn ($q) => $filtros->aplicarFecha($q, 'fechapedido'))
+                ->orderByDesc('pedidodistribucionid')
+                ->limit(8)
+                ->get(),
+        ];
+    }
+
+    private function buildPlantaData($user = null, ?DashboardFiltros $filtros = null, ?Usuario $sujeto = null, bool $todos = false): array
     {
         $filtros ??= DashboardFiltros::desdeRequest(request());
 
@@ -519,7 +694,29 @@ class DashboardController extends Controller
             'tareasPendientesCount' => 0,
         ];
 
-        if ($user && UsuarioRol::esOperarioPlanta($user)) {
+        $operarioId = $sujeto?->usuarioid;
+        if ($sujeto && UsuarioRol::esOperarioPlanta($sujeto)) {
+            $operarioId = $sujeto->usuarioid;
+        } elseif ($todos || ! $sujeto) {
+            $operarioId = null;
+        }
+
+        if ($operarioId) {
+            $tareasPendientes = AsignacionEtapaPlanta::query()
+                ->with(['proceso', 'maquina', 'loteProduccion'])
+                ->where('operador_usuarioid', $operarioId)
+                ->pendientes()
+                ->orderByDesc('creado_en')
+                ->limit(5)
+                ->get();
+            $data['tareasPendientes'] = $tareasPendientes;
+            $data['tareasPendientesCount'] = AsignacionEtapaPlanta::query()
+                ->where('operador_usuarioid', $operarioId)
+                ->pendientes()
+                ->count();
+        } elseif ($todos && $user && $this->isAdmin($user)) {
+            $data['tareasPendientesCount'] = AsignacionEtapaPlanta::query()->pendientes()->count();
+        } elseif ($user && UsuarioRol::esOperarioPlanta($user)) {
             $tareasPendientes = AsignacionEtapaPlanta::query()
                 ->with(['proceso', 'maquina', 'loteProduccion'])
                 ->where('operador_usuarioid', $user->usuarioid)
@@ -566,7 +763,7 @@ class DashboardController extends Controller
         ];
     }
 
-    private function buildJefeAgricolaData($user = null, ?DashboardFiltros $filtros = null): array
+    private function buildJefeAgricolaData(?DashboardFiltros $filtros = null, ?Usuario $sujeto = null, bool $todos = false): array
     {
         $filtros ??= DashboardFiltros::desdeRequest(request());
 
@@ -574,15 +771,31 @@ class DashboardController extends Controller
         if ($filtros->cultivoId) {
             $lotes->where('cultivoid', $filtros->cultivoId);
         }
+        if ($sujeto && ! $todos) {
+            $lotes->where('usuarioid', $sujeto->usuarioid);
+        }
 
         $actividades = Actividad::query()->whereNull('fechafin');
         $filtros->aplicarCultivoEnLote($actividades);
+        if ($sujeto && ! $todos) {
+            $actividades->where('usuarioid', $sujeto->usuarioid);
+        }
 
         $cosechas = Produccion::query();
         $filtros->aplicarFecha($cosechas, 'fechacosecha');
         $filtros->aplicarCultivoEnLote($cosechas);
+        if ($sujeto && ! $todos) {
+            $cosechas->whereHas('lote', fn ($q) => $q->where('usuarioid', $sujeto->usuarioid));
+        }
 
         $pedidosPendientes = PedidoCatalogo::contarPendientesAgricola();
+
+        $lotesRecientes = Lote::query()
+            ->with(['cultivo', 'estadoTipo'])
+            ->when($sujeto && ! $todos, fn ($q) => $q->where('usuarioid', $sujeto->usuarioid))
+            ->orderByDesc('loteid')
+            ->limit(5)
+            ->get();
 
         return [
             'stats' => [
@@ -591,21 +804,24 @@ class DashboardController extends Controller
                 'cosechas_mes' => $cosechas->sum('cantidad'),
                 'pedidos_pendientes' => $pedidosPendientes,
             ],
-            'lotesRecientes' => Lote::query()
-                ->with(['cultivo', 'estadoTipo'])
-                ->orderByDesc('loteid')
-                ->limit(5)
-                ->get(),
+            'lotesRecientes' => $lotesRecientes,
         ];
     }
 
-    private function buildMinoristaData($user, ?DashboardFiltros $filtros = null): array
+    private function buildMinoristaData($user, ?DashboardFiltros $filtros = null, ?Usuario $sujeto = null, bool $todos = false): array
     {
         $filtros ??= DashboardFiltros::desdeRequest(request());
-        $uid = (int) $user->usuarioid;
-        $puntosIds = PuntoVenta::query()
-            ->where('usuarioid', $uid)
-            ->pluck('puntoventaid');
+        $uid = $sujeto?->usuarioid ?? ($todos ? null : (int) $user->usuarioid);
+
+        $puntosQuery = PuntoVenta::query();
+        if ($uid) {
+            $puntosQuery->where('usuarioid', $uid);
+        } elseif ($todos) {
+            $puntosQuery->whereNotNull('usuarioid');
+        } else {
+            $puntosQuery->where('usuarioid', (int) $user->usuarioid);
+        }
+        $puntosIds = $puntosQuery->pluck('puntoventaid');
         $almacenIds = PuntoVenta::query()
             ->whereIn('puntoventaid', $puntosIds)
             ->pluck('almacenid')
@@ -651,30 +867,62 @@ class DashboardController extends Controller
         ];
     }
 
-    private function buildTransportistaData($user, ?DashboardFiltros $filtros = null): array
+    private function buildTransportistaData($user, ?DashboardFiltros $filtros = null, ?Usuario $sujeto = null, bool $todos = false): array
     {
         $filtros ??= DashboardFiltros::desdeRequest(request());
+        $uid = $sujeto?->usuarioid ?? ($todos ? null : (int) $user->usuarioid);
 
-        $asignaciones = EnvioAsignacionMultiple::query()->where('transportista_usuarioid', $user->usuarioid);
+        $asignaciones = EnvioAsignacionMultiple::query();
+        $rutasDistribucion = RutaDistribucion::query();
+        $incidentes = IncidenteEnvio::query();
+        $documentos = DocumentoEntrega::query();
+
+        if ($uid) {
+            $asignaciones->where('transportista_usuarioid', $uid);
+            $rutasDistribucion->where('transportista_usuarioid', $uid);
+            $incidentes->where('reportadopor_usuarioid', $uid);
+            $documentos->where('usuarioid', $uid);
+        } elseif ($todos) {
+            $asignaciones->whereNotNull('transportista_usuarioid');
+            $rutasDistribucion->whereNotNull('transportista_usuarioid');
+        }
+
         $asignacionesPeriodo = (clone $asignaciones);
         $filtros->aplicarFecha($asignacionesPeriodo, 'fecha_asignacion');
 
-        $rutas = RutaMultiEntrega::query()->where('transportista_usuarioid', $user->usuarioid);
-        $incidentes = IncidenteEnvio::query()->where('reportadopor_usuarioid', $user->usuarioid);
-        $documentos = DocumentoEntrega::query()->where('usuarioid', $user->usuarioid);
+        $rutas = RutaMultiEntrega::query();
+        if ($uid) {
+            $rutas->where('transportista_usuarioid', $uid);
+        } elseif ($todos) {
+            $rutas->whereNotNull('transportista_usuarioid');
+        }
 
         $total = $asignacionesPeriodo->count();
         $enRuta = (clone $asignaciones)->where('estado', 'en_ruta')->count()
-            + RutaDistribucion::query()->where('transportista_usuarioid', $user->usuarioid)
-                ->where('estado', RutaDistribucionCatalogo::ESTADO_EN_RUTA)->count();
+            + (clone $rutasDistribucion)->where('estado', RutaDistribucionCatalogo::ESTADO_EN_RUTA)->count();
         $entregadosPeriodo = (clone $asignacionesPeriodo)->where('estado', 'entregado')->count();
 
-        $ingresos = TransporteIngresoService::resumenPeriodo((int) $user->usuarioid, $filtros);
+        $ingresos = $todos
+            ? TransporteIngresoService::resumenPeriodoGlobal($filtros)
+            : TransporteIngresoService::resumenPeriodo((int) $uid, $filtros);
+
+        $rutasPendientesSalida = (clone $rutasDistribucion)
+            ->where('estado', RutaDistribucionCatalogo::ESTADO_PLANIFICADA)
+            ->orderByDesc('rutadistribucionid')
+            ->get(['rutadistribucionid', 'codigo', 'nombre']);
+
+        $enviosPendientesAccion = (clone $asignaciones)
+            ->with(['pedido.detalles'])
+            ->whereIn('estado', ['asignado', 'asignada', 'pendiente', 'creada'])
+            ->whereNull('simulacion_inicio_at')
+            ->whereHas('pedido', fn ($q) => $q->whereIn('estado', PedidoCatalogo::estadosListosParaLogistica()))
+            ->orderByDesc('fecha_asignacion')
+            ->limit(5)
+            ->get();
 
         return [
             'stats' => [
-                'asignados' => $total + RutaDistribucion::query()
-                    ->where('transportista_usuarioid', $user->usuarioid)->count(),
+                'asignados' => $total + (clone $rutasDistribucion)->count(),
                 'por_recoger' => (clone $asignaciones)->where('estado', 'asignado')->count(),
                 'en_camino' => $enRuta,
                 'entregados_hoy' => $entregadosPeriodo,
@@ -684,8 +932,27 @@ class DashboardController extends Controller
                 'ingresos_bs' => $ingresos['total_bs'],
                 'servicios_completados' => $ingresos['servicios'],
             ],
-            'mis_asignaciones' => $asignaciones->with('pedido')->latest()->take(10)->get(),
+            'mis_asignaciones' => (clone $asignaciones)->with('pedido')->latest()->take(10)->get(),
             'mis_rutas' => $rutas->latest()->take(6)->get(),
+            'rutas_pendientes_salida' => $rutasPendientesSalida,
+            'envios_pendientes_accion' => $enviosPendientesAccion,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function contextoPanelUsuario(DashboardFiltros $filtros, string $panel): array
+    {
+        $ctx = DashboardPanelUsuario::resolver(auth()->user(), $filtros, $panel);
+
+        return [
+            'panelUsuario' => $ctx,
+            'usuarioFiltrado' => $ctx['sujeto'],
+            'vistaTodosUsuarios' => $ctx['todos'],
+            'mostrarUsuario' => $ctx['es_admin'],
+            'usuariosPanel' => $ctx['es_admin'] ? DashboardPanelUsuario::usuariosParaPanel($panel) : collect(),
+            'etiquetaVistaUsuario' => DashboardPanelUsuario::etiquetaVista($ctx['todos'], $ctx['sujeto'], $panel),
         ];
     }
 

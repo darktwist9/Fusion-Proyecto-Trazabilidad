@@ -22,6 +22,9 @@
         .firmas { margin-top: 28px; }
         .firmas td { width: 50%; padding-top: 36px; text-align: center; border-top: 1px solid #9ca3af; }
         .nota { margin-top: 16px; padding: 10px 12px; background: #f0fdf4; border-left: 4px solid #2c5530; font-size: 10px; }
+        .nota--alerta { background: #fef2f2; border-left-color: #dc2626; color: #991b1b; }
+        .nota--alerta strong { color: #b91c1c; }
+        .cond-no { color: #dc2626; font-weight: bold; }
         .footer { margin-top: 24px; font-size: 9px; color: #9ca3af; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 10px; }
     </style>
 </head>
@@ -43,31 +46,35 @@
             <td class="label">Código de envío</td>
             <td>{{ $documento->externo_envio_id ?? '—' }}</td>
             <td class="label">Pedido</td>
-            <td>{{ $pedido?->numero_solicitud ?? ($documento->pedidoid ? '#'.$documento->pedidoid : '—') }}</td>
+            <td>{{ $pedidoReferencia ?? $pedido?->numero_solicitud ?? ($documento->pedidoid ? '#'.$documento->pedidoid : '—') }}</td>
         </tr>
         <tr>
             <td class="label">Destino / cliente</td>
-            <td>{{ $pedido?->nombre_planta ?? '—' }}</td>
+            <td>{{ $destinoCliente ?? '—' }}</td>
             <td class="label">Dirección de entrega</td>
-            <td>{{ $pedido?->direccion_texto ?? '—' }}</td>
+            <td>{{ $direccionEntrega ?? '—' }}</td>
         </tr>
         <tr>
             <td class="label">Transportista</td>
             <td>{{ $transportistaNombre }}</td>
             <td class="label">Vehículo</td>
-            <td>{{ $envio?->vehiculo_ref ?? '—' }}</td>
+            <td>{{ $vehiculoRef ?? $envio?->vehiculo_ref ?? '—' }}</td>
         </tr>
         <tr>
             <td class="label">Almacén origen</td>
             <td>{{ $documento->almacen?->nombre ?? $envio?->almacen?->nombre ?? '—' }}</td>
-            <td class="label">Estado del envío</td>
-            <td>{{ $estadoEnvio }}</td>
+            <td class="label">Estado del vehículo</td>
+            <td>{{ $estadoVehiculo ?? '—' }}</td>
         </tr>
         <tr>
+            <td class="label">Estado del envío</td>
+            <td>{{ $estadoEnvio }}</td>
             <td class="label">Cargado por</td>
-            <td>{{ $documento->usuario?->nombreusuario ?? trim(($documento->usuario?->nombre ?? '').' '.($documento->usuario?->apellido ?? '')) ?: '—' }}</td>
+            <td>{{ $cargadoPor ?? '—' }}</td>
+        </tr>
+        <tr>
             <td class="label">Ruta logística</td>
-            <td>{{ $envio?->ruta?->nombre ?? '—' }}</td>
+            <td colspan="3">{{ $rutaLogistica ?? '—' }}</td>
         </tr>
     </table>
 
@@ -76,7 +83,8 @@
         <thead>
             <tr>
                 <th>Producto</th>
-                <th style="width:18%">Cantidad</th>
+                <th style="width:16%">Cantidad</th>
+                <th style="width:22%">Empaquetaje</th>
                 <th>Observaciones</th>
             </tr>
         </thead>
@@ -85,11 +93,12 @@
                 <tr>
                     <td>{{ $linea['producto'] }}</td>
                     <td>{{ $linea['cantidad'] }}</td>
+                    <td>{{ $linea['empaquetaje'] ?? '—' }}</td>
                     <td>{{ $linea['observaciones'] ?? '—' }}</td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="3" style="text-align:center;color:#6b7280;">Sin detalle de productos registrado para este envío.</td>
+                    <td colspan="4" style="text-align:center;color:#6b7280;">Sin detalle de productos registrado para este envío.</td>
                 </tr>
             @endforelse
         </tbody>
@@ -100,10 +109,61 @@
         {{ $textoObservaciones }}
     </div>
 
+    @if(!empty($condicionesLineas))
+    <strong style="display:block;margin-top:16px;">Registro de condiciones de transporte</strong>
+    <table class="productos">
+        <thead>
+            <tr><th>Condición</th><th style="width:15%">Estado</th></tr>
+        </thead>
+        <tbody>
+            @foreach($condicionesLineas as $fila)
+            <tr>
+                <td>{{ $fila['titulo'] }}</td>
+                <td @if($fila['valor'] === 'No') class="cond-no" @endif>{{ $fila['valor'] }}</td>
+            </tr>
+            @endforeach
+        </tbody>
+    </table>
+    @if(!empty($observacionCondiciones['texto'] ?? null))
+    <div class="nota @if($observacionCondiciones['alerta'] ?? false) nota--alerta @endif">
+        <strong>Observación condiciones:</strong> {{ $observacionCondiciones['texto'] }}
+    </div>
+    @endif
+    @endif
+
+    @if(!empty($incidentesLineas))
+    <strong style="display:block;margin-top:16px;">Registro de incidentes de transporte</strong>
+    <table class="productos">
+        <thead>
+            <tr><th>Incidente</th><th style="width:15%">Ocurrió</th></tr>
+        </thead>
+        <tbody>
+            @foreach($incidentesLineas as $fila)
+            <tr><td>{{ $fila['titulo'] }}</td><td>{{ $fila['ocurrio'] }}</td></tr>
+            @endforeach
+        </tbody>
+    </table>
+    @if(!empty($observacionIncidentes['texto'] ?? null))
+    <div class="nota @if($observacionIncidentes['alerta'] ?? false) nota--alerta @endif">
+        <strong>Observación incidentes:</strong> {{ $observacionIncidentes['texto'] }}
+    </div>
+    @endif
+    @endif
+
     <table class="firmas" width="100%">
         <tr>
-            <td>Entrega / despacho<br><small>AgroFusion Logística</small></td>
-            <td>Recepción conforme<br><small>{{ $pedido?->nombre_planta ?? 'Cliente' }}</small></td>
+            <td>
+                @if(!empty($firmaTransportistaImg))
+                    <img src="{{ $firmaTransportistaImg }}" alt="Firma transportista" style="max-height:60px;max-width:180px;">
+                @endif
+                <br>Firma del transportista<br><small>{{ $transportistaNombre }}</small>
+            </td>
+            <td>
+                @if(!empty($firmaRecepcionImg))
+                    <img src="{{ $firmaRecepcionImg }}" alt="Firma recepción" style="max-height:60px;max-width:180px;">
+                @endif
+                <br>Firma recepción en planta<br><small>{{ $destinoCliente ?? ($pedido?->nombre_planta ?? 'Planta') }}</small>
+            </td>
         </tr>
     </table>
 

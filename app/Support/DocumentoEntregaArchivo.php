@@ -4,13 +4,15 @@ namespace App\Support;
 
 use App\Models\DocumentoEntrega;
 use App\Models\EnvioAsignacionMultiple;
+use App\Models\RutaDistribucion;
+use App\Support\RutaDistribucionCatalogo;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
 final class DocumentoEntregaArchivo
 {
-    private const PDF_VERSION = 2;
+    private const PDF_VERSION = 6;
 
     /** @var array<string, string> */
     private const TIPOS_ETIQUETA = [
@@ -108,24 +110,107 @@ final class DocumentoEntregaArchivo
         $envio = null;
         if ($documento->externo_envio_id) {
             $envio = EnvioAsignacionMultiple::query()
-                ->with(['transportista', 'pedido.detalles', 'almacen', 'ruta'])
+                ->with([
+                    'transportista',
+                    'pedido.detalles',
+                    'almacen',
+                    'ruta.paradas',
+                    'checklistCondicionVehiculo.detalles.condicion',
+                    'checklistIncidente.detalles.tipoIncidente',
+                    'firmaTransportista',
+                    'firmaRecepcion',
+                    'llegadaConfirmadaPor',
+                ])
                 ->where('externo_envio_id', $documento->externo_envio_id)
                 ->first();
         }
 
+        $rutaTraslado = null;
+        $rutaId = (int) ($documento->metadata['rutadistribucionid'] ?? 0);
+        if ($envio === null && $rutaId > 0 && ($documento->metadata['envio_cierre_planta_mayorista'] ?? false)) {
+            $rutaTraslado = RutaDistribucion::query()
+                ->with([
+                    'transportista',
+                    'vehiculo.tipoVehiculo',
+                    'almacenPlantaOrigen',
+                    'almacenMayoristaDestino',
+                    'paradas',
+                    'detallesTraslado.insumo.unidadMedida',
+                    'checklistCondicionVehiculo.detalles.condicion',
+                    'checklistIncidente.detalles.tipoIncidente',
+                    'firmaTransportista',
+                    'firmaRecepcion',
+                    'llegadaConfirmadaPor',
+                ])
+                ->find($rutaId);
+        }
+
         $pedido = $documento->pedido ?? $envio?->pedido;
-        $transportista = $envio?->transportista ?? $documento->usuario;
-        $transportistaNombre = trim(($transportista?->nombre ?? '').' '.($transportista?->apellido ?? '')) ?: '—';
+        $pedidoReferencia = $pedido?->numero_solicitud
+            ?? ($documento->pedidoid ? '#'.$documento->pedidoid : null)
+            ?? $rutaTraslado?->codigo
+            ?? $documento->externo_envio_id;
+        $vehiculoRef = $envio?->vehiculo_ref
+            ?? $rutaTraslado?->vehiculo?->placa
+            ?? null;
+        $estadoVehiculo = EnvioCierreAgricolaCatalogo::etiquetaEstadoVehiculo(
+            $envio?->checklistCondicionVehiculo?->estado_general
+                ?? $rutaTraslado?->checklistCondicionVehiculo?->estado_general
+        );
+        $transportista = $envio?->transportista ?? $rutaTraslado?->transportista ?? $documento->usuario;
+        $transportistaNombre = DocumentoEntregaCatalogo::etiquetaUsuario($transportista);
+
+        $destinoCliente = '—';
+        $direccionEntrega = '—';
+        if ($pedido !== null) {
+            $destinoCliente = EnvioPedidoService::etiquetaPlantaDestinoLista($pedido)
+                ?? EnvioPedidoService::etiquetaPlantaDestinoPedido($pedido)
+                ?? '—';
+            $direccionEntrega = trim((string) ($pedido->direccion_texto ?? ''));
+            if ($direccionEntrega === '' && $destinoCliente !== '—') {
+                $direccionEntrega = $destinoCliente;
+            }
+            if ($direccionEntrega === '') {
+                $direccionEntrega = '—';
+            }
+        } elseif ($rutaTraslado !== null) {
+            $destinoCliente = $rutaTraslado->almacenMayoristaDestino?->nombre ?? '—';
+            $direccionEntrega = trim((string) ($rutaTraslado->almacenMayoristaDestino?->direccion ?? ''));
+            if ($direccionEntrega === '' && $destinoCliente !== '—') {
+                $direccionEntrega = $destinoCliente;
+            }
+            if ($direccionEntrega === '') {
+                $direccionEntrega = '—';
+            }
+        }
+
+        $cargadoPor = DocumentoEntregaCatalogo::etiquetaUsuario($documento->usuario);
 
         $lineasProducto = [];
         foreach ($pedido?->detalles ?? [] as $detalle) {
+            $empaque = PedidoCatalogo::descripcionEmpaqueDetalle($detalle->observaciones);
+            $obsUsuario = PedidoCatalogo::observacionesUsuarioDetalle($detalle->observaciones);
+
             $lineasProducto[] = [
                 'producto' => $detalle->cultivo_personalizado
                     ?? $detalle->producto?->nombre
                     ?? 'Producto',
                 'cantidad' => number_format((float) $detalle->cantidad, 2, '.', '').' u.',
-                'observaciones' => $detalle->observaciones,
+                'empaquetaje' => $empaque ?? '—',
+                'observaciones' => $obsUsuario ?: '—',
             ];
+        }
+
+        if ($lineasProducto === [] && $rutaTraslado !== null) {
+            foreach ($rutaTraslado->detallesTraslado as $detalle) {
+                $lineasProducto[] = [
+                    'producto' => $detalle->producto_nombre ?? $detalle->insumo?->nombre ?? 'Producto',
+                    'cantidad' => number_format((float) $detalle->cantidad, 2, '.', '')
+                        .' '.($detalle->insumo?->unidadMedida?->abreviatura ?? 'kg'),
+                    'empaquetaje' => $detalle->presentacion_nombre ?: '—',
+                    'observaciones' => $detalle->observaciones ?: '—',
+                ];
+            }
         }
 
         $tipo = (string) $documento->tipo_documento;
@@ -140,18 +225,119 @@ final class DocumentoEntregaArchivo
 
         if ($envio?->estado === 'entregado') {
             $textoObservaciones .= ' Envío marcado como entregado en el sistema.';
+        } elseif ($rutaTraslado?->estado === RutaDistribucionCatalogo::ESTADO_COMPLETADA) {
+            $textoObservaciones .= ' Traslado completado en el sistema.';
+        }
+
+        $operacionChecklistCondicion = $envio?->checklistCondicionVehiculo ?? $rutaTraslado?->checklistCondicionVehiculo;
+        $operacionChecklistIncidente = $envio?->checklistIncidente ?? $rutaTraslado?->checklistIncidente;
+        $operacionFirmaTransportista = $envio?->firmaTransportista ?? $rutaTraslado?->firmaTransportista;
+        $operacionFirmaRecepcion = $envio?->firmaRecepcion ?? $rutaTraslado?->firmaRecepcion;
+        $operacionLlegadaAt = $envio?->llegada_confirmada_at ?? $rutaTraslado?->llegada_confirmada_at;
+
+        $condicionesLineas = [];
+        foreach ($operacionChecklistCondicion?->detalles ?? [] as $det) {
+            $condicionesLineas[] = [
+                'titulo' => $det->condicion?->titulo ?? 'Condición',
+                'valor' => $det->valor ? 'Sí' : 'No',
+            ];
+        }
+
+        $observacionCondiciones = self::resolverObservacionCondiciones(
+            $condicionesLineas,
+            $operacionChecklistCondicion?->observaciones
+        );
+
+        $incidentesLineas = [];
+        foreach ($operacionChecklistIncidente?->detalles ?? [] as $det) {
+            $incidentesLineas[] = [
+                'titulo' => $det->tipoIncidente?->titulo ?? 'Incidente',
+                'ocurrio' => $det->ocurrio ? 'Sí' : 'No',
+            ];
+        }
+
+        $observacionIncidentes = IncidenteTransporteCatalogo::resolverObservacion(
+            $incidentesLineas,
+            $operacionChecklistIncidente?->observaciones
+        );
+
+        $rutaLogistica = '—';
+        if ($envio !== null) {
+            $nombreRuta = trim((string) ($envio->ruta?->nombre ?? ''));
+            $trayecto = EnvioPedidoService::trayectoTexto($envio);
+            $rutaLogistica = $nombreRuta !== '' ? $nombreRuta : ($trayecto ?? '—');
+            if ($rutaLogistica === '' || $rutaLogistica === null) {
+                $rutaLogistica = '—';
+            }
+        } elseif ($rutaTraslado !== null) {
+            $origen = $rutaTraslado->almacenPlantaOrigen?->nombre ?? 'Planta';
+            $destino = $rutaTraslado->almacenMayoristaDestino?->nombre ?? 'Mayorista';
+            $rutaLogistica = $origen.' → '.$destino;
         }
 
         return [
             'documento' => $documento,
             'envio' => $envio,
             'pedido' => $pedido,
+            'pedidoReferencia' => $pedidoReferencia,
+            'vehiculoRef' => $vehiculoRef,
+            'estadoVehiculo' => $estadoVehiculo,
             'tipoEtiqueta' => $tipoEtiqueta,
             'transportistaNombre' => $transportistaNombre,
-            'estadoEnvio' => ucfirst(str_replace('_', ' ', (string) ($envio?->estado ?? 'pendiente'))),
+            'destinoCliente' => $destinoCliente,
+            'direccionEntrega' => $direccionEntrega,
+            'cargadoPor' => $cargadoPor,
+            'rutaLogistica' => $rutaLogistica,
+            'estadoEnvio' => ucfirst(str_replace('_', ' ', (string) ($envio?->estado ?? $rutaTraslado?->estado ?? 'pendiente'))),
             'lineasProducto' => $lineasProducto,
             'textoObservaciones' => $textoObservaciones,
+            'condicionesLineas' => $condicionesLineas,
+            'observacionCondiciones' => $observacionCondiciones,
+            'incidentesLineas' => $incidentesLineas,
+            'observacionIncidentes' => $observacionIncidentes,
+            'observacionesIncidentes' => $operacionChecklistIncidente?->observaciones,
+            'firmaTransportistaImg' => $operacionFirmaTransportista?->imagenfirma,
+            'firmaRecepcionImg' => $operacionFirmaRecepcion?->imagenfirma,
+            'llegadaConfirmadaAt' => $operacionLlegadaAt,
         ];
+    }
+
+    /**
+     * @param  array<int, array{titulo: string, valor: string}>  $condicionesLineas
+     * @return array{texto: ?string, alerta: bool}
+     */
+    private static function resolverObservacionCondiciones(array $condicionesLineas, ?string $observacionesGuardadas): array
+    {
+        $deficiencias = array_values(array_filter(
+            $condicionesLineas,
+            static fn (array $fila): bool => ($fila['valor'] ?? '') === 'No'
+        ));
+
+        if ($deficiencias !== []) {
+            $titulos = array_map(static fn (array $fila): string => $fila['titulo'], $deficiencias);
+
+            return [
+                'texto' => 'Deficiencias detectadas: '.implode(', ', $titulos).'.',
+                'alerta' => true,
+            ];
+        }
+
+        $texto = trim((string) ($observacionesGuardadas ?? ''));
+        if ($texto !== '') {
+            $texto = preg_replace('/\s*\(registro\s+r[aá]pido\)\.?/iu', '', $texto) ?? $texto;
+            $texto = trim($texto);
+            if ($texto !== '' && ! str_ends_with($texto, '.')) {
+                $texto .= '.';
+            }
+
+            return ['texto' => $texto !== '' ? $texto : null, 'alerta' => false];
+        }
+
+        if ($condicionesLineas !== []) {
+            return ['texto' => 'Vehículo en perfectas condiciones.', 'alerta' => false];
+        }
+
+        return ['texto' => null, 'alerta' => false];
     }
 
     private static function esArchivoPlaceholder(string $path): bool

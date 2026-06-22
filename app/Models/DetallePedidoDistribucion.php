@@ -16,6 +16,10 @@ class DetallePedidoDistribucion extends Model
     protected $fillable = [
         'pedidodistribucionid',
         'insumoid',
+        'insumo_planta_referenciaid',
+        'insumo_presentacionid',
+        'tipo_envase',
+        'es_solicitud_custom',
         'producto_nombre',
         'cantidad',
         'observaciones',
@@ -25,6 +29,9 @@ class DetallePedidoDistribucion extends Model
         'detallepedidodistribucionid' => 'integer',
         'pedidodistribucionid' => 'integer',
         'insumoid' => 'integer',
+        'insumo_planta_referenciaid' => 'integer',
+        'insumo_presentacionid' => 'integer',
+        'es_solicitud_custom' => 'boolean',
         'cantidad' => 'float',
     ];
 
@@ -36,5 +43,15 @@ class DetallePedidoDistribucion extends Model
     public function insumo(): BelongsTo
     {
         return $this->belongsTo(Insumo::class, 'insumoid', 'insumoid');
+    }
+
+    public function insumoPlantaReferencia(): BelongsTo
+    {
+        return $this->belongsTo(Insumo::class, 'insumo_planta_referenciaid', 'insumoid');
+    }
+
+    public function presentacion(): BelongsTo
+    {
+        return $this->belongsTo(InsumoPresentacion::class, 'insumo_presentacionid', 'insumo_presentacionid');
     }
 }

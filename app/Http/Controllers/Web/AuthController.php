@@ -8,6 +8,11 @@ use App\Services\UsuarioUsernameService;
 use App\Support\CuentaEstado;
 use App\Support\RegistroValidacion;
 use App\Support\TiposLicenciaBolivia;
+use App\Support\PlantaLoginEnvio;
+use App\Support\TransportistaAsignacionNotificacionVista;
+use App\Support\TransportistaLoginEnvio;
+use App\Support\TransportistaLoginNotificacion;
+use App\Support\UsuarioRol;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -16,9 +21,12 @@ use Spatie\Permission\Models\Role;
 
 class AuthController extends Controller
 {
-    public function showLoginForm()
+    public function showLoginForm(Request $request)
     {
-        return view('auth.login');
+        return response()
+            ->view('auth.login')
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache');
     }
 
     public function login(Request $request)
@@ -50,9 +58,31 @@ class AuthController extends Controller
             return back()->withErrors(['email' => $mensaje])->withInput($request->only('email'));
         }
 
+        $ultimoLoginPrevio = $user->ultimologin ? $user->ultimologin->copy() : null;
+
         $request->session()->regenerate();
         $user->ultimologin = now();
         $user->save();
+
+        if (UsuarioRol::esTransportista($user)) {
+            $nuevas = TransportistaLoginNotificacion::nuevasAsignacionesDesdeLogin($user, $ultimoLoginPrevio);
+            if ($nuevas !== []) {
+                TransportistaAsignacionNotificacionVista::marcarVistas((int) $user->usuarioid, $nuevas);
+                $request->session()->put('transportista_nuevas_asignaciones', $nuevas);
+            }
+
+            $envioTransportista = TransportistaLoginEnvio::envioPrioritario($user);
+            if ($envioTransportista) {
+                return redirect($envioTransportista['url'])
+                    ->with('info', 'Tiene un envío asignado: '.$envioTransportista['codigo']);
+            }
+        }
+
+        $envioPlanta = PlantaLoginEnvio::envioPrioritario($user);
+        if ($envioPlanta) {
+            return redirect($envioPlanta['url'])
+                ->with('info', 'Tiene un envío activo pendiente: '.$envioPlanta['codigo']);
+        }
 
         return redirect()->route('dashboard');
     }
@@ -143,6 +173,9 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login')->with('success', 'Sesión cerrada correctamente.');
+        return redirect()
+            ->route('login')
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache');
     }
 }

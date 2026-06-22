@@ -52,31 +52,37 @@
 
 
 
-        <div class="env-confirm-stats mb-3">
+        <div class="env-confirm-group-card mb-3">
 
-            <div class="env-confirm-stat env-confirm-stat--carga">
+            <div class="env-confirm-group-card__head"><i class="fas fa-weight-hanging mr-1"></i> Carga y recorrido</div>
 
-                <span class="env-confirm-stat__icon"><i class="fas fa-weight-hanging"></i></span>
+            <div class="env-confirm-group-card__body env-confirm-stats env-confirm-stats--inline">
 
-                <div>
+                <div class="env-confirm-stat env-confirm-stat--carga">
 
-                    <span class="env-confirm-stat__lbl">Carga total</span>
+                    <span class="env-confirm-stat__icon"><i class="fas fa-weight-hanging"></i></span>
 
-                    <strong class="env-confirm-stat__val" id="conf-carga-kg">—</strong>
+                    <div>
+
+                        <span class="env-confirm-stat__lbl">Carga total</span>
+
+                        <strong class="env-confirm-stat__val" id="conf-carga-kg">—</strong>
+
+                    </div>
 
                 </div>
 
-            </div>
+                <div class="env-confirm-stat env-confirm-stat--ruta">
 
-            <div class="env-confirm-stat env-confirm-stat--ruta">
+                    <span class="env-confirm-stat__icon"><i class="fas fa-road"></i></span>
 
-                <span class="env-confirm-stat__icon"><i class="fas fa-road"></i></span>
+                    <div>
 
-                <div>
+                        <span class="env-confirm-stat__lbl">Recorrido</span>
 
-                    <span class="env-confirm-stat__lbl">Recorrido</span>
+                        <span class="env-confirm-stat__val env-confirm-stat__val--sm" id="conf-ruta">—</span>
 
-                    <span class="env-confirm-stat__val env-confirm-stat__val--sm" id="conf-ruta">—</span>
+                    </div>
 
                 </div>
 
@@ -86,29 +92,35 @@
 
 
 
-        <div class="env-confirm-horarios mb-3" id="wizard-confirm-meta-horarios">
+        <div class="env-confirm-group-card mb-3" id="wizard-confirm-meta-horarios">
 
-            <div class="env-confirm-horarios__item env-confirm-horarios__item--fecha">
+            <div class="env-confirm-group-card__head"><i class="far fa-clock mr-1"></i> Horarios</div>
 
-                <span class="env-confirm-meta__lbl"><i class="far fa-calendar-alt mr-1"></i> Fecha entrega</span>
+            <div class="env-confirm-group-card__body env-confirm-horarios env-confirm-horarios--inline">
 
-                <div class="env-confirm-meta__val" id="conf-fecha">—</div>
+                <div class="env-confirm-horarios__item env-confirm-horarios__item--fecha">
 
-            </div>
+                    <span class="env-confirm-meta__lbl"><i class="far fa-calendar-alt mr-1"></i> Fecha entrega</span>
 
-            <div class="env-confirm-horarios__item env-confirm-horarios__item--recogida">
+                    <div class="env-confirm-meta__val" id="conf-fecha">—</div>
 
-                <span class="env-confirm-meta__lbl"><i class="far fa-clock mr-1"></i> Hora recogida</span>
+                </div>
 
-                <div class="env-confirm-meta__val" id="conf-hora-rec">—</div>
+                <div class="env-confirm-horarios__item env-confirm-horarios__item--recogida">
 
-            </div>
+                    <span class="env-confirm-meta__lbl"><i class="far fa-clock mr-1"></i> Hora recogida</span>
 
-            <div class="env-confirm-horarios__item env-confirm-horarios__item--llegada">
+                    <div class="env-confirm-meta__val" id="conf-hora-rec">—</div>
 
-                <span class="env-confirm-meta__lbl"><i class="fas fa-flag-checkered mr-1"></i> Llegada estimada</span>
+                </div>
 
-                <div class="env-confirm-meta__val" id="conf-hora-ent">—</div>
+                <div class="env-confirm-horarios__item env-confirm-horarios__item--llegada">
+
+                    <span class="env-confirm-meta__lbl"><i class="fas fa-flag-checkered mr-1"></i> Llegada estimada</span>
+
+                    <div class="env-confirm-meta__val" id="conf-hora-ent">—</div>
+
+                </div>
 
             </div>
 
@@ -116,29 +128,35 @@
 
 
 
-        <div class="env-confirm-asignacion mb-3">
+        <div class="env-confirm-group-card mb-3">
 
-            <div class="env-confirm-tile env-confirm-tile--chofer">
+            <div class="env-confirm-group-card__head"><i class="fas fa-user-check mr-1"></i> Asignación y costo</div>
 
-                <span class="env-confirm-tile__label"><i class="fas fa-user-tie mr-1"></i> Chofer</span>
+            <div class="env-confirm-group-card__body env-confirm-asignacion env-confirm-asignacion--inline">
 
-                <div class="env-confirm-tile__value" id="conf-chofer">—</div>
+                <div class="env-confirm-tile env-confirm-tile--chofer">
 
-            </div>
+                    <span class="env-confirm-tile__label"><i class="fas fa-user-tie mr-1"></i> Chofer</span>
 
-            <div class="env-confirm-tile env-confirm-tile--vehiculo">
+                    <div class="env-confirm-tile__value" id="conf-chofer">—</div>
 
-                <span class="env-confirm-tile__label"><i class="fas fa-truck mr-1"></i> Vehículo</span>
+                </div>
 
-                <div class="env-confirm-tile__value" id="conf-vehiculo">—</div>
+                <div class="env-confirm-tile env-confirm-tile--vehiculo">
 
-            </div>
+                    <span class="env-confirm-tile__label"><i class="fas fa-truck mr-1"></i> Vehículo</span>
 
-            <div class="env-confirm-tile env-confirm-tile--costo">
+                    <div class="env-confirm-tile__value" id="conf-vehiculo">—</div>
 
-                <span class="env-confirm-tile__label"><i class="fas fa-coins mr-1"></i> Costo servicio</span>
+                </div>
 
-                <div class="env-confirm-tile__value" id="conf-costo">—</div>
+                <div class="env-confirm-tile env-confirm-tile--costo">
+
+                    <span class="env-confirm-tile__label"><i class="fas fa-coins mr-1"></i> Costo servicio</span>
+
+                    <div class="env-confirm-tile__value" id="conf-costo">—</div>
+
+                </div>
 
             </div>
 
@@ -160,7 +178,7 @@
 
             <label class="small font-weight-bold">Observaciones generales</label>
 
-            <textarea name="observaciones" id="wizard-paso-confirmacion-observaciones" class="form-control form-control-sm" rows="2" placeholder="Instrucciones adicionales para el chofer…">{{ old('observaciones') }}</textarea>
+            <textarea name="observaciones" id="wizard-paso-confirmacion-observaciones" form="form-pedido" class="form-control form-control-sm" rows="2" placeholder="Instrucciones adicionales para el chofer…">{{ old('observaciones') }}</textarea>
 
         </div>
 
@@ -169,4 +187,3 @@
 </div>
 
 </div>{{-- wizard step 4 --}}
-

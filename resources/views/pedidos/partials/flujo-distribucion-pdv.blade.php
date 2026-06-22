@@ -1,6 +1,7 @@
 {{-- Mayorista → Punto de venta — wizard 4 pasos --}}
 <form method="POST" action="{{ route('punto-venta.pedidos.store') }}" id="form-pedido-dist-pdv">
     @csrf
+    <input type="hidden" name="tipo_solicitud" value="stock">
 
     {{-- PASO 1: RUTA (misma estructura que Agrícola → Planta) --}}
     <div class="wizard-step active" data-wizard-step="1">

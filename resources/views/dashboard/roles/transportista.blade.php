@@ -10,18 +10,14 @@
 
 @push('styles')
 @include('dashboard.partials.panel-accesos-styles')
-<style>
-.role-panel-wrap { --rp-border: rgba(234, 88, 12, .18); --rp-hero-bg: linear-gradient(135deg, #fff7ed 0%, #ffedd5 42%, #f8fafc 100%); --rp-glow: radial-gradient(circle, rgba(249, 115, 22, .18) 0%, transparent 70%); --rp-title: #9a3412; --rp-icon-bg: linear-gradient(135deg, #ea580c, #f59e0b); --rp-tile-hover: #fdba74; }
-.role-metric--a1 { background: linear-gradient(135deg, #15803d, #22c55e); }
-.role-metric--a2 { background: linear-gradient(135deg, #c2410c, #f59e0b); }
-.role-metric--a3 { background: linear-gradient(135deg, #0369a1, #0ea5e9); }
-.role-metric--a4 { background: linear-gradient(135deg, #059669, #10b981); }
-.role-metric--a5 { background: linear-gradient(135deg, #7c3aed, #a855f7); }
-</style>
+<style>.role-panel-wrap--transportista { --rp-accent: #d97706; }</style>
 @endpush
 
 @section('content')
-<section class="content px-0 role-panel-wrap">
+@php
+    $urlIngresos = route('logistica.transportista.ingresos', $filtros->queryParams());
+@endphp
+<section class="content px-0 role-panel-wrap role-panel-wrap--transportista">
     <div class="container-fluid px-0">
 
         <div class="role-panel-hero position-relative" style="z-index:1">
@@ -31,6 +27,7 @@
             <p class="role-panel-hero__sub">
                 Hola, <strong>{{ auth()->user()->nombre ?? 'Transportista' }}</strong> · {{ now()->format('d/m/Y') }} · Gestión de envíos asignados.
             </p>
+            @include('dashboard.partials.panel-admin-vista')
         </div>
 
         @include('partials.dashboard-alertas')
@@ -38,33 +35,36 @@
         @include('dashboard.partials.filtros', [
             'filtros' => $filtros,
             'actionUrl' => url()->current(),
+            'mostrarUsuario' => $mostrarUsuario ?? false,
+            'usuariosPanel' => $usuariosPanel ?? collect(),
+            'etiquetaUsuarioPanel' => 'Transportista',
         ])
 
         <div class="role-metrics">
-            <div class="role-metric role-metric--a1">
+            <div class="role-metric role-metric--a1 dash-kpi--green">
                 <i class="fas fa-clipboard-check role-metric__icon"></i>
                 <div class="role-metric__val">{{ $stats['asignados'] }}</div>
                 <p class="role-metric__lbl">Asignados</p>
                 <div class="role-metric__sub">envíos en total</div>
             </div>
-            <div class="role-metric role-metric--a2">
+            <div class="role-metric role-metric--a2 dash-kpi--amber">
                 <i class="fas fa-box role-metric__icon"></i>
                 <div class="role-metric__val">{{ $stats['por_recoger'] }}</div>
                 <p class="role-metric__lbl">Por recoger</p>
                 <div class="role-metric__sub">pendientes pickup</div>
             </div>
-            <div class="role-metric role-metric--a3">
+            <div class="role-metric role-metric--a3 dash-kpi--blue">
                 <i class="fas fa-shipping-fast role-metric__icon"></i>
                 <div class="role-metric__val">{{ $stats['en_camino'] }}</div>
                 <p class="role-metric__lbl">En camino</p>
                 <div class="role-metric__sub">en tránsito ahora</div>
             </div>
-            <div class="role-metric role-metric--a4">
+            <div class="role-metric role-metric--a4 dash-kpi--green">
                 <i class="fas fa-check-circle role-metric__icon"></i>
                 <div class="role-metric__val">{{ $stats['entregados_hoy'] }}</div>
                 <p class="role-metric__lbl">Entregados ({{ $filtros->etiquetaPeriodo() }})</p>
             </div>
-            <div class="role-metric role-metric--a5">
+            <div class="role-metric role-metric--a5 dash-kpi--purple">
                 <i class="fas fa-coins role-metric__icon"></i>
                 <div class="role-metric__val">{{ number_format($stats['ingresos_bs'] ?? 0, 0, ',', '.') }}</div>
                 <p class="role-metric__lbl">Ingresos Bs</p>
@@ -76,7 +76,7 @@
             <a href="{{ route('logistica.asignaciones.listado') }}" class="btn btn-sm btn-success">
                 <i class="fas fa-truck mr-1"></i> Mis envíos
             </a>
-            <a href="{{ route('logistica.transportista.ingresos') }}" class="btn btn-sm btn-outline-success">
+            <a href="{{ $urlIngresos }}" class="btn btn-sm btn-outline-success">
                 <i class="fas fa-coins mr-1"></i> Ver ingresos ({{ $stats['servicios_completados'] ?? 0 }} completados)
             </a>
         </div>
@@ -88,7 +88,7 @@
                 <span class="badge badge-light border">{{ $stats['productividad'] }}% completado</span>
             </div>
             <div class="progress" style="height:10px;border-radius:5px;background:#f1f5f9;">
-                <div class="progress-bar" style="width:{{ $stats['productividad'] }}%;background:linear-gradient(90deg,#ea580c,#f59e0b);border-radius:5px;"></div>
+                <div class="progress-bar" style="width:{{ $stats['productividad'] }}%;"></div>
             </div>
             <div class="d-flex justify-content-between mt-2 small text-muted">
                 <span>{{ $stats['asignados'] }} asignados</span>
@@ -98,6 +98,33 @@
                     <span class="text-success"><i class="fas fa-shield-alt"></i> Sin incidentes</span>
                 @endif
             </div>
+        </div>
+        @endif
+
+        @if(isset($charts))
+        <div class="row panel-chart-row">
+            <div class="col-lg-8 mb-4">
+                <div class="panel-chart-card">
+                    <div class="panel-chart-card__head">
+                        <h3><i class="fas fa-chart-bar text-warning mr-2"></i>Envíos vs entregas · {{ $etiquetaGrafico ?? $filtros->etiquetaGrafico() }}</h3>
+                    </div>
+                    <div class="panel-chart-wrap"><canvas id="chartTransBarras"></canvas></div>
+                </div>
+            </div>
+            <div class="col-lg-4 mb-4">
+                <div class="panel-chart-card">
+                    <div class="panel-chart-card__head">
+                        <h3><i class="fas fa-chart-pie text-success mr-2"></i>Estado actual</h3>
+                    </div>
+                    <div class="panel-chart-wrap panel-chart-wrap--sm"><canvas id="chartTransEstados"></canvas></div>
+                </div>
+            </div>
+        </div>
+        <div class="panel-chart-card mb-4">
+            <div class="panel-chart-card__head">
+                <h3><i class="fas fa-percentage text-purple mr-2"></i>Tasa de entrega mensual (%)</h3>
+            </div>
+            <div class="panel-chart-wrap panel-chart-wrap--sm"><canvas id="chartTransProductividad"></canvas></div>
         </div>
         @endif
 
@@ -171,6 +198,13 @@
                         </span>
                     </a>
                     @endcan
+                    <a href="{{ $urlIngresos }}" class="role-acc-tile">
+                        <span class="role-acc-tile__icon role-acc-tile__icon--teal"><i class="fas fa-coins"></i></span>
+                        <span>
+                            <span class="role-acc-tile__lbl">Mis ingresos</span>
+                            <span class="role-acc-tile__sub">{{ $stats['servicios_completados'] ?? 0 }} servicio(s) completado(s)</span>
+                        </span>
+                    </a>
                 </div>
             </div>
         </div>
@@ -178,3 +212,49 @@
 </section>
 @include('partials.modal-confirmar-accion')
 @endsection
+
+@if(isset($charts))
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var c = @json($charts);
+    var grid = { color: '#f1f5f9' };
+    function emptyChart(id, msg) {
+        var el = document.getElementById(id);
+        if (el && el.parentElement) el.parentElement.innerHTML = '<div class="panel-chart-empty"><i class="fas fa-chart-bar fa-2x mb-2 d-block"></i>' + msg + '</div>';
+    }
+    if (c.asignacionesMes.labels.length) {
+        new Chart(document.getElementById('chartTransBarras'), {
+            type: 'bar',
+            data: {
+                labels: c.asignacionesMes.labels,
+                datasets: [
+                    { label: c.asignacionesMes.label, data: c.asignacionesMes.data, backgroundColor: '#f59e0bcc', borderRadius: 6 },
+                    { label: c.entregasMes.label, data: c.entregasMes.data, backgroundColor: '#22c55ecc', borderRadius: 6 },
+                ],
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true, grid: grid }, x: { grid: grid } } },
+        });
+    } else { emptyChart('chartTransBarras', 'Sin envíos en el periodo'); }
+    if (c.estadosAsignacion.labels.length) {
+        new Chart(document.getElementById('chartTransEstados'), {
+            type: 'doughnut',
+            data: { labels: c.estadosAsignacion.labels, datasets: [{ data: c.estadosAsignacion.data, backgroundColor: c.estadosAsignacion.colors, borderWidth: 0 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } },
+        });
+    } else { emptyChart('chartTransEstados', 'Sin asignaciones activas'); }
+    if (c.productividadMes.labels.length) {
+        new Chart(document.getElementById('chartTransProductividad'), {
+            type: 'line',
+            data: {
+                labels: c.productividadMes.labels,
+                datasets: [{ label: c.productividadMes.label, data: c.productividadMes.data, borderColor: '#7c3aed', backgroundColor: '#7c3aed22', fill: true, tension: .35 }],
+            },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100, grid: grid }, x: { grid: grid } } },
+        });
+    } else { emptyChart('chartTransProductividad', 'Sin datos de productividad'); }
+});
+</script>
+@endpush
+@endif

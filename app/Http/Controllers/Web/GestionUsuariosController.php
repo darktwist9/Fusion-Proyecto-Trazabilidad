@@ -525,11 +525,26 @@ class GestionUsuariosController extends Controller
     /** @return \Illuminate\Support\Collection<int, Role> */
     private function rolesCanonicos()
     {
-        $nombres = array_keys(config('permission_matrix.role_permissions', []));
+        $nombres = array_values(array_diff(
+            array_keys(config('permission_matrix.role_permissions', [])),
+            UsuarioRol::rolesLegacyOcultosEnSelector()
+        ));
+
+        $orden = [
+            'admin' => 0,
+            'planta' => 10,
+            'agricultor' => 20,
+            'jefe_planta' => 30,
+            'jefe_agricultor' => 40,
+            'transportista' => 50,
+            'mayorista' => 60,
+            'minorista' => 70,
+        ];
 
         return Role::query()
             ->whereIn('name', $nombres)
-            ->orderBy('name')
-            ->get();
+            ->get()
+            ->sortBy(fn (Role $rol) => [$orden[$rol->name] ?? 999, UsuarioRol::etiquetaRol($rol->name)])
+            ->values();
     }
 }

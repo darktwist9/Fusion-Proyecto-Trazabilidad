@@ -229,12 +229,14 @@
         const progreso = progresoCliente(data);
         const ratio = Math.min(1, progreso / 100);
         const posicion = resolverPosicion(Object.assign({}, data, { geojson, progreso_ratio: ratio }));
+        const esperandoConfirmacion = !!(data.esperando_confirmacion || (!data.completada && progreso >= 100));
         return Object.assign({}, data, {
             geojson,
             progreso,
             progreso_ratio: ratio,
             segundos_restantes: segundosRestantesCliente(data),
             posicion,
+            esperando_confirmacion: esperandoConfirmacion,
         });
     }
 
@@ -245,20 +247,35 @@
         const badge = container.querySelector('.sim-live-badge');
         const progreso = data.progreso ?? 0;
         const completada = !!data.completada;
+        const espera = !!(data.esperando_confirmacion || (!completada && progreso >= 100));
+        const estadoClase = completada ? 'completado' : (espera ? 'espera' : 'activo');
 
         if (pct) {
             pct.textContent = `${progreso}%`;
-            pct.className = `h4 mb-0 text-${completada ? 'success' : 'primary'} sim-live-pct`;
+            pct.className = `h4 mb-0 sim-live-pct sim-live--${estadoClase}`;
         }
         if (bar) {
             bar.style.width = `${progreso}%`;
             bar.setAttribute('aria-valuenow', String(progreso));
-            bar.className = `progress-bar bg-${completada ? 'success' : 'primary'} sim-live-bar`;
+            bar.className = `progress-bar sim-live-bar sim-live--${estadoClase}`;
         }
-        if (eta) eta.textContent = formatearEta(data.segundos_restantes, progreso, completada);
+        if (eta) {
+            if (completada) {
+                eta.textContent = 'Recorrido finalizado. Pendiente cierre con firmas (fase documentos).';
+            } else if (espera) {
+                eta.textContent = 'Esperando recepción en destino. Confirme llegada, incidentes y firmas para cerrar el envío.';
+            } else {
+                eta.textContent = formatearEta(data.segundos_restantes, progreso, completada);
+            }
+        }
         if (badge) {
-            badge.textContent = completada ? 'Finalizada' : 'En curso';
-            badge.className = `badge badge-${completada ? 'success' : 'primary'} sim-live-badge`;
+            badge.textContent = completada ? 'Finalizada' : (espera ? 'Esperando recepción' : 'En curso');
+            badge.className = `badge sim-live-badge sim-live--${estadoClase}`;
+        }
+
+        const confirmBlock = container.querySelector('[data-sim-confirmar-block]');
+        if (confirmBlock && container.dataset.simPuedeConfirmar === '1') {
+            confirmBlock.classList.toggle('d-none', completada || !espera);
         }
     }
 
@@ -320,22 +337,39 @@
         let pollTimer = null;
         let completadaLocal = false;
         let mapaListo = false;
+        let zoomEnCurso = false;
+        let lineasRenderer = null;
+
+        function crearRendererLineas() {
+            if (!window.L || lineasRenderer) return lineasRenderer;
+            lineasRenderer = L.canvas({ padding: 0.5 });
+            return lineasRenderer;
+        }
+
+        function redibujarLineasRuta() {
+            if (!mapa) return;
+            if (lineaRecorrida?.redraw) lineaRecorrida.redraw();
+            if (lineaPendiente?.redraw) lineaPendiente.redraw();
+        }
 
         function asegurarMapa(data) {
             if (!window.L || mapa || !mapEl || !data.paradas?.length) return;
             const p0 = data.paradas[0];
-            mapa = L.map(mapEl, { scrollWheelZoom: true }).setView([p0.lat, p0.lng], 12);
+            mapa = L.map(mapEl, { scrollWheelZoom: true, preferCanvas: true }).setView([p0.lat, p0.lng], 12);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
                 attribution: '© OpenStreetMap',
             }).addTo(mapa);
             capasEstaticas = L.layerGroup().addTo(mapa);
             capasRuta = L.layerGroup().addTo(mapa);
+            crearRendererLineas();
             mapaListo = true;
+            mapa.on('zoomstart', () => { zoomEnCurso = true; });
             mapa.on('zoomend', () => {
-                if (lineaRecorrida) lineaRecorrida.redraw();
-                if (lineaPendiente) lineaPendiente.redraw();
+                zoomEnCurso = false;
+                redibujarLineasRuta();
             });
+            mapa.on('moveend', redibujarLineasRuta);
             setTimeout(() => mapa && mapa.invalidateSize(), 200);
             setTimeout(() => mapa && mapa.invalidateSize(), 800);
         }
@@ -370,6 +404,8 @@
                     opacity: 0.92,
                     lineCap: 'round',
                     lineJoin: 'round',
+                    smoothFactor: 0,
+                    renderer: crearRendererLineas(),
                     className: 'sim-ruta-pendiente',
                 }).addTo(capasRuta);
             }
@@ -388,7 +424,7 @@
         }
 
         function actualizarRecorrido(data) {
-            if (!window.L || !mapa || !capasRuta) return;
+            if (!window.L || !mapa || !capasRuta || zoomEnCurso) return;
             const geo = data.geojson || geojsonDesdeParadas(data.paradas);
             if (!geo) return;
 
@@ -404,6 +440,8 @@
                     opacity: 0.95,
                     lineCap: 'round',
                     lineJoin: 'round',
+                    smoothFactor: 0,
+                    renderer: crearRendererLineas(),
                     className: 'sim-ruta-recorrida',
                 }).addTo(capasRuta);
             }
@@ -481,7 +519,7 @@
         }
 
         function tickMapa() {
-            if (!estadoBase || completadaLocal || !window.L) return;
+            if (!estadoBase || completadaLocal || !window.L || zoomEnCurso) return;
             dibujarMapa(enriquecerEstadoVivo(estadoBase));
         }
 
@@ -514,10 +552,16 @@
                 cache: 'no-store',
             })
                 .then((r) => {
+                    if (r.status === 419) {
+                        window.location.reload();
+                        return null;
+                    }
                     if (!r.ok) throw new Error(`estado ${r.status}`);
                     return r.json();
                 })
-                .then((data) => aplicarEstadoServidor(data))
+                .then((data) => {
+                    if (data) aplicarEstadoServidor(data);
+                })
                 .catch((e) => console.warn('Error actualizando simulación', e));
         }
 
@@ -572,9 +616,24 @@
                 const camion = fila.querySelector('.sim-lista-camion');
                 const tiempo = fila.querySelector('.sim-lista-tiempo');
 
-                if (bar) bar.style.width = `${pct}%`;
-                if (pctEl) pctEl.textContent = `${pct}%`;
-                if (camion) camion.style.left = `calc(${pct}% - 10px)`;
+                if (bar) {
+                    bar.style.width = `${pct}%`;
+                    const color = fila.dataset.simColor;
+                    if (color) bar.style.background = color;
+                }
+                if (pctEl) {
+                    pctEl.textContent = `${pct}%`;
+                    const color = fila.dataset.simColor;
+                    if (color) pctEl.style.color = color;
+                }
+                if (camion) {
+                    camion.style.left = `calc(${pct}% - 10px)`;
+                    const color = fila.dataset.simColor;
+                    if (color) {
+                        camion.style.color = color;
+                        camion.style.borderColor = color;
+                    }
+                }
                 if (tiempo) {
                     tiempo.textContent = vivo.completada
                         ? 'Entrega completada'
@@ -598,8 +657,15 @@
                     credentials: 'same-origin',
                     cache: 'no-store',
                 })
-                    .then((r) => r.json())
+                    .then((r) => {
+                        if (r.status === 419) {
+                            window.location.reload();
+                            return null;
+                        }
+                        return r.json();
+                    })
                     .then((data) => {
+                        if (!data) return;
                         estadoBase = anclarTiempoCliente(data);
                         actualizarFila(estadoBase);
                     })

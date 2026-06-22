@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\EnvioAsignacionMultiple;
 use App\Models\Usuario;
+use App\Services\CierreEnvioAgricolaService;
 use App\Services\NotificacionUsuarioService;
 use App\Services\RecepcionPlantaEnvioService;
 use App\Services\SimulacionRutaService;
@@ -33,7 +34,11 @@ class AsignacionMultipleController extends Controller
     public function show(EnvioAsignacionMultiple $asignacion): View
     {
         $user = auth()->user();
-        if (! $user?->can('asignaciones.create') && (int) $asignacion->transportista_usuarioid !== (int) $user?->usuarioid) {
+        $esTransportistaAsignado = (int) $asignacion->transportista_usuarioid === (int) $user?->usuarioid;
+        $puedeVer = $user?->can('asignaciones.create')
+            || $user?->can('asignaciones.view')
+            || $esTransportistaAsignado;
+        if (! $puedeVer) {
             abort(403);
         }
 
@@ -423,43 +428,41 @@ class AsignacionMultipleController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', 'Ruta iniciada. El recorrido simulado está en marcha hacia el destino.');
+        return redirect()
+            ->route('logistica.asignaciones.cierre.panel', $asignacion)
+            ->with('success', 'Ruta iniciada. Confirme la llegada cuando llegue al destino.');
     }
 
     public function markLlegadaDestino(
         EnvioAsignacionMultiple $asignacion,
-        RecepcionPlantaEnvioService $recepcionService,
-        NotificacionUsuarioService $notificaciones,
+        CierreEnvioAgricolaService $cierre,
     ): RedirectResponse {
         $user = auth()->user();
         if (! $user?->can('asignaciones.update') && (int) $asignacion->transportista_usuarioid !== (int) $user?->usuarioid) {
             abort(403);
         }
 
-        if (! in_array($asignacion->estado, ['en_transporte_planta', 'en_ruta', 'en_transito'], true)) {
-            return back()->with('error', 'Solo puede confirmar llegada cuando el envío está en transporte hacia planta.');
-        }
-
         if ($asignacion->fecha_recepcion_planta) {
-            return back()->with('error', 'Este envío ya fue marcado como recibido en planta.');
+            return back()->with('error', 'Este envío ya fue recibido en planta.');
         }
 
-        $asignacion->load('pedido');
+        $resumen = $cierre->resumenPasos($asignacion);
 
-        try {
-            if ($asignacion->pedido) {
-                $recepcionService->confirmarDesdePedido($asignacion->pedido, $user);
-            } else {
-                $this->marcarRecibidoPlantaSimple($asignacion, $user);
+        if ($resumen['puede_confirmar_llegada'] ?? false) {
+            try {
+                $cierre->confirmarLlegada($asignacion, $user);
+            } catch (\InvalidArgumentException $e) {
+                return back()->with('error', $e->getMessage());
             }
-        } catch (\InvalidArgumentException $e) {
-            return back()->with('error', $e->getMessage());
+
+            return redirect()
+                ->route('logistica.asignaciones.cierre.panel', $asignacion)
+                ->with('success', 'Llegada confirmada. Registre incidentes para continuar el cierre.');
         }
 
-        $asignacion->refresh();
-        $notificaciones->llegadaDestinoReportada($asignacion, $user);
-
-        return back()->with('success', 'Llegada a destino confirmada. El envío quedó como recibido en planta.');
+        return redirect()
+            ->route('logistica.asignaciones.cierre.panel', $asignacion)
+            ->with('info', 'Complete el cierre operativo del envío (condiciones, llegada, incidentes y firmas).');
     }
 
     /** @deprecated La recepción en planta se confirma desde Gestión de pedidos. */

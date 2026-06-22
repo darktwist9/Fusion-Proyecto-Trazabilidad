@@ -112,6 +112,13 @@ final class DocumentoEntregaCatalogo
         return 'Sin vínculo';
     }
 
+    public static function esAutomatico(DocumentoEntrega $documento): bool
+    {
+        $metadata = is_array($documento->metadata) ? $documento->metadata : [];
+
+        return ! empty($metadata['envio_cierre_agricola']);
+    }
+
     private static function textoEsDemo(?string $texto): bool
     {
         $t = trim((string) $texto);

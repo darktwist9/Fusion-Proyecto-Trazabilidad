@@ -129,6 +129,39 @@
         return `${r.tipo}-${r.id}`;
     }
 
+    function crearIconoParada(color, label, iconClass) {
+        const inner = iconClass
+            ? `<i class="fas ${iconClass}" style="font-size:11px"></i>`
+            : `<span style="font-size:11px;font-weight:700">${label}</span>`;
+        return L.divIcon({
+            className: 'rt-parada-global',
+            html: `<div style="background:${color};color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)">${inner}</div>`,
+            iconSize: [28, 28],
+            iconAnchor: [14, 14],
+        });
+    }
+
+    function htmlPopupResumen(ruta) {
+        const esc = (s) => String(s ?? '—').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const lineas = [
+            ruta.pedido_solicitud ? `<div class="rt-popup-line"><i class="fas fa-file-alt"></i> ${esc(ruta.pedido_solicitud)}</div>` : '',
+            ruta.producto ? `<div class="rt-popup-line"><i class="fas fa-box"></i> ${esc(ruta.producto)}</div>` : '',
+            `<div class="rt-popup-line"><i class="fas fa-user-tie"></i> ${esc(ruta.chofer)}</div>`,
+            ruta.vehiculo_placa ? `<div class="rt-popup-line"><i class="fas fa-truck"></i> ${esc(ruta.vehiculo_placa)}</div>` : '',
+            `<div class="rt-popup-line"><i class="fas fa-map-marker-alt"></i> ${esc(ruta.destino)}</div>`,
+        ].filter(Boolean).join('');
+        const verUrl = ruta.ver_url || '#';
+        const estado = ruta.esperando_confirmacion
+            ? '<span class="rt-popup-badge rt-popup-badge--wait">Esperando recepción</span>'
+            : `<span class="rt-popup-badge">${Math.round(ruta.progreso || 0)}% en ruta</span>`;
+        return `<div class="rt-popup-resumen">
+            <div class="rt-popup-titulo">${esc(ruta.codigo)}</div>
+            <div class="rt-popup-sub">${esc(ruta.tipo_etiqueta)} ${estado}</div>
+            ${lineas}
+            <a href="${verUrl}" class="btn btn-sm btn-block mt-2" style="background:#2c5530;border-color:#2c5530;color:#fff;font-weight:600">Ver detalles</a>
+        </div>`;
+    }
+
     function crearIconoCamion(color) {
         return L.divIcon({
             className: 'rt-camion-global',
@@ -198,7 +231,7 @@
 
             let capa = capas.get(key);
             if (!capa) {
-                capa = { grupo: L.layerGroup(), pendiente: null, recorrida: null, camion: null };
+                capa = { grupo: L.layerGroup(), pendiente: null, recorrida: null, camion: null, paradas: [] };
                 capas.set(key, capa);
             }
 
@@ -207,6 +240,22 @@
             if (!geo) return;
 
             capa.grupo.clearLayers();
+            capa.paradas = [];
+
+            if (ruta.paradas?.length) {
+                ruta.paradas.forEach((p, i) => {
+                    const isFirst = i === 0;
+                    const isLast = i === ruta.paradas.length - 1;
+                    const paradaColor = isFirst ? '#16a34a' : (isLast ? '#dc2626' : '#0891b2');
+                    const iconClass = isFirst ? 'fa-warehouse' : (isLast ? 'fa-store' : null);
+                    const marker = L.marker([p.lat, p.lng], {
+                        icon: crearIconoParada(paradaColor, String(p.orden ?? (i + 1)), iconClass),
+                        zIndexOffset: 400,
+                    }).bindPopup(p.label || (isFirst ? 'Origen' : (isLast ? 'Destino' : `Parada ${i + 1}`)));
+                    marker.addTo(capa.grupo);
+                    capa.paradas.push(marker);
+                });
+            }
 
             const puntosRuta = extraerCoordenadasLinea(geo).map((c) => [c[1], c[0]]);
             if (puntosRuta.length >= 2) {
@@ -232,14 +281,17 @@
 
             if (ruta.posicion?.lat != null) {
                 const latLng = [ruta.posicion.lat, ruta.posicion.lng];
+                const popupHtml = htmlPopupResumen(ruta);
                 if (!capa.camion) {
                     capa.camion = L.marker(latLng, {
                         icon: crearIconoCamion(color),
                         zIndexOffset: 1000 + (ruta.mapa_offset || 0),
-                    }).bindPopup(`<strong>${ruta.codigo}</strong><br>${ruta.tipo_etiqueta || ''}<br>${ruta.chofer || ''}`);
+                    });
                 } else {
                     capa.camion.setLatLng(latLng);
+                    capa.camion.setIcon(crearIconoCamion(color));
                 }
+                capa.camion.bindPopup(popupHtml, { maxWidth: 280, className: 'rt-popup-leaflet' });
                 capa.camion.addTo(capa.grupo);
             }
 

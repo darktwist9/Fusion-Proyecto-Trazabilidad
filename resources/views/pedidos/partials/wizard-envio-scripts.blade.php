@@ -222,6 +222,14 @@
         }
         if (!opts.sinGuardar) programarGuardado();
         window.scrollTo({ top: 0, behavior: 'smooth' });
+        if (n === 1 && f === 'mayorista' && window.ensureMapaTraslado) {
+            window.ensureMapaTraslado();
+            setTimeout(function () {
+                if (window.refrescarTamanoMapaTraslado) window.refrescarTamanoMapaTraslado();
+            }, 400);
+        } else if (n === 1 && f === 'punto-venta' && window.ensureMapaPdv) {
+            window.ensureMapaPdv();
+        }
     }
 
     function avisoWizard(msg) {
@@ -234,7 +242,7 @@
 
     function validarPasoPlanta(n) {
         if (n === 1) {
-            if (!el('input[name="fechaEntregaDeseada"]')?.value) {
+            if (!el('fechaEntregaDeseada')?.value) {
                 avisoWizard('Indique la fecha de entrega deseada.');
                 return false;
             }
@@ -339,9 +347,15 @@
             });
             if (msgStock) {
                 avisoWizard(msgStock);
+                if (typeof window.marcarErroresValidacionTraslado === 'function') {
+                    window.marcarErroresValidacionTraslado();
+                }
                 return false;
             }
             if (!ok) {
+                if (typeof window.marcarErroresValidacionTraslado === 'function') {
+                    window.marcarErroresValidacionTraslado();
+                }
                 avisoWizard('Indique producto, presentación, lote y cantidad en cada línea.');
                 return false;
             }
@@ -461,7 +475,7 @@
         const set = (id, val) => { const e = el(id); if (e) e.textContent = val || '—'; };
         set('conf-origen', el('txtNombreOrigen')?.value || el('origen_direccion')?.value || '—');
         set('conf-destino', el('txtNombreDestino')?.value || el('direccion_texto')?.value || '—');
-        set('conf-fecha', formatFechaInput(el('input[name="fechaEntregaDeseada"]')?.value));
+        set('conf-fecha', formatFechaInput(el('fechaEntregaDeseada')?.value));
         set('conf-hora-rec', el('hora_recogida')?.value || '—');
         set('conf-hora-ent', el('hora_entrega_estimada')?.value || '—');
         set('conf-chofer', el('txtTransportistaCreate')?.value || '—');
@@ -600,7 +614,15 @@
 
         if (tieneVehiculo) {
             if (sugWrap) sugWrap.classList.add('d-none');
-            if (capWrap) capWrap.classList.add('d-none');
+            const resumen = (sug && String(sug.id) === String(el('vehiculoid_create')?.value))
+                ? (window.PedidoFase2?.sugerenciaVehiculoResumen || '')
+                : '';
+            if (capWrap && resumen) {
+                capWrap.classList.remove('d-none');
+                if (capEl) capEl.textContent = resumen;
+            } else if (capWrap) {
+                capWrap.classList.add('d-none');
+            }
             if (tipoWrap) tipoWrap.classList.add('d-none');
             if (estado) {
                 estado.classList.remove('d-none');

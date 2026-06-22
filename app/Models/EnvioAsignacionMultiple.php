@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class EnvioAsignacionMultiple extends Model
 {
@@ -25,6 +26,8 @@ class EnvioAsignacionMultiple extends Model
         'fecha_asignacion',
         'fecha_recepcion_planta',
         'recepcion_usuarioid',
+        'llegada_confirmada_at',
+        'llegada_confirmada_usuarioid',
         'almacenid',
         'tipotransporteid',
         'recogidaentregaid',
@@ -44,7 +47,9 @@ class EnvioAsignacionMultiple extends Model
         'simulacion_geojson' => 'array',
         'fecha_asignacion' => 'datetime',
         'fecha_recepcion_planta' => 'datetime',
+        'llegada_confirmada_at' => 'datetime',
         'recepcion_usuarioid' => 'integer',
+        'llegada_confirmada_usuarioid' => 'integer',
         'detalles_productos' => 'array',
     ];
 
@@ -86,6 +91,31 @@ class EnvioAsignacionMultiple extends Model
     public function recogidaEntrega(): BelongsTo
     {
         return $this->belongsTo(RecogidaEntrega::class, 'recogidaentregaid', 'recogidaentregaid');
+    }
+
+    public function checklistCondicionVehiculo(): HasOne
+    {
+        return $this->hasOne(ChecklistCondicionLogistica::class, 'envioasignacionmultipleid', 'envioasignacionmultipleid');
+    }
+
+    public function checklistIncidente(): HasOne
+    {
+        return $this->hasOne(ChecklistIncidenteEnvio::class, 'envioasignacionmultipleid', 'envioasignacionmultipleid');
+    }
+
+    public function firmaTransportista(): HasOne
+    {
+        return $this->hasOne(FirmaTransportistaEnvio::class, 'envioasignacionmultipleid', 'envioasignacionmultipleid');
+    }
+
+    public function firmaRecepcion(): HasOne
+    {
+        return $this->hasOne(FirmaRecepcionEnvio::class, 'envioasignacionmultipleid', 'envioasignacionmultipleid');
+    }
+
+    public function llegadaConfirmadaPor(): BelongsTo
+    {
+        return $this->belongsTo(Usuario::class, 'llegada_confirmada_usuarioid', 'usuarioid');
     }
 }
 

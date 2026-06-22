@@ -174,6 +174,35 @@
                                 Cuando el disponible baje de ese valor, el producto se marcará en <strong>stock bajo</strong>.
                             </div>
 
+                            @if(($empaquetajes ?? collect())->isNotEmpty())
+                            <div class="mb-3">
+                                <div class="dato-label mb-2">Empaquetado en almacén</div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered mb-0" style="font-size:.85rem;">
+                                        <thead class="thead-light">
+                                            <tr>
+                                                <th>Presentación</th>
+                                                <th>Tipo envase</th>
+                                                <th class="text-right">Unidades</th>
+                                                <th class="text-right">Kg</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach($empaquetajes as $row)
+                                                @php $p = $row['presentacion']; @endphp
+                                                <tr>
+                                                    <td>{{ $p->nombre }}</td>
+                                                    <td>{{ $p->tipoEmpaque?->nombre ?? ucfirst($p->tipo_envase ?? '—') }}</td>
+                                                    <td class="text-right font-weight-bold">{{ number_format($row['unidades'], 0) }} {{ $p->etiquetaUnidad() }}</td>
+                                                    <td class="text-right">{{ number_format($row['kg'], 2) }} kg</td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            @endif
+
                             @if($producto->descripcion)
                             <div class="mb-3">
                                 <div class="dato-label">Descripción</div>

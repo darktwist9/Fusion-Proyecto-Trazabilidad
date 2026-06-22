@@ -44,6 +44,27 @@
 .envio-lista-card:hover {
     box-shadow: 0 3px 12px rgba(15, 23, 42, .08);
 }
+.envio-lista-card--pendiente {
+    border: 1px solid #e7c48a;
+    border-top: 3px solid #d97706;
+    border-left: 4px solid #f59e0b;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, .04);
+}
+.envio-lista-card--pendiente:hover {
+    box-shadow: 0 3px 12px rgba(15, 23, 42, .08);
+}
+.envio-lista-card--pendiente .envio-lista-card__head {
+    background: #fffbf5;
+}
+.envio-lista-card--pendiente .envio-lista-estado {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fde68a;
+    padding: .15rem .5rem;
+    border-radius: 999px;
+    font-weight: 700;
+}
 
 .envio-lista-card__head {
     display: flex;

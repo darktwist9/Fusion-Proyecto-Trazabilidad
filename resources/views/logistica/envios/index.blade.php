@@ -9,36 +9,12 @@
 @push('styles')
 @include('partials.logistica-modulo-styles')
 @include('logistica.partials.ayuda-logistica-styles')
-<style>
-.envios-wrap { padding: 0 .25rem; }
-.envios-alert { border-radius: 12px; padding: .65rem 1rem; margin-bottom: .75rem; }
-.env-resumen .metric-card{border:0;border-radius:12px;box-shadow:0 4px 14px rgba(18,38,63,.08);margin-bottom:.75rem}
-.env-resumen .metric-card .inner{padding:.75rem 1rem}
-.env-resumen .metric-card h3{font-size:1.5rem;font-weight:800;margin:0}
-.env-resumen .metric-card p{font-size:.78rem;margin:0;opacity:.85}
-.envios-filtros-card, .envios-table-card {
-    border: 0; border-radius: 14px;
-    box-shadow: 0 2px 12px rgba(18, 38, 63, .06);
-}
-.pedido-estado-badge {
-    display: inline-block; font-size: .72rem; font-weight: 600;
-    padding: .25rem .6rem; border-radius: 50rem; color: #fff;
-    white-space: nowrap;
-}
-.pedido-estado-agricola { background: #64748b; }
-.pedido-estado-logistica { background: #6366f1; }
-.pedido-estado-confirmado { background: #16a34a; }
-.pedido-estado-produccion { background: #d97706; }
-.pedido-estado-rechazado { background: #dc2626; }
-.pedido-estado-camino { background: #0284c7; }
-.pedido-estado-recibido { background: #0d9488; }
-.envios-table-card .td-acciones { white-space: nowrap; min-width: 180px; }
-.btn-asignar-transportista { font-size: .78rem; padding: 0; }
-</style>
+@include('logistica.envios.partials.envio-lista-estilos')
 @endpush
 
 @section('content')
-<div class="envios-wrap">
+@include('logistica.partials.envios-seccion-nav')
+<div class="envios-wrap page-envios-lista">
     @if($esTransportista ?? false)
         <div class="alert alert-info envios-alert d-flex flex-wrap justify-content-between align-items-center">
             <span><i class="fas fa-truck mr-1"></i> Envíos asignados: almacén agrícola → planta y planta → puntos de venta en un solo listado.</span>
@@ -158,153 +134,41 @@
         </div>
     </div>
 
-    <div class="card envios-table-card">
-        <div class="card-header bg-white py-3">
+    <div class="card envios-lista-card mb-3">
+        <div class="envios-lista-card__toolbar">
             <div class="d-flex flex-wrap justify-content-between align-items-center">
                 <h3 class="card-title mb-2 mb-md-0 font-weight-bold">
                     <i class="fas fa-truck text-success mr-2"></i>{{ $tituloPagina }}
                     <small class="text-muted font-weight-normal">({{ $items->total() }})</small>
                 </h3>
                 @can('pedidos.create')
-                <a href="{{ route('pedidos.create') }}" class="btn btn-success btn-sm">
+                @if(\App\Support\EnvioTrayectoCatalogo::puedeCrearAlguno(auth()->user()))
+                <a href="{{ \App\Support\EnvioTrayectoCatalogo::urlCrearEnvio(auth()->user()) }}" class="btn btn-success btn-sm">
                     <i class="fas fa-plus mr-1"></i> Nuevo envío
                 </a>
+                @endif
                 @endcan
             </div>
         </div>
-        <div class="card-body p-0 table-responsive">
-            <table class="table table-hover mb-0">
-                <thead class="thead-light">
-                    <tr>
-                        <th>Tipo</th>
-                        <th>Código</th>
-                        <th>Cultivo / producto</th>
-                        <th>Total</th>
-                        <th>Destino</th>
-                        <th>Chofer</th>
-                        <th>Vehículo</th>
-                        <th>Trayecto</th>
-                        <th>Costo (Bs)</th>
-                        <th>Estado</th>
-                        <th>Fecha</th>
-                        <th class="td-acciones">Gestión</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($items as $item)
-                        <tr>
-                            <td>
-                                <span class="badge badge-{{ $item['tipo'] === 'agricola' ? 'success' : 'primary' }}">
-                                    {{ $item['tipo_etiqueta'] }}
-                                </span>
-                            </td>
-                            <td>
-                                <a href="{{ $item['ver_url'] }}" class="font-weight-bold text-success">{{ $item['codigo'] }}</a>
-                                @if($item['subcodigo'])
-                                    <br><small class="text-muted">{{ $item['subcodigo'] }}</small>
-                                @endif
-                            </td>
-                            <td>
-                                <span class="text-primary font-weight-bold">{{ $item['producto_label'] }}</span>
-                                @if($item['producto_extra'])
-                                    <br><small class="text-muted">{{ $item['producto_extra'] }}</small>
-                                @endif
-                            </td>
-                            <td>
-                                @if($item['total_kg'])
-                                    <strong>{{ number_format($item['total_kg'], 2) }}</strong> <small class="text-muted">kg</small>
-                                @else
-                                    <span class="text-muted">—</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if($item['destino_label'])
-                                    <span>{{ $item['destino_label'] }}</span>
-                                @else
-                                    <span class="text-muted">—</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if($item['chofer_nombre'])
-                                    {{ $item['chofer_nombre'] }}
-                                @elseif($item['puede_asignar'])
-                                    @can('pedidos.update')
-                                    <button type="button" class="btn btn-link btn-sm p-0 text-primary btn-asignar-transportista"
-                                        data-pedido-id="{{ $item['pedido']->pedidoid }}"
-                                        data-pedido-label="{{ $item['pedido']->numero_solicitud }}">
-                                        <i class="fas fa-user-plus mr-1"></i>Asignar
-                                    </button>
-                                    @else
-                                    <span class="text-muted small">Sin asignar</span>
-                                    @endcan
-                                @else
-                                    <span class="text-muted small">—</span>
-                                @endif
-                            </td>
-                            <td>{{ $item['vehiculo_placa'] ?? '—' }}</td>
-                            <td class="small">
-                                @if($item['trayecto_partes'] && (($item['trayecto_partes']['recogidas'] ?? []) !== [] || ($item['trayecto_partes']['destino'] ?? null)))
-                                    @include('logistica.partials.trayecto-colores', ['trayectoPartes' => $item['trayecto_partes']])
-                                @else
-                                    <span class="text-muted">—</span>
-                                @endif
-                            </td>
-                            <td class="text-nowrap">
-                                @if($item['costo_bs'] !== null)
-                                    <strong>{{ number_format($item['costo_bs'], 2, ',', '.') }}</strong>
-                                @else
-                                    <span class="text-muted">—</span>
-                                @endif
-                            </td>
-                            <td>
-                                <span class="pedido-estado-badge {{ $item['estado_badge']['clase'] }}"
-                                      title="{{ $item['estado_badge']['titulo'] ?? $item['estado_badge']['etiqueta'] }}">
-                                    {{ $item['estado_badge']['etiqueta'] }}
-                                </span>
-                            </td>
-                            <td class="text-muted small">{{ $item['fecha']?->format('d/m/Y') ?? '—' }}</td>
-                            <td class="td-acciones">
-                                @if($item['asignacion'])
-                                    @include('logistica.partials.acciones-tabla-asignacion', ['asignacion' => $item['asignacion']])
-                                @elseif($item['ruta'])
-                                    <a href="{{ $item['ver_url'] }}" class="btn btn-sm btn-outline-info" title="Ver ruta">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                @elseif($item['pedido'])
-                                    <a href="{{ route('pedidos.show', $item['pedido']) }}" class="btn btn-sm btn-outline-info" title="Ver">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                @endif
-                                @if(($item['fase_logistica'] ?? null) === 'en_camino_planta' && ! $item['asignacion'] && $item['pedido'])
-                                    @can('recepcion_planta.confirm')
-                                    <form method="POST" action="{{ route('pedidos.confirmar-llegada-planta', $item['pedido']) }}" class="d-inline">
-                                        @csrf
-                                        <button type="button" class="btn btn-sm btn-outline-success" data-confirm-modal
-                                            data-confirm-tone="success" data-confirm-title="Confirmar llegada"
-                                            data-confirm-message="¿Confirma llegada del pedido {{ $item['pedido']->numero_solicitud }} a planta?">
-                                            <i class="fas fa-check"></i>
-                                        </button>
-                                    </form>
-                                    @endcan
-                                @endif
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="12" class="text-center text-muted py-5">
-                                <i class="fas fa-inbox fa-2x mb-2 d-block opacity-25"></i>
-                                No hay envíos con esos filtros.
-                                @can('pedidos.create')
-                                    <a href="{{ route('pedidos.create') }}" class="d-block mt-2">Registrar nuevo envío</a>
-                                @endcan
-                            </td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+        <div class="card-body pb-2">
+            <div class="row">
+                @forelse($items as $item)
+                    @include('logistica.envios.partials.envio-lista-card', ['item' => $item])
+                @empty
+                    <div class="col-12">
+                        <div class="envios-lista-empty">
+                            <i class="fas fa-inbox d-block"></i>
+                            <p class="mb-2">No hay envíos con esos filtros.</p>
+                            @can('pedidos.create')
+                                <a href="{{ route('pedidos.create') }}">Registrar nuevo envío</a>
+                            @endcan
+                        </div>
+                    </div>
+                @endforelse
+            </div>
         </div>
         @if($items->hasPages())
-        <div class="card-footer">{{ $items->links() }}</div>
+        <div class="card-footer bg-white">{{ $items->links() }}</div>
         @endif
     </div>
 </div>

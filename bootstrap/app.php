@@ -1,8 +1,13 @@
 <?php
 
+use App\Exceptions\EliminacionBloqueadaException;
+use App\Support\EliminacionSegura;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
+use Illuminate\Session\TokenMismatchException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -12,6 +17,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->validateCsrfTokens(except: [
+            'logout',
+        ]);
+
         $middleware->alias([
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
@@ -21,5 +30,44 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->render(function (EliminacionBloqueadaException $e, Request $request) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $e->getMessage()], 422);
+            }
+
+            return back()->with('error', $e->getMessage());
+        });
+
+        $exceptions->render(function (QueryException $e, Request $request) {
+            if (! EliminacionSegura::esViolacionFk($e)) {
+                return null;
+            }
+
+            $mensaje = EliminacionSegura::mensajeGenerico();
+
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $mensaje], 422);
+            }
+
+            if ($request->isMethod('DELETE') || $request->isMethod('POST')) {
+                return back()->with('error', $mensaje);
+            }
+
+            return null;
+        });
+
+        $exceptions->render(function (TokenMismatchException $e, Request $request) {
+            if ($request->expectsJson()
+                || $request->ajax()
+                || $request->header('X-Requested-With') === 'XMLHttpRequest') {
+                return response()->json(['message' => 'Sesión renovada.', 'reload' => true], 419);
+            }
+
+            $destino = $request->headers->get('referer');
+            if (! is_string($destino) || $destino === '') {
+                $destino = $request->isMethod('GET') ? url()->current() : url('/');
+            }
+
+            return redirect()->to($destino)->with('info', 'La página se renovó. Continúe donde estaba.');
+        });
     })->create();

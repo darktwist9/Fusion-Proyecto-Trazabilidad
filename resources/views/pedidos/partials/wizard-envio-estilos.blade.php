@@ -196,6 +196,24 @@
 .env-confirm-panel__title i { margin-right: .4rem; }
 .env-confirm-panel__subtitle { font-size: .82rem; color: #64748b; margin-top: .15rem; }
 .env-confirm-panel__body { background: linear-gradient(180deg, #fff 0%, #fafbfc 100%); }
+.env-confirm-group-card {
+    border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; background: #fff;
+}
+.env-confirm-group-card__head {
+    padding: .55rem .85rem; font-size: .72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .04em; color: #64748b; background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+}
+.env-confirm-group-card__body { padding: .75rem .85rem; }
+.env-confirm-stats--inline,
+.env-confirm-horarios--inline,
+.env-confirm-asignacion--inline {
+    margin-bottom: 0 !important;
+}
+.env-confirm-stats--inline .env-confirm-stat,
+.env-confirm-horarios--inline .env-confirm-horarios__item,
+.env-confirm-asignacion--inline .env-confirm-tile {
+    border: 0; box-shadow: none; background: transparent; padding: .35rem .25rem;
+}
 .env-confirm-badge--trayecto { flex-shrink: 0; align-self: flex-start; }
 .env-confirm-stats {
     display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: .75rem;

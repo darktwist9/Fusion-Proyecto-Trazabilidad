@@ -64,11 +64,18 @@
         </div>
         @endif
 
-        @if($soloListado && auth()->user()?->can('asignaciones.create'))
+        @if($soloListado && (auth()->user()?->can('asignaciones.create') || \App\Support\EnvioTrayectoCatalogo::puedeCrearAlguno(auth()->user())))
             <div class="mb-3 d-flex flex-wrap align-items-center gap-2">
+                @if(auth()->user()?->can('asignaciones.create'))
                 <a href="{{ route('logistica.asignaciones.create') }}" class="btn btn-success btn-sm">
                     <i class="fas fa-plus mr-1"></i> Nueva asignación
                 </a>
+                @endif
+                @if(\App\Support\EnvioTrayectoCatalogo::puedeCrearAlguno(auth()->user()))
+                <a href="{{ \App\Support\EnvioTrayectoCatalogo::urlCrearEnvio(auth()->user()) }}" class="btn btn-outline-success btn-sm">
+                    <i class="fas fa-truck mr-1"></i> Nuevo envío
+                </a>
+                @endif
                 @if($transportistaFiltro ?? null)
                     <span class="badge badge-info px-3 py-2">
                         Filtrando: {{ trim($transportistaFiltro->nombre.' '.($transportistaFiltro->apellido ?? '')) }}

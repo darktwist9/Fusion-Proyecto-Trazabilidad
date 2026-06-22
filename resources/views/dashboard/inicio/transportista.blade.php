@@ -37,6 +37,43 @@
 
         @include('partials.dashboard-alertas')
 
+        @if(($envios_pendientes_accion ?? collect())->isNotEmpty())
+            @php $envioAsignado = $envios_pendientes_accion->first(); @endphp
+            <div class="alert alert-success border-success shadow-sm mb-3" role="alert">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                    <div>
+                        <i class="fas fa-truck-loading mr-1"></i>
+                        <strong>Tiene {{ $envios_pendientes_accion->count() }} envío(s) asignado(s) listo(s) para recoger.</strong>
+                        @if($envioAsignado)
+                            <span class="d-block small mt-1">
+                                Próximo: <strong>{{ $envioAsignado->externo_envio_id ?? $envioAsignado->pedido?->numero_solicitud }}</strong>
+                                — {{ $envioAsignado->pedido?->detalles?->first()?->cultivo_personalizado ?? 'Producto agrícola' }}
+                            </span>
+                        @endif
+                    </div>
+                    <a href="{{ route('logistica.asignaciones.show', $envioAsignado) }}" class="btn btn-success btn-sm font-weight-bold">
+                        <i class="fas fa-clipboard-check mr-1"></i> Ir al envío asignado
+                    </a>
+                </div>
+            </div>
+        @endif
+
+        @if(($rutas_pendientes_salida ?? collect())->isNotEmpty())
+            @php $rutaPendiente = $rutas_pendientes_salida->first(); @endphp
+            <div class="alert alert-warning border-warning shadow-sm d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3" role="alert">
+                <div>
+                    <i class="fas fa-exclamation-circle mr-1"></i>
+                    <strong>Tiene {{ $rutas_pendientes_salida->count() }} envío(s) pendiente(s) de salida.</strong>
+                    @if($rutaPendiente)
+                        <span class="d-block small mt-1">Próximo: <strong>{{ $rutaPendiente->codigo }}</strong> — debe aceptar la solicitud e iniciar el cierre operativo.</span>
+                    @endif
+                </div>
+                <a href="{{ \App\Support\RutaDistribucionNavegacion::urlVer($rutaPendiente) }}" class="btn btn-warning btn-sm font-weight-bold">
+                    <i class="fas fa-shipping-fast mr-1"></i> Ir al envío pendiente
+                </a>
+            </div>
+        @endif
+
         @include('dashboard.partials.filtros', [
             'filtros' => $filtros,
             'actionUrl' => route('dashboard'),

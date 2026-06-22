@@ -33,8 +33,11 @@ final class TransporteListadoUnificadoService
                 'transportista.perfilTransportista.vehiculo',
                 'vehiculo',
                 'almacenOrigen',
+                'almacenPlantaOrigen',
+                'almacenMayoristaDestino',
                 'paradas',
                 'pedidos.detalles',
+                'detallesTraslado.insumo',
             ])
             ->get();
 
@@ -175,6 +178,11 @@ final class TransporteListadoUnificadoService
             $query->whereDate('fecha_salida', '<=', $request->string('hasta')->toString());
         }
 
+        $query->where(function (Builder $w) {
+            $w->where('tipo_ruta', '!=', RutaDistribucionCatalogo::TIPO_RUTA_PLANTA_MAYORISTA)
+                ->orWhereHas('detallesTraslado');
+        });
+
         return $query;
     }
 
@@ -204,7 +212,7 @@ final class TransporteListadoUnificadoService
                 ? trim($transportistaAsignado->nombre.' '.($transportistaAsignado->apellido ?? ''))
                 : null,
             'vehiculo_placa' => $asignacion?->vehiculo_ref,
-            'trayecto_partes' => EnvioPedidoService::trayectoPartesListaPedido($pedido),
+            'trayecto_partes' => EnvioPedidoService::trayectoPartesPedido($pedido),
             'estado_badge' => $estadoVisual,
             'fecha' => $fecha,
             'fecha_orden' => $fecha->timestamp,
@@ -217,12 +225,20 @@ final class TransporteListadoUnificadoService
             'ruta' => null,
             'puede_asignar' => PedidoCatalogo::puedeAsignarTransportista($pedido) && ! $transportistaAsignado,
             'fase_logistica' => $faseLogistica,
+            'pendiente_salida' => $asignacion
+                && \App\Support\SimulacionRutaCatalogo::puedeEmpezarAgricola($asignacion)
+                && PedidoCatalogo::listoParaLogistica($pedido),
+            'destacar_pendiente' => $faseLogistica !== 'recibido_planta',
         ];
     }
 
     /** @return array<string, mixed> */
     private function mapearRuta(RutaDistribucion $ruta): array
     {
+        if ($ruta->esTrasladoPlantaMayorista()) {
+            return $this->mapearTrasladoPlantaMayorista($ruta);
+        }
+
         $transportista = $ruta->transportista;
         $badge = RutaDistribucionCatalogo::badgeEstado($ruta);
         if ($ruta->estado === RutaDistribucionCatalogo::ESTADO_PLANIFICADA) {
@@ -276,12 +292,73 @@ final class TransporteListadoUnificadoService
             'fecha' => $fecha,
             'fecha_orden' => $fecha?->timestamp ?? 0,
             'costo_bs' => $ruta->costo_bs !== null ? (float) $ruta->costo_bs : null,
-            'ver_url' => route('punto-venta.rutas.show', $ruta),
+            'ver_url' => \App\Support\RutaDistribucionNavegacion::urlVer($ruta),
             'pedido' => null,
             'asignacion' => null,
             'ruta' => $ruta,
             'puede_asignar' => false,
             'fase_logistica' => null,
+            'pendiente_salida' => $ruta->estado === RutaDistribucionCatalogo::ESTADO_PLANIFICADA,
+            'destacar_pendiente' => ! in_array($ruta->estado, ['completada', 'cancelada'], true),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function mapearTrasladoPlantaMayorista(RutaDistribucion $ruta): array
+    {
+        $transportista = $ruta->transportista;
+        $badge = RutaDistribucionCatalogo::badgeEstado($ruta);
+        if ($ruta->estado === RutaDistribucionCatalogo::ESTADO_PLANIFICADA) {
+            $badge = ['clase' => 'warning', 'etiqueta' => 'Pendiente de salida'];
+        }
+
+        $detalles = $ruta->detallesTraslado ?? collect();
+        $totalKg = $detalles->sum('cantidad');
+        $primerProducto = $detalles->first()?->producto_nombre ?? 'Traslado';
+        $extraProductos = $detalles->count() > 1 ? '+'.($detalles->count() - 1).' producto(s)' : null;
+        $origen = $ruta->almacenPlantaOrigen?->nombre ?? 'Planta';
+        $destino = $ruta->almacenMayoristaDestino?->nombre ?? 'Mayorista';
+        $fecha = $ruta->fecha_salida ?? $ruta->created_at;
+
+        return [
+            'tipo' => 'traslado_planta_mayorista',
+            'tipo_etiqueta' => 'Planta → Mayorista',
+            'codigo' => $ruta->codigo,
+            'subcodigo' => $ruta->nombre !== $ruta->codigo ? $ruta->nombre : null,
+            'producto_label' => $primerProducto,
+            'producto_extra' => $extraProductos,
+            'total_kg' => $totalKg > 0 ? $totalKg : null,
+            'destino_label' => $destino,
+            'chofer_nombre' => $transportista
+                ? trim($transportista->nombre.' '.($transportista->apellido ?? ''))
+                : null,
+            'vehiculo_placa' => $ruta->vehiculo?->placa
+                ?? $transportista?->perfilTransportista?->vehiculo?->placa,
+            'trayecto_partes' => [
+                'recogidas' => [$origen],
+                'destino' => $destino,
+            ],
+            'estado_badge' => [
+                'etiqueta' => $badge['etiqueta'],
+                'clase' => 'pedido-estado-'.match ($badge['clase']) {
+                    'success' => 'recibido',
+                    'primary' => 'camino',
+                    'info' => 'logistica',
+                    default => 'agricola',
+                },
+                'titulo' => $badge['etiqueta'],
+            ],
+            'fecha' => $fecha,
+            'fecha_orden' => $fecha?->timestamp ?? 0,
+            'costo_bs' => $ruta->costo_bs !== null ? (float) $ruta->costo_bs : null,
+            'ver_url' => \App\Support\RutaDistribucionNavegacion::urlVer($ruta),
+            'pedido' => null,
+            'asignacion' => null,
+            'ruta' => $ruta,
+            'puede_asignar' => false,
+            'fase_logistica' => null,
+            'pendiente_salida' => $ruta->estado === RutaDistribucionCatalogo::ESTADO_PLANIFICADA,
+            'destacar_pendiente' => ! in_array($ruta->estado, ['completada', 'cancelada'], true),
         ];
     }
 

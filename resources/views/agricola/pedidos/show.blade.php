@@ -669,18 +669,6 @@
 
     @endif
 
-    @if(session('warning'))
-
-        <div class="alert alert-warning alert-dismissible fade show">
-
-            <i class="fas fa-exclamation-triangle mr-1"></i> {{ session('warning') }}
-
-            <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
-
-        </div>
-
-    @endif
-
 
 
     <div class="hero-pedido d-flex flex-wrap justify-content-between align-items-start gap-3">
@@ -809,7 +797,7 @@
 
                                     <th class="pl-3">Producto</th>
 
-                                    <th>Cantidad</th>
+                                    <th>Cantidad / empaque</th>
 
                                     <th>Origen almacén</th>
 
@@ -857,17 +845,17 @@
 
                                         <td class="pl-3">
 
-                                            <strong class="text-primary">{{ $detalle->cultivo_personalizado }}</strong>
-
-                                            @if($detalle->insumo)
-
-                                                <br><small class="text-muted">{{ $detalle->insumo->nombre }}</small>
-
-                                            @endif
+                                            <strong class="text-primary">{{ $detalle->insumo->nombre ?? $detalle->cultivo_personalizado }}</strong>
 
                                         </td>
 
-                                        <td><strong>{{ number_format($detalle->cantidad, 2) }}</strong> <span class="text-muted small">kg</span></td>
+                                        <td>
+                                            @php $presAgr = \App\Support\PedidoCatalogo::presentacionDetalle($detalle); @endphp
+                                            <strong>{{ $presAgr['linea_corta'] }}</strong>
+                                            @if($presAgr['unidades_fmt'] && ! str_contains(mb_strtolower($presAgr['empaque'] ?? ''), 'unidad'))
+                                                <br><small class="text-muted">~{{ $presAgr['unidades_fmt'] }} unidades</small>
+                                            @endif
+                                        </td>
 
                                         <td><i class="fas fa-warehouse text-muted mr-1"></i>{{ $almacenOrigen }}</td>
 
@@ -1058,6 +1046,19 @@
                                 <i class="fas fa-shipping-fast mr-1"></i>
 
                                 <strong>Pedido cargado.</strong> El envío está en ruta hacia la planta de procesamiento.
+
+                                @if($pedido->envioAsignacion && \App\Support\SimulacionRutaCatalogo::simulacionActivaAgricola($pedido->envioAsignacion)
+                                    && \App\Support\RutaTiempoRealAcceso::puedeVerEnvioAgricola(auth()->user(), (int) $pedido->envioAsignacion->envioasignacionmultipleid))
+                                <div class="mt-2">
+                                    @include('logistica.partials.enlace-tiempo-real', [
+                                        'href' => route('logistica.rutas-tiempo-real.show', [
+                                            'tipo' => 'agricola',
+                                            'id' => $pedido->envioAsignacion->envioasignacionmultipleid,
+                                        ]),
+                                        'compacto' => true,
+                                    ])
+                                </div>
+                                @endif
 
                             </div>
 

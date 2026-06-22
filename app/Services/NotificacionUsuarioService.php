@@ -10,8 +10,10 @@ use App\Models\Pedido;
 use App\Models\Usuario;
 use App\Models\UsuarioNotificacion;
 use App\Models\RutaDistribucion;
+use App\Support\EnvioAsignacionEstadoCatalogo;
 use App\Support\EnvioPedidoService;
 use App\Support\PedidoCatalogo;
+use App\Support\RutaDistribucionCatalogo;
 use App\Support\UsuarioRol;
 
 class NotificacionUsuarioService
@@ -219,6 +221,12 @@ class NotificacionUsuarioService
 
     public function simulacionCompletadaDistribucion(RutaDistribucion $ruta): void
     {
+        if (RutaDistribucionCatalogo::esTrasladoPlantaMayorista($ruta)) {
+            $this->trasladoPlantaCompletado($ruta);
+
+            return;
+        }
+
         $ruta->loadMissing(['transportista', 'almacenOrigen']);
         $chofer = trim(($ruta->transportista?->nombre ?? '').' '.($ruta->transportista?->apellido ?? ''));
         $mensaje = "La ruta {$ruta->codigo} completó todas las entregas (simulación). Chofer: {$chofer}.";
@@ -237,11 +245,333 @@ class NotificacionUsuarioService
                 'simulacion_ruta_completada',
                 'Ruta de distribución completada',
                 $mensaje,
-                route('punto-venta.rutas.show', $ruta, false),
+                \App\Support\RutaDistribucionNavegacion::urlVer($ruta, $usuario),
                 'ruta_distribucion',
                 (int) $ruta->rutadistribucionid,
             );
         }
+    }
+
+    public function trasladoPlantaPendienteAprobacion(RutaDistribucion $ruta): void
+    {
+        if (! RutaDistribucionCatalogo::pendienteAprobacionPlanta($ruta)) {
+            return;
+        }
+
+        $ruta->loadMissing(['almacenPlantaOrigen', 'almacenMayoristaDestino', 'detallesTraslado']);
+        $destino = $ruta->almacenMayoristaDestino?->nombre ?? 'almacén mayorista';
+        $items = $ruta->detallesTraslado->count();
+        $mensaje = "Traslado {$ruta->codigo} hacia «{$destino}» con {$items} producto(s) requiere aprobación del jefe de planta antes de salir.";
+
+        foreach ($this->destinatariosPlantaTraslado($ruta) as $usuario) {
+            $this->notificar(
+                $usuario,
+                'traslado_planta_pendiente',
+                'Traslado pendiente de aprobación',
+                $mensaje,
+                route('logistica.traslados-planta.show', $ruta, false),
+                'ruta_distribucion',
+                (int) $ruta->rutadistribucionid,
+            );
+        }
+    }
+
+    public function trasladoPlantaAceptado(RutaDistribucion $ruta): void
+    {
+        $ruta->loadMissing(['almacenMayoristaDestino', 'creadoPor', 'almacenPlantaOrigen', 'aprobadoPor']);
+        $destino = $ruta->almacenMayoristaDestino?->nombre ?? 'almacén mayorista';
+        $aprobador = trim(($ruta->aprobadoPor?->nombre ?? '').' '.($ruta->aprobadoPor?->apellido ?? ''));
+        $mensaje = "El traslado {$ruta->codigo} fue aprobado por planta"
+            .($aprobador !== '' ? " ({$aprobador})" : '')
+            .". Destino: {$destino}. El transportista puede marcar en ruta cuando salga.";
+
+        foreach ($this->destinatariosPlantaTraslado($ruta) as $usuario) {
+            $this->notificar(
+                $usuario,
+                'traslado_planta_aceptado',
+                'Traslado aprobado por planta',
+                $mensaje,
+                route('logistica.traslados-planta.show', $ruta, false),
+                'ruta_distribucion',
+                (int) $ruta->rutadistribucionid,
+            );
+        }
+
+        foreach ($this->destinatariosMayoristaTraslado($ruta) as $usuario) {
+            $this->notificar(
+                $usuario,
+                'traslado_planta_en_camino',
+                'Traslado aprobado desde planta',
+                "La planta aprobó el envío {$ruta->codigo} hacia su almacén. Recibirá una alerta cuando el vehículo complete la entrega.",
+                route('almacen-mayorista.traslados-planta.show', $ruta, false),
+                'ruta_distribucion',
+                (int) $ruta->rutadistribucionid,
+            );
+        }
+    }
+
+    public function trasladoPlantaRechazado(RutaDistribucion $ruta): void
+    {
+        $ruta->loadMissing(['almacenMayoristaDestino', 'almacenPlantaOrigen']);
+        $motivo = trim((string) ($ruta->motivo_rechazo_mayorista ?? ''));
+        $mensaje = "El traslado {$ruta->codigo} fue rechazado por el jefe de planta."
+            .($motivo !== '' ? " Motivo: {$motivo}" : '');
+
+        foreach ($this->destinatariosPlantaTraslado($ruta) as $usuario) {
+            $this->notificar(
+                $usuario,
+                'traslado_planta_rechazado',
+                'Traslado rechazado por planta',
+                $mensaje,
+                route('logistica.traslados-planta.show', $ruta, false),
+                'ruta_distribucion',
+                (int) $ruta->rutadistribucionid,
+            );
+        }
+    }
+
+    public function trasladoPlantaListoParaRecoger(RutaDistribucion $ruta): void
+    {
+        if (! $ruta->transportista_usuarioid) {
+            return;
+        }
+
+        $ruta->loadMissing(['almacenPlantaOrigen', 'almacenMayoristaDestino']);
+        $origen = $ruta->almacenPlantaOrigen?->nombre ?? 'planta';
+        $destino = $ruta->almacenMayoristaDestino?->nombre ?? 'almacén mayorista';
+
+        $this->notificar(
+            (int) $ruta->transportista_usuarioid,
+            'traslado_planta_listo_recoger',
+            'Traslado listo para salir',
+            "El traslado {$ruta->codigo} fue aprobado por planta. Acepte la solicitud e inicie el cierre operativo cuando salga de {$origen} hacia {$destino}.",
+            route('logistica.traslados-planta.cierre.panel', $ruta, false),
+            'ruta_distribucion',
+            (int) $ruta->rutadistribucionid,
+        );
+    }
+
+    public function trasladoPlantaCompletado(RutaDistribucion $ruta): void
+    {
+        $ruta->loadMissing(['transportista', 'almacenPlantaOrigen', 'almacenMayoristaDestino', 'detallesTraslado']);
+        $chofer = trim(($ruta->transportista?->nombre ?? '').' '.($ruta->transportista?->apellido ?? ''));
+        $destino = $ruta->almacenMayoristaDestino?->nombre ?? 'almacén mayorista';
+        $mensaje = "El traslado {$ruta->codigo} llegó a {$destino} (simulación completada). Chofer: {$chofer}.";
+
+        foreach ($this->destinatariosMayoristaTraslado($ruta) as $usuario) {
+            $this->notificar(
+                $usuario,
+                'traslado_planta_completado',
+                'Traslado recibido en almacén',
+                $mensaje,
+                route('almacen-mayorista.traslados-planta.show', $ruta, false),
+                'ruta_distribucion',
+                (int) $ruta->rutadistribucionid,
+            );
+        }
+
+        foreach ($this->destinatariosPlantaTraslado($ruta) as $usuario) {
+            $this->notificar(
+                $usuario,
+                'traslado_planta_completado',
+                'Traslado entregado al mayorista',
+                $mensaje,
+                route('logistica.traslados-planta.show', $ruta, false),
+                'ruta_distribucion',
+                (int) $ruta->rutadistribucionid,
+            );
+        }
+    }
+
+    public function trasladoPlantaPendienteFirmaMayorista(RutaDistribucion $ruta): void
+    {
+        $ruta->loadMissing(['almacenMayoristaDestino', 'transportista']);
+        $chofer = trim(($ruta->transportista?->nombre ?? '').' '.($ruta->transportista?->apellido ?? ''));
+        $mensaje = "El traslado {$ruta->codigo} está listo para su firma de recepción en almacén."
+            .($chofer !== '' ? " Chofer: {$chofer}." : '');
+
+        foreach ($this->destinatariosMayoristaTraslado($ruta) as $usuario) {
+            $this->notificar(
+                $usuario,
+                'traslado_planta_firma_mayorista',
+                'Pendiente firma de recepción',
+                $mensaje,
+                route('almacen-mayorista.traslados-planta.cierre.panel', $ruta, false),
+                'ruta_distribucion',
+                (int) $ruta->rutadistribucionid,
+            );
+        }
+    }
+
+    public function trasladoPlantaRecibidoEnMayorista(RutaDistribucion $ruta): void
+    {
+        $ruta->loadMissing(['almacenMayoristaDestino', 'transportista']);
+        $destino = $ruta->almacenMayoristaDestino?->nombre ?? 'almacén mayorista';
+        $chofer = trim(($ruta->transportista?->nombre ?? '').' '.($ruta->transportista?->apellido ?? ''));
+        $mensaje = "El traslado {$ruta->codigo} fue recibido en «{$destino}»."
+            .($chofer !== '' ? " Chofer: {$chofer}." : '');
+
+        foreach ($this->destinatariosMayoristaTraslado($ruta) as $usuario) {
+            $this->notificar(
+                $usuario,
+                'traslado_planta_recibido_mayorista',
+                'Recepción completada',
+                $mensaje,
+                route('almacen-mayorista.traslados-planta.show', $ruta, false),
+                'ruta_distribucion',
+                (int) $ruta->rutadistribucionid,
+            );
+        }
+
+        foreach ($this->destinatariosPlantaTraslado($ruta) as $usuario) {
+            $this->notificar(
+                $usuario,
+                'traslado_planta_recibido_mayorista',
+                'Traslado recibido en mayorista',
+                $mensaje,
+                route('logistica.traslados-planta.show', $ruta, false),
+                'ruta_distribucion',
+                (int) $ruta->rutadistribucionid,
+            );
+        }
+    }
+
+    public function distribucionPdvPendienteFirmaMinorista(RutaDistribucion $ruta): void
+    {
+        $ruta->loadMissing(['pedidos.puntoVenta', 'transportista']);
+        $codigo = $ruta->codigo ?? ('DIST-'.$ruta->rutadistribucionid);
+
+        foreach ($this->destinatariosMinoristaDistribucion($ruta) as $usuario) {
+            $this->notificar(
+                $usuario,
+                'distribucion_pdv_pendiente_firma',
+                'Firma de recepción pendiente',
+                "La entrega {$codigo} está lista para su firma en punto de venta.",
+                route('punto-venta.rutas.cierre.panel', $ruta, false),
+                'ruta_distribucion',
+                (int) $ruta->rutadistribucionid,
+            );
+        }
+    }
+
+    public function distribucionPdvRecibidaEnTienda(RutaDistribucion $ruta): void
+    {
+        $ruta->loadMissing(['pedidos.puntoVenta', 'transportista']);
+        $codigo = $ruta->codigo ?? ('DIST-'.$ruta->rutadistribucionid);
+        $pdv = $ruta->pedidos->first()?->puntoVenta?->nombre ?? 'punto de venta';
+        $mensaje = "La entrega {$codigo} fue recibida en «{$pdv}».";
+
+        foreach ($this->destinatariosMinoristaDistribucion($ruta) as $usuario) {
+            $this->notificar(
+                $usuario,
+                'distribucion_pdv_recibida',
+                'Pedido recibido en tienda',
+                $mensaje,
+                route('punto-venta.pedidos.index', ['ctx' => 'pdv'], false),
+                'ruta_distribucion',
+                (int) $ruta->rutadistribucionid,
+            );
+        }
+
+        foreach ($this->destinatariosMayoristaDistribucion($ruta) as $usuario) {
+            $this->notificar(
+                $usuario,
+                'distribucion_pdv_recibida',
+                'Entrega completada en PDV',
+                $mensaje,
+                route('punto-venta.pedidos.index', ['ctx' => 'mayorista'], false),
+                'ruta_distribucion',
+                (int) $ruta->rutadistribucionid,
+            );
+        }
+    }
+
+    /** @return \Illuminate\Support\Collection<int, Usuario> */
+    private function destinatariosMinoristaDistribucion(RutaDistribucion $ruta): \Illuminate\Support\Collection
+    {
+        $ruta->loadMissing('pedidos.puntoVenta.minorista');
+        $ids = $ruta->pedidos
+            ->map(fn ($p) => (int) ($p->puntoVenta?->usuarioid ?? 0))
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return collect();
+        }
+
+        return Usuario::query()->whereIn('usuarioid', $ids)->get();
+    }
+
+    /** @return \Illuminate\Support\Collection<int, Usuario> */
+    private function destinatariosMayoristaDistribucion(RutaDistribucion $ruta): \Illuminate\Support\Collection
+    {
+        $ruta->loadMissing('almacenOrigen');
+        $almacen = $ruta->almacenOrigen;
+
+        if ($almacen === null
+            || ! \Illuminate\Support\Facades\Schema::hasColumn('almacen', 'responsable_usuarioid')
+            || ! $almacen->responsable_usuarioid) {
+            return collect();
+        }
+
+        $responsable = Usuario::query()
+            ->where('usuarioid', $almacen->responsable_usuarioid)
+            ->where('activo', true)
+            ->first();
+
+        return $responsable ? collect([$responsable]) : collect();
+    }
+
+    /** @return \Illuminate\Support\Collection<int, Usuario> */
+    private function destinatariosMayoristaTraslado(RutaDistribucion $ruta): \Illuminate\Support\Collection
+    {
+        $ruta->loadMissing('almacenMayoristaDestino');
+        $almacen = $ruta->almacenMayoristaDestino;
+
+        if ($almacen !== null
+            && \Illuminate\Support\Facades\Schema::hasColumn('almacen', 'responsable_usuarioid')
+            && $almacen->responsable_usuarioid) {
+            $responsable = Usuario::query()
+                ->where('usuarioid', $almacen->responsable_usuarioid)
+                ->where('activo', true)
+                ->first();
+
+            if ($responsable !== null) {
+                return collect([$responsable]);
+            }
+        }
+
+        return Usuario::query()
+            ->where('activo', true)
+            ->where(function ($q) {
+                $q->whereIn('role', ['mayorista', 'jefe_mayorista'])
+                    ->orWhereHas('roles', fn ($r) => $r->whereIn('name', ['mayorista', 'jefe_mayorista']));
+            })
+            ->get();
+    }
+
+    /** @return \Illuminate\Support\Collection<int, Usuario> */
+    private function destinatariosPlantaTraslado(RutaDistribucion $ruta): \Illuminate\Support\Collection
+    {
+        $destinatarios = collect();
+
+        if ($ruta->creado_por_usuarioid) {
+            $ruta->loadMissing('creadoPor');
+            if ($ruta->creadoPor?->activo) {
+                $destinatarios->push($ruta->creadoPor);
+            }
+        }
+
+        $supervisores = Usuario::query()
+            ->where('activo', true)
+            ->where(function ($q) {
+                $q->whereIn('role', ['admin', 'Admin'])
+                    ->orWhereHas('roles', fn ($r) => $r->whereIn('name', ['admin', 'jefe_planta']));
+            })
+            ->get();
+
+        return $destinatarios->merge($supervisores)->unique('usuarioid')->values();
     }
 
     /** @return \Illuminate\Database\Eloquent\Collection<int, UsuarioNotificacion> */
@@ -249,13 +579,18 @@ class NotificacionUsuarioService
     {
         return $this->queryNoLeidas($usuarioid, $usuario)
             ->orderByDesc('creado_en')
-            ->limit($limite)
-            ->get();
+            ->get()
+            ->reject(fn (UsuarioNotificacion $n) => $this->esObsoleta($n))
+            ->take($limite)
+            ->values();
     }
 
     public function contarNoLeidas(int $usuarioid, ?Usuario $usuario = null): int
     {
-        return $this->queryNoLeidas($usuarioid, $usuario)->count();
+        return $this->queryNoLeidas($usuarioid, $usuario)
+            ->get()
+            ->reject(fn (UsuarioNotificacion $n) => $this->esObsoleta($n))
+            ->count();
     }
 
     public function esNotificacionOperarioPlanta(UsuarioNotificacion $notificacion): bool
@@ -281,6 +616,34 @@ class NotificacionUsuarioService
         }
 
         return $query;
+    }
+
+    private function esObsoleta(UsuarioNotificacion $notificacion): bool
+    {
+        if ($notificacion->tipo !== 'envio_listo_recoger') {
+            return false;
+        }
+
+        if ($notificacion->referencia_tipo !== 'envio_asignacion' || ! $notificacion->referencia_id) {
+            return false;
+        }
+
+        $envio = EnvioAsignacionMultiple::query()->find($notificacion->referencia_id);
+        if ($envio === null) {
+            return true;
+        }
+
+        if (EnvioAsignacionEstadoCatalogo::llegoADestino($envio)) {
+            return true;
+        }
+
+        if ($envio->simulacion_inicio_at !== null) {
+            return true;
+        }
+
+        $estado = strtolower(trim((string) ($envio->estado ?? '')));
+
+        return ! in_array($estado, ['asignado', 'asignada', 'pendiente', 'creada'], true);
     }
 
     public function marcarLeida(UsuarioNotificacion $notificacion, int $usuarioid): void

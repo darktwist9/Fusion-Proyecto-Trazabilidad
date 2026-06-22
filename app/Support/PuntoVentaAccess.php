@@ -4,7 +4,9 @@ namespace App\Support;
 
 use App\Models\PedidoDistribucion;
 use App\Models\PuntoVenta;
+use App\Models\RutaDistribucion;
 use App\Models\Usuario;
+use App\Support\MayoristaAccess;
 
 final class PuntoVentaAccess
 {
@@ -33,8 +35,19 @@ final class PuntoVentaAccess
             return false;
         }
 
-        if (UsuarioRol::esAdminGlobal($user) || UsuarioRol::puedeGestionarDistribucionPlanta($user)) {
+        if (UsuarioRol::esAdminGlobal($user)) {
             return true;
+        }
+
+        if (UsuarioRol::puedeGestionarDistribucionMayorista($user)) {
+            return MayoristaAccess::puedeVerPedidoDistribucion($user, $pedido);
+        }
+
+        if (UsuarioRol::esTransportista($user)) {
+            $pedido->loadMissing('rutaDistribucion');
+
+            return (int) $pedido->transportista_usuarioid === (int) $user->usuarioid
+                || (int) $pedido->rutaDistribucion?->transportista_usuarioid === (int) $user->usuarioid;
         }
 
         if (! UsuarioRol::esMinorista($user)) {
@@ -64,14 +77,61 @@ final class PuntoVentaAccess
         return $query->whereRaw('1 = 0');
     }
 
+    public static function puedeFirmarRecepcionRuta(?Usuario $user, RutaDistribucion $ruta): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        if (UsuarioRol::esAdminGlobal($user)) {
+            return true;
+        }
+
+        if (! UsuarioRol::esMinorista($user)) {
+            return false;
+        }
+
+        $ruta->loadMissing('pedidos.puntoVenta');
+
+        return $ruta->pedidos->contains(
+            fn (PedidoDistribucion $pedido) => $pedido->puntoVenta !== null
+                && (int) $pedido->puntoVenta->usuarioid === (int) $user->usuarioid
+        );
+    }
+
     public static function scopePedidosDelUsuario($query, ?Usuario $user)
     {
         if (! $user) {
             return $query->whereRaw('1 = 0');
         }
 
-        if (UsuarioRol::esAdminGlobal($user) || UsuarioRol::puedeGestionarDistribucionPlanta($user)) {
+        if (UsuarioRol::esAdminGlobal($user)) {
             return $query;
+        }
+
+        if (UsuarioRol::puedeGestionarDistribucionMayorista($user)) {
+            $almacenIds = MayoristaAccess::idsAlmacenesOperados($user);
+
+            if ($almacenIds !== []) {
+                return $query->where(function ($w) use ($almacenIds) {
+                    $w->whereIn('almacen_mayorista_origenid', $almacenIds)
+                        ->orWhere(function ($q) {
+                            $q->where(function ($sinDestino) {
+                                $sinDestino->whereNull('almacen_mayorista_origenid')
+                                    ->orWhere('almacen_mayorista_origenid', 0);
+                            })->where('tipo_solicitud', PedidoDistribucionCatalogo::TIPO_SOLICITUD_CUSTOM);
+                        });
+                });
+            }
+
+            return $query->whereRaw('1 = 0');
+        }
+
+        if (UsuarioRol::esTransportista($user)) {
+            return $query->where(function ($w) use ($user) {
+                $w->where('transportista_usuarioid', $user->usuarioid)
+                    ->orWhereHas('rutaDistribucion', fn ($r) => $r->where('transportista_usuarioid', $user->usuarioid));
+            });
         }
 
         if (UsuarioRol::esMinorista($user)) {

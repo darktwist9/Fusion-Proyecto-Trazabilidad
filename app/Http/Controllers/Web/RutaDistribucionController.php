@@ -24,13 +24,16 @@ class RutaDistribucionController extends Controller
 
     private function autorizarPlanificador(): void
     {
-        abort_unless(UsuarioRol::puedeGestionarDistribucionPlanta(auth()->user()), 403);
+        abort_unless(UsuarioRol::puedePlanificarDistribucion(auth()->user()), 403);
     }
 
     private function autorizarVerRuta(RutaDistribucion $ruta): void
     {
         $user = auth()->user();
-        if (UsuarioRol::puedeGestionarDistribucionPlanta($user)) {
+        if (UsuarioRol::puedePlanificarDistribucion($user)) {
+            return;
+        }
+        if (UsuarioRol::puedeGestionarDistribucionMayorista($user)) {
             return;
         }
         if (UsuarioRol::esTransportista($user) && (int) $ruta->transportista_usuarioid === (int) $user->usuarioid) {
@@ -65,7 +68,7 @@ class RutaDistribucionController extends Controller
                 return str_contains(mb_strtolower($pedido->numero_solicitud ?? ''), $term)
                     || str_contains(mb_strtolower($pedido->puntoVenta?->nombre ?? ''), $term)
                     || str_contains(mb_strtolower($det?->producto_nombre ?? ''), $term)
-                    || str_contains(mb_strtolower($pedido->almacenPlantaOrigen?->nombre ?? ''), $term);
+                    || str_contains(mb_strtolower($pedido->almacenMayoristaOrigen?->nombre ?? ''), $term);
             })->values();
         }
 
@@ -121,20 +124,20 @@ class RutaDistribucionController extends Controller
 
         $pedidosListos = $this->rutas->pedidosListosParaRuta();
         $almacenesIdsConPedidos = $pedidosListos
-            ->pluck('almacen_planta_origenid')
+            ->pluck('almacen_mayorista_origenid')
             ->filter()
             ->unique()
             ->values();
 
-        $almacenesPlanta = AlmacenAmbito::scope(
+        $almacenesMayorista = AlmacenAmbito::scope(
             Almacen::query()->where('activo', true),
-            AlmacenAmbito::PLANTA
+            AlmacenAmbito::MAYORISTA
         )
             ->whereIn('almacenid', $almacenesIdsConPedidos)
             ->orderBy('nombre')
             ->get();
 
-        $almacenesMapa = $almacenesPlanta->map(function (Almacen $almacen) use ($pedidosListos) {
+        $almacenesMapa = $almacenesMayorista->map(function (Almacen $almacen) use ($pedidosListos) {
             $resuelto = UbicacionGpsParser::resolverAlmacen(
                 (int) $almacen->almacenid,
                 $almacen->nombre,
@@ -142,13 +145,13 @@ class RutaDistribucionController extends Controller
             );
 
             $pedidosEnAlmacen = $pedidosListos
-                ->where('almacen_planta_origenid', $almacen->almacenid)
+                ->where('almacen_mayorista_origenid', $almacen->almacenid)
                 ->count();
 
             return [
                 'id' => $almacen->almacenid,
                 'label' => $almacen->nombre,
-                'tipo' => 'planta',
+                'tipo' => 'mayorista',
                 'lat' => $resuelto['lat'],
                 'lng' => $resuelto['lng'],
                 'extra' => [
@@ -179,16 +182,16 @@ class RutaDistribucionController extends Controller
                     'lat' => (float) $pdv->latitud,
                     'lng' => (float) $pdv->longitud,
                     'direccion' => $pdv->direccion,
-                    'almacen_origen_id' => $pedido->almacen_planta_origenid,
+                    'almacen_origen_id' => $pedido->almacen_mayorista_origenid,
                     'pedidos' => 0,
                 ];
             }
             $pdvsMapa[$key]['pedidos']++;
         }
 
-        $oldAlmacenId = old('almacen_planta_origenid');
+        $oldAlmacenId = old('almacen_mayorista_origenid');
         $oldAlmacenLabel = $oldAlmacenId
-            ? ($almacenesPlanta->firstWhere('almacenid', (int) $oldAlmacenId)?->nombre ?? '')
+            ? ($almacenesMayorista->firstWhere('almacenid', (int) $oldAlmacenId)?->nombre ?? '')
             : '';
 
         return view('punto_venta.rutas.create', [
@@ -207,7 +210,7 @@ class RutaDistribucionController extends Controller
         $this->autorizarPlanificador();
 
         $data = $request->validate([
-            'almacen_planta_origenid' => 'required|integer|exists:almacen,almacenid',
+            'almacen_mayorista_origenid' => 'required|integer|exists:almacen,almacenid',
             'transportista_usuarioid' => 'required|integer|exists:usuario,usuarioid',
             'vehiculoid' => 'required|integer|exists:vehiculo,vehiculoid',
             'costo_bs' => 'required|numeric|min:0.01|max:99999999.99',
@@ -215,8 +218,12 @@ class RutaDistribucionController extends Controller
             'pedidos.*' => 'integer|exists:pedido_distribucion,pedidodistribucionid',
         ]);
 
-        $almacen = Almacen::query()->findOrFail((int) $data['almacen_planta_origenid']);
-        $this->rutas->asegurarTransportistaPlanta((int) $data['transportista_usuarioid']);
+        $almacen = Almacen::query()->findOrFail((int) $data['almacen_mayorista_origenid']);
+        if ($almacen->ambito !== AlmacenAmbito::MAYORISTA) {
+            return back()->withInput()->with('error', 'Seleccione un almacén mayorista válido.');
+        }
+
+        $this->rutas->asegurarTransportistaMayorista((int) $data['transportista_usuarioid']);
 
         try {
             $ruta = $this->rutas->crear(
@@ -240,9 +247,20 @@ class RutaDistribucionController extends Controller
     public function empezarRuta(RutaDistribucion $ruta, SimulacionRutaService $simulacion): RedirectResponse
     {
         $user = auth()->user();
-        if (! UsuarioRol::puedeGestionarDistribucionPlanta($user)
-            && (int) $ruta->transportista_usuarioid !== (int) $user?->usuarioid) {
+        if (! UsuarioRol::puedeMarcarEnRutaDistribucion($user, $ruta)) {
             abort(403);
+        }
+
+        if ($ruta->esTrasladoPlantaMayorista()) {
+            return redirect()
+                ->route('logistica.traslados-planta.cierre.panel', $ruta)
+                ->with('info', 'Complete el cierre operativo paso a paso antes de salir hacia el mayorista.');
+        }
+
+        if (! app(\App\Services\CierreEnvioDistribucionPdvService::class)->tieneCondicionesVehiculo($ruta)) {
+            return redirect()
+                ->route('punto-venta.rutas.cierre.panel', $ruta)
+                ->with('info', 'Complete el cierre operativo paso a paso antes de salir hacia el punto de venta.');
         }
 
         try {
@@ -251,12 +269,25 @@ class RutaDistribucionController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', 'Ruta iniciada. El recorrido simulado está en marcha.');
+        $mensaje = 'Ruta marcada en marcha. El pedido ya está en camino al punto de venta.';
+        $redirect = back()->with('success', $mensaje);
+
+        if (UsuarioRol::esAdminGlobal($user)) {
+            $redirect->with('info', 'Seguimiento en vivo disponible en Ruta en tiempo real.');
+        } elseif (UsuarioRol::esTransportista($user)) {
+            $redirect->with('info', 'Puede seguir su recorrido desde esta pantalla o Mis envíos.');
+        }
+
+        return $redirect;
     }
 
-    public function show(RutaDistribucion $ruta): View
+    public function show(RutaDistribucion $ruta): View|RedirectResponse
     {
         $this->autorizarVerRuta($ruta);
+
+        if ($ruta->esTrasladoPlantaMayorista()) {
+            return redirect()->to(\App\Support\RutaDistribucionNavegacion::urlVer($ruta, auth()->user()));
+        }
 
         $ruta->load([
             'paradas.pedido.detalles',
@@ -273,13 +304,19 @@ class RutaDistribucionController extends Controller
         $trayectoTexto = $this->rutas->trayectoTexto($ruta);
         $paradasMapa = $this->rutas->paradasMapa($ruta);
         $badge = RutaDistribucionCatalogo::badgeEstado($ruta);
+        $simulacionActiva = \App\Support\SimulacionRutaCatalogo::simulacionActivaDistribucion($ruta);
+        $urlTiempoReal = $simulacionActiva
+            ? route('logistica.rutas-tiempo-real.show', ['tipo' => 'distribucion', 'id' => $ruta->rutadistribucionid])
+            : null;
 
         return view('punto_venta.rutas.show', compact(
             'ruta',
             'trayectoPartes',
             'trayectoTexto',
             'paradasMapa',
-            'badge'
+            'badge',
+            'simulacionActiva',
+            'urlTiempoReal',
         ));
     }
 }

@@ -25,6 +25,7 @@
             </p>
         @endif
         @include('logistica.partials.accion-empezar-ruta-distribucion', ['ruta' => $ruta, 'pedido' => $pedido])
+        @include('logistica.partials.accion-cierre-operativo-distribucion-pdv', ['ruta' => $ruta, 'conBordeSuperior' => true])
         @if($simActiva && !empty($urlTiempoRealPedido))
             <p class="small mb-0 mt-2">
                 @include('logistica.partials.enlace-tiempo-real', ['href' => $urlTiempoRealPedido, 'compacto' => true])

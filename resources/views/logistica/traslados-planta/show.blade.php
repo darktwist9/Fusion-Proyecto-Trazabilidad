@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Traslado '.$ruta->codigo)
-@section('page_title', 'Traslado planta → mayorista')
+@section('page_title', ($esVistaMayorista ?? false) ? 'Recepción desde planta' : 'Traslado planta → mayorista')
 
 @push('styles')
 @include('partials.logistica-modulo-styles')
@@ -153,7 +153,7 @@
                 <i class="fas fa-arrow-left mr-1"></i> Volver
             </a>
             @endif
-            @if($simulacionActiva)
+            @if($simulacionActiva && \App\Support\RutaTiempoRealAcceso::puedeVerTrasladoPlantaMayorista(auth()->user(), (int) $ruta->rutadistribucionid))
             <a href="{{ route('logistica.rutas-tiempo-real.show', ['tipo' => 'planta_mayorista', 'id' => $ruta->rutadistribucionid]) }}" class="btn btn-outline-primary btn-sm">
                 <i class="fas fa-map-marked-alt mr-1"></i> Ver en tiempo real
             </a>
@@ -236,8 +236,10 @@
         <div class="col-lg-4 mb-3">
             <div class="tpm-panel">
                 <div class="tpm-panel__head">
-                    @if($pendienteAprobacion ?? false)
-                        Aprobación mayorista
+                    @if($esVistaMayorista ?? false)
+                        Recepción en almacén
+                    @elseif($pendienteAprobacion ?? false)
+                        Aprobación jefe planta
                     @elseif(($ruta->estado ?? '') === \App\Support\RutaDistribucionCatalogo::ESTADO_COMPLETADA)
                         Traslado completado
                     @elseif(($ruta->estado ?? '') === \App\Support\RutaDistribucionCatalogo::ESTADO_EN_RUTA)
@@ -247,12 +249,25 @@
                     @endif
                 </div>
                 <div class="card-body pt-0">
+                    @if($esVistaMayorista ?? false)
+                        @include('logistica.partials.accion-recepcion-mayorista-traslado', [
+                            'ruta' => $ruta,
+                            'estadoRecepcion' => $estadoRecepcion,
+                            'simulacionActiva' => $simulacionActiva,
+                            'rutaPrefijo' => $rutaPrefijo,
+                        ])
+                    @else
                     @include('logistica.partials.accion-aprobacion-mayorista-traslado', [
                         'ruta' => $ruta,
                         'pendienteAprobacion' => $pendienteAprobacion ?? false,
-                        'puedeGestionarMayorista' => $puedeGestionarMayorista ?? false,
+                        'puedeAprobarPlanta' => $puedeAprobarPlanta ?? false,
                         'rutaPrefijo' => $rutaPrefijo,
                     ])
+                    @include('logistica.partials.accion-cierre-operativo-traslado', [
+                        'ruta' => $ruta,
+                        'rutaPrefijo' => $rutaPrefijo,
+                    ])
+                    @endif
                 </div>
             </div>
         </div>

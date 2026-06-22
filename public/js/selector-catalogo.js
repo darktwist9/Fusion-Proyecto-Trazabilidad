@@ -111,6 +111,40 @@
             });
 
             this.modalEl.querySelector('#selectorCatalogoLista').addEventListener('click', (e) => {
+                const mapBtn = e.target.closest('.sel-row-map-btn');
+                if (mapBtn && this.activeId) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const row = mapBtn.closest('[data-item-id]');
+                    if (!row) {
+                        return;
+                    }
+                    let extra = {};
+                    try {
+                        extra = JSON.parse(row.getAttribute('data-item-extra') || '{}');
+                    } catch (err) {
+                        extra = {};
+                    }
+                    const cfg = this.instances[this.activeId] || {};
+                    const payload = {
+                        id: row.getAttribute('data-item-id'),
+                        label: row.getAttribute('data-item-label'),
+                        extra,
+                    };
+                    if (typeof cfg.onMapClick === 'function') {
+                        cfg.onMapClick(payload);
+                    } else if (extra.lat != null && extra.lng != null) {
+                        const lat = parseFloat(extra.lat);
+                        const lng = parseFloat(extra.lng);
+                        window.open(
+                            'https://www.openstreetmap.org/?mlat=' + lat + '&mlon=' + lng + '#map=16/' + lat + '/' + lng,
+                            '_blank',
+                            'noopener'
+                        );
+                    }
+                    return;
+                }
+
                 const actionBtn = e.target.closest('.sel-row-action-btn');
                 if (actionBtn && this.activeId) {
                     e.preventDefault();
@@ -188,6 +222,16 @@
             this.instances[id] = config;
         },
 
+        selectedItemId(id) {
+            const cfg = this.instances[id];
+            if (cfg && cfg.selectedItemId != null && cfg.selectedItemId !== '') {
+                return String(cfg.selectedItemId);
+            }
+            const wrapper = document.getElementById('selector_wrap_' + id);
+            const hidden = wrapper?.querySelector('.selector-catalogo-value');
+            return hidden?.value != null && hidden.value !== '' ? String(hidden.value) : '';
+        },
+
         open(id) {
             const cfg = this.instances[id];
             if (!cfg || !this.modalEl) {
@@ -201,18 +245,15 @@
                 cfg.beforeOpen(cfg);
             }
 
+            cfg.selectedItemId = this.selectedItemId(id);
+
             this.modalEl.querySelector('#selectorCatalogoTitulo').textContent = cfg.title || 'Buscar y seleccionar';
             this.modalEl.querySelector('#selectorCatalogoBuscar').value = '';
             this.modalEl.querySelector('#selectorCatalogoBuscar').placeholder = cfg.searchPlaceholder || 'Escriba para buscar…';
 
-            this.modalEl.classList.remove('sel-theme-planta', 'sel-theme-vehiculo', 'sel-theme-origen');
+            this.modalEl.classList.remove('sel-theme-planta', 'sel-theme-vehiculo', 'sel-theme-origen', 'sel-theme-chofer');
             if (cfg.theme) {
                 this.modalEl.classList.add('sel-theme-' + cfg.theme);
-            }
-
-            const headerIcon = this.modalEl.querySelector('#selectorCatalogoHeaderIcon');
-            if (headerIcon) {
-                headerIcon.className = 'fas ' + (cfg.modalIcon || 'fa-search');
             }
 
             const colNombre = this.modalEl.querySelector('#selectorCatalogoColNombre');
@@ -226,9 +267,7 @@
 
             const buscarLabel = this.modalEl.querySelector('#selectorCatalogoBuscarLabel');
             if (buscarLabel) {
-                const labelText = cfg.searchLabel || 'Buscar';
-                const labelIcon = cfg.modalIcon || 'fa-search';
-                buscarLabel.innerHTML = '<i class="fas ' + labelIcon + ' mr-1"></i> ' + this.escape(labelText);
+                buscarLabel.textContent = cfg.searchLabel || 'Buscar';
             }
 
             const filterWrap = this.modalEl.querySelector('#selectorCatalogoFiltroWrap');
@@ -457,7 +496,6 @@
         renderList(items) {
             const lista = this.modalEl.querySelector('#selectorCatalogoLista');
             const cfg = this.instances[this.activeId] || {};
-            const rowIcon = cfg.rowIcon || 'fa-leaf';
 
             if (!items.length && !cfg.allowEmpty) {
                 lista.innerHTML = '<tr><td colspan="2" class="sel-modal-empty"><i class="fas fa-search d-block mb-2"></i>Sin resultados. Pruebe otro término o filtro.</td></tr>';
@@ -488,9 +526,35 @@
             }
 
             const actionLabel = cfg.rowAction?.label || (typeof cfg.onRowAction === 'function' ? 'Ver' : null);
+            const selectedId = this.selectedItemId(this.activeId);
 
-            html += items.map((item) => `
-                <tr class="selector-catalogo-row"
+            if (cfg.theme === 'vehiculo') {
+                const placasVistas = new Set();
+                items = items.filter((item) => {
+                    const placa = String(item.label || '').trim().toUpperCase();
+                    if (!placa || placasVistas.has(placa)) return false;
+                    placasVistas.add(placa);
+                    return true;
+                });
+            }
+
+            html += items.map((item) => {
+                const rowIcon = typeof cfg.rowIconFn === 'function'
+                    ? cfg.rowIconFn(item)
+                    : (cfg.rowIcon || 'fa-leaf');
+                const isSuggested = (cfg.suggestedItemId != null
+                    && String(item.id) === String(cfg.suggestedItemId))
+                    || item.sugerido === true;
+                const isSelected = selectedId !== '' && String(item.id) === selectedId;
+                const rowClasses = ['selector-catalogo-row'];
+                if (isSuggested) rowClasses.push('selector-catalogo-row--suggested');
+                if (isSelected) rowClasses.push('selector-catalogo-row--selected');
+                const hasMap = item.extra && item.extra.lat != null && item.extra.lng != null;
+                const mapBtn = hasMap
+                    ? `<button type="button" class="btn btn-xs btn-outline-primary sel-row-map-btn" title="Ver ubicación del mayorista"><i class="fas fa-map-marker-alt mr-1"></i>Ver en mapa</button>`
+                    : '';
+                return `
+                <tr class="${rowClasses.join(' ')}"
                     data-item-id="${item.id}"
                     data-item-label="${this.escape(item.label)}"
                     data-item-extra="${this.escape(JSON.stringify(item.extra || {}))}"
@@ -498,13 +562,21 @@
                     <td class="sel-col-nombre">
                         <span class="sel-row-icon"><i class="fas ${rowIcon}"></i></span>
                         ${this.escape(item.label)}
+                        ${isSelected ? '<span class="sel-badge-seleccionado">Seleccionado</span>' : ''}
+                        ${!isSelected && isSuggested ? '<span class="sel-badge-sugerido">Recomendado</span>' : ''}
                     </td>
                     <td class="sel-col-meta${actionLabel ? ' sel-col-meta--with-action' : ''}">
-                        <span class="sel-col-meta-text">${item.meta ? this.escape(item.meta) : '—'}</span>
+                        ${item.meta_lineas && item.meta_lineas.length
+                            ? `<div class="sel-meta-stack">${item.meta_lineas.map((ln) =>
+                                `<div class="sel-meta-line"><i class="fas ${ln.icon || 'fa-info-circle'}"></i><span>${this.escape(ln.text || '')}</span></div>`
+                            ).join('')}</div>`
+                            : `<span class="sel-col-meta-text">${item.meta ? this.escape(item.meta) : '—'}</span>`
+                        }
+                        ${mapBtn}
                         ${actionLabel ? `<button type="button" class="btn btn-sm btn-outline-success sel-row-action-btn" title="Ver productos en este almacén">${this.escape(actionLabel)}</button>` : ''}
                     </td>
-                </tr>
-            `).join('');
+                </tr>`;
+            }).join('');
             lista.innerHTML = html;
         },
 
@@ -535,7 +607,9 @@
             if (display) {
                 display.classList.toggle('is-empty', !hasValue);
                 if (!hasValue) {
-                    display.placeholder = cfg.placeholderEmpty || cfg.emptyLabel || 'Opcional — sin asignar';
+                    display.placeholder = cfg.allowEmpty
+                        ? (cfg.placeholderEmpty || cfg.emptyLabel || 'Opcional — sin asignar')
+                        : 'Elegir…';
                 }
             }
 

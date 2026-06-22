@@ -246,6 +246,10 @@ return [
 
             'create' => 'lote_produccion.create',
 
+            'update' => 'lote_produccion.update',
+
+            'delete' => 'lote_produccion.delete',
+
         ],
 
         'panel_transportista' => [
@@ -285,6 +289,12 @@ return [
         'panel_agricultor' => [
 
             'read' => 'panel_agricultor.view',
+
+        ],
+
+        'panel_mayorista' => [
+
+            'read' => 'panel_mayorista.view',
 
         ],
 
@@ -378,6 +388,12 @@ return [
 
             'usuarios.delete',
 
+            'asignaciones.view',
+
+            'envios.view',
+
+            'documentos.view',
+
         ],
 
         'agricultor' => [
@@ -424,6 +440,10 @@ return [
 
             'lote_produccion.create',
 
+            'lote_produccion.update',
+
+            'lote_produccion.delete',
+
             'inventario.view',
 
             'inventario.create',
@@ -440,11 +460,17 @@ return [
 
             'pedidos_distribucion.view',
 
+            'pedidos_distribucion.update',
+
         ],
 
         'jefe_planta' => [
 
             'panel_planta.view',
+
+            'envios.view',
+
+            'asignaciones.view',
 
             'recepcion_planta.view',
 
@@ -453,6 +479,10 @@ return [
             'lote_produccion.view',
 
             'lote_produccion.create',
+
+            'lote_produccion.update',
+
+            'lote_produccion.delete',
 
             'inventario.view',
 
@@ -492,6 +522,8 @@ return [
 
             'usuarios.delete',
 
+            'documentos.view',
+
         ],
 
         'transportista' => [
@@ -524,6 +556,10 @@ return [
 
             'pedidos.view',
 
+            'pedidos_distribucion.view',
+
+            'pedidos_distribucion.update',
+
             'monitoreo.view',
 
         ],
@@ -543,6 +579,90 @@ return [
             'pedidos_distribucion.create',
 
             'pedidos_distribucion.update',
+
+        ],
+
+        'jefe_mayorista' => [
+
+            'panel_mayorista.view',
+
+            'asignaciones.view',
+
+            'envios.view',
+
+            'documentos.view',
+
+            'inventario.view',
+
+            'inventario.create',
+
+            'inventario.update',
+
+            'inventario.delete',
+
+            'almacen.movimientos.view',
+
+            'almacen.ingresos.create',
+
+            'almacen.salidas.create',
+
+            'almacen.reportes.view',
+
+            'pedidos_distribucion.view',
+
+            'pedidos_distribucion.create',
+
+            'pedidos_distribucion.update',
+
+            'pedidos_distribucion.delete',
+
+            'pedidos.create',
+
+            'usuarios.view',
+
+            'usuarios.create',
+
+            'usuarios.update',
+
+            'usuarios.delete',
+
+        ],
+
+        'mayorista' => [
+
+            'panel_mayorista.view',
+
+            'asignaciones.view',
+
+            'envios.view',
+
+            'documentos.view',
+
+            'inventario.view',
+
+            'inventario.create',
+
+            'inventario.update',
+
+            'inventario.delete',
+
+            'almacen.movimientos.view',
+
+            'almacen.ingresos.create',
+
+            'almacen.salidas.create',
+
+            'almacen.reportes.view',
+
+            'pedidos_distribucion.view',
+
+            'pedidos_distribucion.create',
+
+            'pedidos_distribucion.update',
+
+            'pedidos_distribucion.delete',
+
+            'pedidos.create',
 
         ],
 

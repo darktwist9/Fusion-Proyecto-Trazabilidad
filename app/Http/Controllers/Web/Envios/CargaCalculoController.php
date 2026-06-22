@@ -35,4 +35,19 @@ class CargaCalculoController extends Controller
 
         return response()->json(['data' => $resultado]);
     }
+
+    public function calibres(Request $request): JsonResponse
+    {
+        $request->validate([
+            'producto_ref' => ['required', 'string', 'max:120'],
+            'tipo_empaque_id' => ['nullable', 'integer'],
+        ]);
+
+        $items = \App\Support\PedidoCatalogo::listarCalibresParaProducto(
+            (string) $request->input('producto_ref'),
+            $request->filled('tipo_empaque_id') ? (int) $request->input('tipo_empaque_id') : null,
+        );
+
+        return response()->json(['data' => $items]);
+    }
 }

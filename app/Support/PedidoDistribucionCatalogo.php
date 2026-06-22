@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\PedidoDistribucion;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 
 final class PedidoDistribucionCatalogo
@@ -18,6 +19,12 @@ final class PedidoDistribucionCatalogo
     public const ESTADO_RECHAZADO = 'rechazado';
 
     public const ESTADO_CANCELADO = 'cancelado';
+
+    public const TIPO_SOLICITUD_CATALOGO = 'catalogo';
+
+    public const TIPO_SOLICITUD_STOCK = 'stock';
+
+    public const TIPO_SOLICITUD_CUSTOM = 'custom';
 
     public static function generarNumeroSolicitud(): string
     {
@@ -35,20 +42,30 @@ final class PedidoDistribucionCatalogo
         return sprintf('PDV-%s-%04d', $fecha, $secuencia);
     }
 
-    public static function pendienteAprobacionPlanta(PedidoDistribucion $pedido): bool
+    public static function pendienteAprobacionMayorista(PedidoDistribucion $pedido): bool
     {
         return $pedido->estado === self::ESTADO_PENDIENTE;
     }
 
-    /** @deprecated Use pendienteAprobacionPlanta() */
+    public static function pendienteAprobacionPlanta(PedidoDistribucion $pedido): bool
+    {
+        return self::pendienteAprobacionMayorista($pedido);
+    }
+
+    /** @deprecated Use pendienteAprobacionMayorista() */
     public static function pendienteAprobacionMinorista(PedidoDistribucion $pedido): bool
     {
-        return self::pendienteAprobacionPlanta($pedido);
+        return self::pendienteAprobacionMayorista($pedido);
+    }
+
+    public static function puedeAceptarMayorista(PedidoDistribucion $pedido): bool
+    {
+        return self::pendienteAprobacionMayorista($pedido);
     }
 
     public static function puedeAceptarPlanta(PedidoDistribucion $pedido): bool
     {
-        return self::pendienteAprobacionPlanta($pedido);
+        return self::puedeAceptarMayorista($pedido);
     }
 
     public static function puedeMarcarEnviado(PedidoDistribucion $pedido): bool
@@ -56,9 +73,42 @@ final class PedidoDistribucionCatalogo
         return $pedido->estado === self::ESTADO_CONFIRMADO;
     }
 
+    /** Pedido aceptado y aún sin ruta ni transportista asignado. */
+    public static function puedeDesignarTransportista(PedidoDistribucion $pedido): bool
+    {
+        if ($pedido->estado !== self::ESTADO_CONFIRMADO || $pedido->rutadistribucionid !== null) {
+            return false;
+        }
+
+        if ($pedido->requiere_coordinacion_planta && ! $pedido->coordinacion_planta_resuelta) {
+            return false;
+        }
+
+        return $pedido->almacen_mayorista_origenid !== null;
+    }
+
+    /** @deprecated Use puedeDesignarTransportista() */
     public static function puedeDespacharDirecto(PedidoDistribucion $pedido): bool
     {
-        return self::puedeMarcarEnviado($pedido) && $pedido->rutadistribucionid === null;
+        return self::puedeDesignarTransportista($pedido);
+    }
+
+    public static function tieneTransportistaDesignado(PedidoDistribucion $pedido): bool
+    {
+        return $pedido->estado === self::ESTADO_CONFIRMADO
+            && ($pedido->rutadistribucionid !== null || $pedido->transportista_usuarioid !== null);
+    }
+
+    /** Mientras no haya salido en ruta ni cerrado el pedido. */
+    public static function puedeEditarFlujoAntesDeRuta(PedidoDistribucion $pedido): bool
+    {
+        return in_array($pedido->estado, [self::ESTADO_PENDIENTE, self::ESTADO_CONFIRMADO], true);
+    }
+
+    public static function puedeReabrirRevision(PedidoDistribucion $pedido): bool
+    {
+        return $pedido->estado === self::ESTADO_CONFIRMADO
+            && self::puedeEditarFlujoAntesDeRuta($pedido);
     }
 
     public static function puedeConfirmarRecepcion(PedidoDistribucion $pedido): bool
@@ -72,7 +122,7 @@ final class PedidoDistribucionCatalogo
         return [
             'revision' => 'En revisión',
             'preparacion' => 'Preparando envío',
-            'camino' => 'En camino',
+            'camino' => 'En ruta',
             'recibido' => 'Recibido',
             'cerrado' => 'Cerrado',
         ];
@@ -91,13 +141,77 @@ final class PedidoDistribucionCatalogo
         };
     }
 
+    public static function aplicarFiltroGrupoEstado(Builder $query, string $grupo): Builder
+    {
+        if ($grupo === 'camino') {
+            return $query
+                ->where('estado', self::ESTADO_EN_TRANSITO)
+                ->whereHas('rutaDistribucion', fn (Builder $r) => $r
+                    ->whereNotNull('simulacion_inicio_at')
+                    ->where('estado', RutaDistribucionCatalogo::ESTADO_EN_RUTA));
+        }
+
+        if ($grupo === 'preparacion') {
+            return $query->where(function (Builder $w) {
+                $w->where('estado', self::ESTADO_CONFIRMADO)
+                    ->orWhere(function (Builder $w2) {
+                        $w2->where('estado', self::ESTADO_EN_TRANSITO)
+                            ->where(function (Builder $w3) {
+                                $w3->whereDoesntHave('rutaDistribucion')
+                                    ->orWhereHas('rutaDistribucion', fn (Builder $r) => $r
+                                        ->whereNull('simulacion_inicio_at')
+                                        ->orWhere('estado', '!=', RutaDistribucionCatalogo::ESTADO_EN_RUTA));
+                            });
+                    });
+            });
+        }
+
+        $estados = self::estadosDeGrupoFiltro($grupo);
+
+        return $estados !== [] ? $query->whereIn('estado', $estados) : $query;
+    }
+
+    public static function puedeSolicitarProduccionPlanta(PedidoDistribucion $pedido): bool
+    {
+        return $pedido->estado === self::ESTADO_CONFIRMADO
+            && $pedido->requiere_coordinacion_planta
+            && ! $pedido->coordinacion_planta_resuelta;
+    }
+
+    public static function etiquetaEntregaDeseada(PedidoDistribucion $pedido): ?string
+    {
+        if ($pedido->fecha_entrega_deseada === null) {
+            return null;
+        }
+
+        $fecha = $pedido->fecha_entrega_deseada->format('d/m/Y');
+        $hora = $pedido->hora_entrega_deseada
+            ? substr((string) $pedido->hora_entrega_deseada, 0, 5)
+            : null;
+
+        return $hora ? "{$fecha} · {$hora}" : $fecha;
+    }
+
+    public static function estaEnRutaTiempoReal(PedidoDistribucion $pedido): bool
+    {
+        if ($pedido->estado !== self::ESTADO_EN_TRANSITO || $pedido->rutadistribucionid === null) {
+            return false;
+        }
+
+        $ruta = $pedido->relationLoaded('rutaDistribucion')
+            ? $pedido->rutaDistribucion
+            : $pedido->rutaDistribucion()->first();
+
+        return $ruta !== null && SimulacionRutaCatalogo::simulacionActivaDistribucion($ruta);
+    }
+
     /** @return array<string, string> */
     public static function etiquetasEstado(): array
     {
         return [
             self::ESTADO_PENDIENTE => 'En revisión',
             self::ESTADO_CONFIRMADO => 'Preparando envío',
-            self::ESTADO_EN_TRANSITO => 'En camino',
+            self::ESTADO_EN_TRANSITO => 'En ruta',
             self::ESTADO_RECIBIDO => 'Recibido',
             self::ESTADO_RECHAZADO => 'Rechazado',
             self::ESTADO_CANCELADO => 'Cancelado',
@@ -109,17 +223,51 @@ final class PedidoDistribucionCatalogo
         return self::etiquetasEstado()[$estado ?? ''] ?? ucfirst(str_replace('_', ' ', (string) $estado));
     }
 
-    /** @return array{clase: string, etiqueta: string} */
+    public static function badgeBootstrapClase(array $badge): string
+    {
+        return match ($badge['clase'] ?? '') {
+            'revision', 'asignado' => 'warning',
+            'preparacion' => 'info',
+            'ruta' => 'primary',
+            'recibido' => 'success',
+            'rechazado' => 'danger',
+            'cancelado', 'neutral' => 'secondary',
+            default => 'secondary',
+        };
+    }
+
+    /** @return array{clase: string, etiqueta: string, icono: string} */
     public static function badgeEstado(PedidoDistribucion $pedido): array
     {
+        if ($pedido->estado === self::ESTADO_PENDIENTE && $pedido->espera_stock) {
+            $det = $pedido->relationLoaded('detalles')
+                ? $pedido->detalles->first()
+                : null;
+            $presNombre = $det?->presentacion?->nombre
+                ?? (is_string($det?->producto_nombre) && str_contains($det->producto_nombre, '·')
+                    ? trim(explode('·', $det->producto_nombre, 2)[1] ?? '')
+                    : null);
+            $sufijo = $presNombre ? ' — '.$presNombre : '';
+
+            return [
+                'clase' => 'revision',
+                'etiqueta' => 'Esperando stock'.$sufijo,
+                'icono' => 'fa-box-open',
+            ];
+        }
+
         return match ($pedido->estado) {
-            self::ESTADO_PENDIENTE => ['clase' => 'warning', 'etiqueta' => 'En revisión'],
-            self::ESTADO_CONFIRMADO => ['clase' => 'info', 'etiqueta' => 'Preparando envío'],
-            self::ESTADO_EN_TRANSITO => ['clase' => 'primary', 'etiqueta' => 'En camino'],
-            self::ESTADO_RECIBIDO => ['clase' => 'success', 'etiqueta' => 'Recibido'],
-            self::ESTADO_RECHAZADO => ['clase' => 'danger', 'etiqueta' => 'Rechazado'],
-            self::ESTADO_CANCELADO => ['clase' => 'secondary', 'etiqueta' => 'Cancelado'],
-            default => ['clase' => 'secondary', 'etiqueta' => self::etiquetaEstado($pedido->estado)],
+            self::ESTADO_PENDIENTE => ['clase' => 'revision', 'etiqueta' => 'En revisión', 'icono' => 'fa-hourglass-half'],
+            self::ESTADO_CONFIRMADO => self::tieneTransportistaDesignado($pedido)
+                ? ['clase' => 'asignado', 'etiqueta' => 'Transportista asignado', 'icono' => 'fa-user-check']
+                : ['clase' => 'preparacion', 'etiqueta' => 'Preparando envío', 'icono' => 'fa-box-open'],
+            self::ESTADO_EN_TRANSITO => self::estaEnRutaTiempoReal($pedido)
+                ? ['clase' => 'ruta', 'etiqueta' => 'En ruta', 'icono' => 'fa-shipping-fast']
+                : ['clase' => 'asignado', 'etiqueta' => 'Listo para salida', 'icono' => 'fa-truck-loading'],
+            self::ESTADO_RECIBIDO => ['clase' => 'recibido', 'etiqueta' => 'Recibido', 'icono' => 'fa-check-circle'],
+            self::ESTADO_RECHAZADO => ['clase' => 'rechazado', 'etiqueta' => 'Rechazado', 'icono' => 'fa-ban'],
+            self::ESTADO_CANCELADO => ['clase' => 'cancelado', 'etiqueta' => 'Cancelado', 'icono' => 'fa-times-circle'],
+            default => ['clase' => 'neutral', 'etiqueta' => self::etiquetaEstado($pedido->estado), 'icono' => 'fa-info-circle'],
         };
     }
 }

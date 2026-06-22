@@ -9,6 +9,9 @@
     $mostrarLote = $mostrarLote ?? false;
     $mostrarEstadoLote = $mostrarEstadoLote ?? false;
     $mostrarRangoFechas = $mostrarRangoFechas ?? false;
+    $mostrarUsuario = $mostrarUsuario ?? false;
+    $usuariosPanel = $usuariosPanel ?? collect();
+    $etiquetaUsuarioPanel = $etiquetaUsuarioPanel ?? 'Usuario';
     $actionUrl = $actionUrl ?? url()->current();
     $paramsBase = $filtros->queryParams();
     $cultivoLabel = ($filtros->cultivoId && $cultivos->isNotEmpty())
@@ -112,6 +115,7 @@
                     'cultivo' => $filtros->cultivoId,
                     'lote' => $filtros->loteId,
                     'estado_lote' => $filtros->estadoLoteId,
+                    'usuario' => $filtros->usuarioId,
                 ], fn ($v) => $v !== null && $v !== '');
                 $activo = $filtros->periodo === $key && ! $filtros->anioHistorico && ! $filtros->usaRangoPersonalizado();
             @endphp
@@ -134,6 +138,20 @@
                     @endforeach
                 </select>
             </div>
+
+            @if($mostrarUsuario)
+            <div class="dash-filtros-field">
+                <label for="dash-filtro-usuario">{{ $etiquetaUsuarioPanel }}</label>
+                <select name="usuario" id="dash-filtro-usuario" class="form-control form-control-sm">
+                    <option value="">Todos (vista global)</option>
+                    @foreach($usuariosPanel as $u)
+                        <option value="{{ $u->usuarioid }}" @selected($filtros->usuarioId === (int) $u->usuarioid)>
+                            {{ $u->nombreCompleto() }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            @endif
 
             @if($mostrarCultivo)
             <div class="dash-filtros-field dash-filtros-field--selector">
@@ -225,6 +243,10 @@
                 @if($filtros->loteId && $lotes->isNotEmpty())
                     @php $lNom = $lotes->firstWhere('loteid', $filtros->loteId)?->nombre; @endphp
                     @if($lNom)<span class="dash-filtros-badge"><i class="fas fa-map"></i> {{ $lNom }}</span>@endif
+                @endif
+                @if($filtros->usuarioId && $usuariosPanel->isNotEmpty())
+                    @php $uNom = $usuariosPanel->firstWhere('usuarioid', $filtros->usuarioId)?->nombreCompleto(); @endphp
+                    @if($uNom)<span class="dash-filtros-badge"><i class="fas fa-user"></i> {{ $uNom }}</span>@endif
                 @endif
             </div>
             @else

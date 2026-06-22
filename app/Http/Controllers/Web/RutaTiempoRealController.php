@@ -4,10 +4,14 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\EnvioAsignacionMultiple;
+use App\Models\PedidoDistribucion;
 use App\Models\RutaDistribucion;
+use App\Support\RutaTiempoRealCierreAdmin;
 use App\Services\SimulacionRutaService;
 use App\Support\EnvioAsignacionEstadoCatalogo;
+use App\Support\PuntoVentaAccess;
 use App\Support\RutaDistribucionCatalogo;
+use App\Support\RutaTiempoRealAcceso;
 use App\Support\SimulacionRutaCatalogo;
 use App\Support\UsuarioRol;
 use Illuminate\Http\JsonResponse;
@@ -24,23 +28,91 @@ class RutaTiempoRealController extends Controller
     {
         $this->autorizarSupervisor();
 
-        $rutas = $this->simulacion->listarActivas();
+        $user = auth()->user();
+        $busqueda = request()->string('q')->trim()->toString();
+        $variante = RutaTiempoRealAcceso::normalizarVarianteFiltro(
+            $user,
+            request()->string('variante')->trim()->toString() ?: null
+        );
+
+        $rutas = RutaTiempoRealAcceso::filtrarActivas(
+            $this->simulacion->listarActivasFiltradas(
+                $busqueda !== '' ? $busqueda : null,
+                $variante
+            ),
+            $user
+        );
+
+        $variantes = RutaTiempoRealAcceso::catalogoVariantes($user);
 
         return view('logistica.rutas-tiempo-real.index', [
             'rutas' => $rutas,
             'totalActivas' => $rutas->count(),
+            'busqueda' => $busqueda,
+            'variante' => $variante,
+            'variantes' => $variantes,
+            'esVistaGlobal' => RutaTiempoRealAcceso::esVistaGlobal($user),
+            'subtituloModulo' => RutaTiempoRealAcceso::subtituloModulo($user),
+            'filtroTipoUnico' => count($variantes) === 1,
+        ]);
+    }
+
+    public function mapa(): View
+    {
+        $this->autorizarSupervisor();
+
+        $user = auth()->user();
+
+        return view('logistica.rutas-tiempo-real.mapa', [
+            'variantes' => RutaTiempoRealAcceso::catalogoVariantes($user),
+            'estadoUrl' => route('logistica.rutas-tiempo-real.mapa-estado'),
+            'volverUrl' => route('logistica.rutas-tiempo-real.index'),
+            'esVistaGlobal' => RutaTiempoRealAcceso::esVistaGlobal($user),
+        ]);
+    }
+
+    public function estadoMapa(): JsonResponse
+    {
+        $this->autorizarSupervisor();
+
+        $rutas = $this->simulacion->estadosMapaGlobal();
+        $user = auth()->user();
+
+        if ($user !== null && ! RutaTiempoRealAcceso::esVistaGlobal($user)) {
+            $rutas = array_values(array_filter(
+                $rutas,
+                fn (array $item) => RutaTiempoRealAcceso::puedeVerItem($user, $item)
+            ));
+        }
+
+        return response()->json([
+            'actualizado_at' => now()->toIso8601String(),
+            'rutas' => $rutas,
         ]);
     }
 
     public function show(string $tipo, int $id): View
     {
-        $this->autorizarSupervisor();
+        $this->autorizarVerIndividual($tipo, $id);
 
-        [$titulo, $estado, $paradas, $trayecto] = match ($tipo) {
-            SimulacionRutaCatalogo::TIPO_AGRICOLA => $this->resolverAgricola($id),
-            SimulacionRutaCatalogo::TIPO_DISTRIBUCION => $this->resolverDistribucion($id),
+        [$titulo, $estado, $paradas, $trayecto, $volverUrl] = match ($tipo) {
+            SimulacionRutaCatalogo::TIPO_AGRICOLA => [...$this->resolverAgricola($id), $this->urlVolverAgricola($id)],
+            SimulacionRutaCatalogo::TIPO_DISTRIBUCION => [...$this->resolverDistribucion($id), $this->urlVolverDistribucion($id)],
+            SimulacionRutaCatalogo::TIPO_PLANTA_MAYORISTA => [...$this->resolverPlantaMayorista($id), $this->urlVolverPlantaMayorista($id)],
             default => abort(404),
         };
+
+        $puedeConfirmarLlegada = false;
+        $confirmarLlegadaUrl = null;
+        $mensajeConfirmarLlegada = '';
+
+        $user = auth()->user();
+        if ($user) {
+            $confirmacionAdmin = RutaTiempoRealCierreAdmin::resolverConfirmarLlegada($user, $tipo, $id, $estado);
+            $puedeConfirmarLlegada = $confirmacionAdmin['puede'];
+            $confirmarLlegadaUrl = $confirmacionAdmin['url'];
+            $mensajeConfirmarLlegada = $confirmacionAdmin['mensaje'];
+        }
 
         return view('logistica.rutas-tiempo-real.show', [
             'tipo' => $tipo,
@@ -49,7 +121,11 @@ class RutaTiempoRealController extends Controller
             'estado' => $estado,
             'paradas' => $paradas,
             'trayecto' => $trayecto,
+            'volverUrl' => $volverUrl,
             'puedeCerrarManual' => $this->puedeCerrarManual() && ! ($estado['completada'] ?? false),
+            'puedeConfirmarLlegada' => $puedeConfirmarLlegada,
+            'confirmarLlegadaUrl' => $confirmarLlegadaUrl,
+            'mensajeConfirmarLlegada' => $mensajeConfirmarLlegada,
         ]);
     }
 
@@ -61,6 +137,7 @@ class RutaTiempoRealController extends Controller
             match ($tipo) {
                 SimulacionRutaCatalogo::TIPO_AGRICOLA => $this->cerrarManualAgricola($id),
                 SimulacionRutaCatalogo::TIPO_DISTRIBUCION => $this->cerrarManualDistribucion($id),
+                SimulacionRutaCatalogo::TIPO_PLANTA_MAYORISTA => $this->cerrarManualPlantaMayorista($id),
                 default => abort(404),
             };
         } catch (\InvalidArgumentException $e) {
@@ -87,29 +164,17 @@ class RutaTiempoRealController extends Controller
 
     public function estado(string $tipo, int $id): JsonResponse
     {
-        $user = auth()->user();
-        $esTransportista = UsuarioRol::esTransportista($user);
+        $this->autorizarVerIndividual($tipo, $id);
 
         if ($tipo === SimulacionRutaCatalogo::TIPO_AGRICOLA) {
             $envio = EnvioAsignacionMultiple::query()->findOrFail($id);
-            if ($esTransportista && (int) $envio->transportista_usuarioid !== (int) $user?->usuarioid) {
-                abort(403);
-            }
-            if (! $esTransportista) {
-                $this->autorizarSupervisor();
-            }
 
             return response()->json($this->simulacion->estadoAgricola($envio));
         }
 
-        if ($tipo === SimulacionRutaCatalogo::TIPO_DISTRIBUCION) {
+        if ($tipo === SimulacionRutaCatalogo::TIPO_DISTRIBUCION
+            || $tipo === SimulacionRutaCatalogo::TIPO_PLANTA_MAYORISTA) {
             $ruta = RutaDistribucion::query()->findOrFail($id);
-            if ($esTransportista && (int) $ruta->transportista_usuarioid !== (int) $user?->usuarioid) {
-                abort(403);
-            }
-            if (! $esTransportista) {
-                $this->autorizarSupervisor();
-            }
 
             return response()->json($this->simulacion->estadoDistribucion($ruta));
         }
@@ -119,14 +184,59 @@ class RutaTiempoRealController extends Controller
 
     private function autorizarSupervisor(): void
     {
+        abort_unless(RutaTiempoRealAcceso::puedeAccederModulo(auth()->user()), 403);
+    }
+
+    private function autorizarVerIndividual(string $tipo, int $id): void
+    {
         $user = auth()->user();
-        abort_unless(
-            $user && (
-                UsuarioRol::esAdminGlobal($user)
-                || UsuarioRol::esJefePlanta($user)
-                || ($user->can('asignaciones.read') && ! UsuarioRol::esTransportista($user))
-            ),
-            403
+        abort_unless($user !== null, 403);
+
+        if (RutaTiempoRealAcceso::esVistaGlobal($user)) {
+            return;
+        }
+
+        if ($tipo === SimulacionRutaCatalogo::TIPO_AGRICOLA) {
+            abort_unless(RutaTiempoRealAcceso::puedeVerEnvioAgricola($user, $id), 403);
+
+            return;
+        }
+
+        if ($tipo === SimulacionRutaCatalogo::TIPO_DISTRIBUCION) {
+            abort_unless(
+                RutaTiempoRealAcceso::puedeVerRutaDistribucion($user, $id)
+                || $this->puedeVerRutaDistribucionMinorista($id, $user),
+                403
+            );
+
+            return;
+        }
+
+        if ($tipo === SimulacionRutaCatalogo::TIPO_PLANTA_MAYORISTA) {
+            abort_unless(RutaTiempoRealAcceso::puedeVerTrasladoPlantaMayorista($user, $id), 403);
+
+            return;
+        }
+
+        abort(403);
+    }
+
+    private function puedeVerRutaDistribucionMinorista(int $id, $user): bool
+    {
+        if (! UsuarioRol::esMinorista($user)) {
+            return false;
+        }
+
+        $ruta = RutaDistribucion::query()
+            ->with(['pedidos.puntoVenta'])
+            ->find($id);
+
+        if ($ruta === null || ! SimulacionRutaCatalogo::simulacionActivaDistribucion($ruta)) {
+            return false;
+        }
+
+        return $ruta->pedidos->contains(
+            fn (PedidoDistribucion $p) => (int) $p->puntoVenta?->usuarioid === (int) $user->usuarioid
         );
     }
 
@@ -147,6 +257,37 @@ class RutaTiempoRealController extends Controller
         );
     }
 
+    private function urlVolverAgricola(int $id): string
+    {
+        $envio = EnvioAsignacionMultiple::query()->with('pedido')->find($id);
+        if ($envio?->pedido) {
+            return route('agricola.pedidos.show', $envio->pedido);
+        }
+
+        return route('logistica.asignaciones.show', $id);
+    }
+
+    private function urlVolverDistribucion(int $id): string
+    {
+        $user = auth()->user();
+        $ruta = RutaDistribucion::query()->with('pedidos')->find($id);
+
+        if ($user && UsuarioRol::esMinorista($user) && $ruta) {
+            $pedido = $ruta->pedidos->first(
+                fn (PedidoDistribucion $p) => PuntoVentaAccess::puedeVerPedido($user, $p)
+            );
+            if ($pedido) {
+                return route('punto-venta.pedidos.show', ['pedido' => $pedido, 'paso' => 4]);
+            }
+        }
+
+        if ($ruta) {
+            return \App\Support\RutaDistribucionNavegacion::urlVer($ruta);
+        }
+
+        return route('logistica.rutas-tiempo-real.index');
+    }
+
     private function cerrarManualAgricola(int $id): void
     {
         $envio = EnvioAsignacionMultiple::query()->findOrFail($id);
@@ -159,6 +300,13 @@ class RutaTiempoRealController extends Controller
         $this->simulacion->completarManualDistribucion($ruta);
     }
 
+    private function cerrarManualPlantaMayorista(int $id): void
+    {
+        $ruta = RutaDistribucion::query()->findOrFail($id);
+        abort_unless(RutaDistribucionCatalogo::esTrasladoPlantaMayorista($ruta), 404);
+        $this->simulacion->completarManualDistribucion($ruta);
+    }
+
     /** @return array{0: string, 1: array<string, mixed>, 2: array<int, mixed>, 3: ?string} */
     private function resolverAgricola(int $id): array
     {
@@ -167,7 +315,7 @@ class RutaTiempoRealController extends Controller
             ->findOrFail($id);
 
         if (SimulacionRutaCatalogo::simulacionActivaAgricola($envio)) {
-            $estado = $this->simulacion->estadoAgricola($envio, true);
+            $estado = $this->simulacion->estadoAgricola($envio, false);
             $envio->refresh();
         } elseif (! EnvioAsignacionEstadoCatalogo::llegoADestino($envio)) {
             abort(404, 'La simulación de este envío ya no está activa.');
@@ -193,7 +341,7 @@ class RutaTiempoRealController extends Controller
             ->findOrFail($id);
 
         if (SimulacionRutaCatalogo::simulacionActivaDistribucion($ruta)) {
-            $estado = $this->simulacion->estadoDistribucion($ruta, true);
+            $estado = $this->simulacion->estadoDistribucion($ruta, false);
             $ruta->refresh();
         } elseif ($ruta->estado !== RutaDistribucionCatalogo::ESTADO_COMPLETADA) {
             abort(404, 'La simulación de esta ruta ya no está activa.');
@@ -204,5 +352,38 @@ class RutaTiempoRealController extends Controller
         $trayecto = app(\App\Services\DistribucionRutaService::class)->trayectoTexto($ruta);
 
         return [$ruta->codigo, $estado, $estado['paradas'] ?? [], $trayecto];
+    }
+
+    /** @return array{0: string, 1: array<string, mixed>, 2: array<int, mixed>, 3: ?string} */
+    private function resolverPlantaMayorista(int $id): array
+    {
+        $ruta = RutaDistribucion::query()
+            ->with(['transportista', 'almacenPlantaOrigen', 'almacenMayoristaDestino'])
+            ->findOrFail($id);
+
+        abort_unless(RutaDistribucionCatalogo::esTrasladoPlantaMayorista($ruta), 404);
+
+        if (SimulacionRutaCatalogo::simulacionActivaDistribucion($ruta)) {
+            $estado = $this->simulacion->estadoDistribucion($ruta, false);
+            $ruta->refresh();
+        } elseif ($ruta->estado !== RutaDistribucionCatalogo::ESTADO_COMPLETADA) {
+            abort(404, 'La simulación de este traslado ya no está activa.');
+        } else {
+            $estado = $this->simulacion->estadoDistribucion($ruta, false);
+        }
+
+        $trayecto = app(\App\Services\TrasladoPlantaMayoristaService::class)->trayectoTexto($ruta);
+
+        return [$ruta->codigo, $estado, $estado['paradas'] ?? [], $trayecto];
+    }
+
+    private function urlVolverPlantaMayorista(int $id): string
+    {
+        $ruta = RutaDistribucion::query()->find($id);
+        if ($ruta) {
+            return \App\Support\RutaDistribucionNavegacion::urlVer($ruta);
+        }
+
+        return route('logistica.rutas-tiempo-real.index');
     }
 }
