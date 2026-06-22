@@ -70,15 +70,12 @@
             <a href="{{ route('logistica.documentos.download', $documento) }}" class="log-doc-btn log-doc-btn--secondary">
                 <i class="fas fa-download"></i> Descargar PDF
             </a>
-            @can('documentos.update')
-                @unless($esAutomatico)
+            @if(\App\Support\DocumentoEntregaCatalogo::puedeEditar($documento, auth()->user()))
                 <a href="{{ route('logistica.documentos.edit', $documento) }}" class="log-doc-btn log-doc-btn--secondary">
                     <i class="fas fa-edit"></i> Editar
                 </a>
-                @endunless
-            @endcan
-            @can('documentos.delete')
-                @unless($esAutomatico)
+            @endif
+            @if(\App\Support\DocumentoEntregaCatalogo::puedeEliminar($documento, auth()->user()))
                 <form action="{{ route('logistica.documentos.destroy', $documento) }}" method="POST"
                       onsubmit="return confirm('¿Eliminar este documento?')">
                     @csrf
@@ -87,8 +84,7 @@
                         <i class="fas fa-trash"></i> Eliminar
                     </button>
                 </form>
-                @endunless
-            @endcan
+            @endif
         </div>
 
         @if($puedePrevisualizar ?? false)

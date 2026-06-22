@@ -531,7 +531,9 @@ class CatalogoSelectorController extends Controller
                 $query->whereRaw('1 = 0');
             }
 
-            if ($request->boolean('solo_producto_terminado')) {
+            if ($request->boolean('solo_materia_prima_cosecha')) {
+                $query = InsumoCatalogo::aplicarFiltroMateriaPrimaCosecha($query);
+            } elseif ($request->boolean('solo_producto_terminado')) {
                 $query = InsumoCatalogo::aplicarFiltroProductoTerminado($query);
             }
         }
@@ -542,13 +544,15 @@ class CatalogoSelectorController extends Controller
 
         $this->aplicarBusqueda($query, (string) $request->q, ['nombre', 'descripcion']);
 
-        return $this->respuestaPaginada($request, $query->orderBy('nombre'), function (Insumo $i) {
+        return $this->respuestaPaginada($request, $query->orderBy('nombre'), function (Insumo $i) use ($request) {
             $unidad = $i->unidadMedida?->abreviatura ?? $i->unidadMedida?->nombre ?? 'ud';
             $alm = $i->almacen?->nombre;
             $stock = (float) ($i->stock ?? 0);
             $esSemilla = InsumoCatalogo::slugFromNombreTipo($i->tipo?->nombre) === 'material_siembra';
             $esProductoTerminado = mb_strtolower(trim($i->tipo?->nombre ?? '')) === 'producto terminado';
-            $tipoEtiqueta = $esProductoTerminado ? 'Producto terminado' : ($i->tipo?->nombre ?? 'Insumo');
+            $tipoEtiqueta = $request->boolean('solo_materia_prima_cosecha') && $esSemilla
+                ? 'Cosecha'
+                : ($esProductoTerminado ? 'Producto terminado' : ($i->tipo?->nombre ?? 'Insumo'));
             $stockEtiqueta = $esSemilla
                 ? CultivoSiembraCatalogo::etiquetaStockSemilla($i)
                 : 'Stock: '.number_format($stock, 2).' '.$unidad;

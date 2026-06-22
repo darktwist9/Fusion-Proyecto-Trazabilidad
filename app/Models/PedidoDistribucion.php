@@ -18,6 +18,7 @@ class PedidoDistribucion extends Model
         'numero_solicitud',
         'puntoventaid',
         'almacen_planta_origenid',
+        'almacen_mayorista_origenid',
         'rutadistribucionid',
         'transportista_usuarioid',
         'vehiculoid',
@@ -41,6 +42,7 @@ class PedidoDistribucion extends Model
         'pedidodistribucionid' => 'integer',
         'puntoventaid' => 'integer',
         'almacen_planta_origenid' => 'integer',
+        'almacen_mayorista_origenid' => 'integer',
         'rutadistribucionid' => 'integer',
         'transportista_usuarioid' => 'integer',
         'vehiculoid' => 'integer',
@@ -64,6 +66,11 @@ class PedidoDistribucion extends Model
     public function almacenPlantaOrigen(): BelongsTo
     {
         return $this->belongsTo(Almacen::class, 'almacen_planta_origenid', 'almacenid');
+    }
+
+    public function almacenMayoristaOrigen(): BelongsTo
+    {
+        return $this->belongsTo(Almacen::class, 'almacen_mayorista_origenid', 'almacenid');
     }
 
     public function aceptadoPor(): BelongsTo

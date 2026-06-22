@@ -133,6 +133,39 @@
     .fase-step.fase-step--scroll { cursor: pointer; transition: transform .15s ease, box-shadow .15s ease; }
     .fase-step.fase-step--scroll:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(44,85,48,.2); }
     .lp-ruta-paso { transition: opacity .2s ease, filter .2s ease; }
+    .lp-stepper {
+        display: flex; align-items: flex-start; gap: 0; overflow-x: auto;
+        padding: .35rem .15rem .65rem; margin: 0 -.15rem;
+    }
+    .lp-stepper__item {
+        display: flex; flex-direction: column; align-items: center; min-width: 88px; max-width: 120px;
+        flex: 1 1 0; text-align: center; position: relative;
+    }
+    .lp-stepper__circle {
+        width: 2.1rem; height: 2.1rem; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        font-size: .78rem; font-weight: 800; border: 2px solid #d1d5db; background: #fff; color: #6b7280;
+        position: relative; z-index: 1; transition: all .2s ease;
+    }
+    .lp-stepper__item--hecho .lp-stepper__circle {
+        background: #16a34a; border-color: #16a34a; color: #fff;
+    }
+    .lp-stepper__item--actual .lp-stepper__circle {
+        background: #f59e0b; border-color: #f59e0b; color: #fff; box-shadow: 0 0 0 4px rgba(245,158,11,.2);
+    }
+    .lp-stepper__item--en-curso .lp-stepper__circle {
+        background: #2563eb; border-color: #2563eb; color: #fff; box-shadow: 0 0 0 4px rgba(37,99,235,.18);
+    }
+    .lp-stepper__item--bloqueado { opacity: .45; }
+    .lp-stepper__label {
+        font-size: .68rem; line-height: 1.25; margin-top: .45rem; color: #374151; font-weight: 600;
+        max-width: 100%; word-break: break-word;
+    }
+    .lp-stepper__item--bloqueado .lp-stepper__label { color: #9ca3af; }
+    .lp-stepper__lock { display: block; font-size: .62rem; color: #9ca3af; font-weight: 500; margin-top: .15rem; }
+    .lp-stepper__connector {
+        flex: 1 1 0; min-width: 12px; height: 2px; background: #e5e7eb; margin-top: 1.05rem; align-self: flex-start;
+    }
+    .lp-stepper__connector--hecho { background: #86efac; }
     .lp-ruta-paso.is-bloqueado {
         opacity: .42;
         filter: grayscale(.25);
@@ -174,17 +207,26 @@
 (function () {
     var key = 'lp_procesamiento_scroll';
     var saved = sessionStorage.getItem(key);
-    if (saved === null) return;
-    var y = parseInt(saved, 10);
-    if (isNaN(y)) return;
-    sessionStorage.removeItem(key);
+    var irCertificacion = window.location.hash === '#certificacion';
+    if (saved === null && !irCertificacion) return;
+    var y = saved !== null ? parseInt(saved, 10) : 0;
+    if (saved !== null) sessionStorage.removeItem(key);
     if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 
     function restaurarScroll() {
         var html = document.documentElement;
         var prev = html.style.scrollBehavior;
         html.style.scrollBehavior = 'auto';
-        window.scrollTo(0, y);
+        if (irCertificacion) {
+            var cert = document.getElementById('certificacion');
+            if (cert) {
+                cert.scrollIntoView({ block: 'start' });
+            } else if (!isNaN(y) && y > 0) {
+                window.scrollTo(0, y);
+            }
+        } else if (!isNaN(y)) {
+            window.scrollTo(0, y);
+        }
         html.style.scrollBehavior = prev;
     }
 
@@ -365,27 +407,28 @@
                         <a href="{{ route('plantillas-transformacion.show', $lote->plantillaTransformacion) }}" class="ml-2 font-weight-normal">Ver detalle</a>
                     @endif
                 </div>
-                <div class="d-flex flex-wrap" id="lp-ruta-plantilla-pasos" style="gap:6px;">
-                    @foreach($rutaPlantilla as $paso)
+                <div class="lp-stepper" id="lp-ruta-plantilla-pasos">
+                    @foreach($rutaPlantilla as $idx => $paso)
                     @php
-                        $clasePaso = match ($paso['estado']) {
-                            'hecho' => 'badge-success',
-                            'actual' => 'badge-warning text-dark',
-                            'en_curso' => 'badge-info',
-                            default => 'badge-light border text-muted lp-ruta-paso is-bloqueado',
+                        $itemClass = match ($paso['estado']) {
+                            'hecho' => 'lp-stepper__item--hecho',
+                            'actual' => 'lp-stepper__item--actual',
+                            'en_curso' => 'lp-stepper__item--en-curso',
+                            default => 'lp-stepper__item--bloqueado',
                         };
-                        if (in_array($paso['estado'], ['actual', 'en_curso'], true)) {
-                            $clasePaso .= ' lp-ruta-paso is-'.str_replace('_', '-', $paso['estado'] === 'en_curso' ? 'en-curso' : 'actual');
-                        }
                     @endphp
-                    <span class="badge px-2 py-1 {{ $clasePaso }}" title="{{ $paso['estado'] === 'bloqueado' ? 'Complete la etapa anterior para habilitar este paso' : '' }}">
-                        {{ $paso['orden'] }}. {{ $paso['proceso'] }}
-                        @if($paso['estado'] === 'hecho')<i class="fas fa-check ml-1"></i>@endif
-                        @if($paso['estado'] === 'en_curso')<i class="fas fa-hourglass-half ml-1"></i>@endif
+                    @if($idx > 0)
+                        <div class="lp-stepper__connector {{ $paso['estado'] === 'hecho' || in_array($rutaPlantilla[$idx - 1]['estado'] ?? '', ['hecho'], true) ? 'lp-stepper__connector--hecho' : '' }}"></div>
+                    @endif
+                    <div class="lp-stepper__item {{ $itemClass }}" title="{{ $paso['estado'] === 'bloqueado' ? 'Complete la etapa anterior' : $paso['proceso'] }}">
+                        <div class="lp-stepper__circle">
+                            @if($paso['estado'] === 'hecho')<i class="fas fa-check"></i>@else{{ $paso['orden'] }}@endif
+                        </div>
+                        <div class="lp-stepper__label">{{ $paso['proceso'] }}</div>
                         @if($paso['estado'] === 'bloqueado')
-                            <span class="lp-ruta-paso__lock"><i class="fas fa-lock mr-1"></i>Complete etapa {{ max(1, $paso['orden'] - 1) }}</span>
+                            <span class="lp-stepper__lock"><i class="fas fa-lock"></i> Etapa {{ max(1, $paso['orden'] - 1) }}</span>
                         @endif
-                    </span>
+                    </div>
                     @endforeach
                 </div>
             </div>
@@ -438,11 +481,22 @@
                             @if($asig->observaciones)
                                 <br><span class="text-secondary">{{ $asig->observaciones }}</span>
                             @endif
+                            @if(\App\Support\ProductoPlantaCatalogo::esProcesoEmpaquetado($asig->proceso?->nombre))
+                                @php $prevEmp = \App\Support\ProductoPlantaCatalogo::vistaPreviaEmpaquetado($lote, app(\App\Services\AlmacenCapacidadService::class)); @endphp
+                                @if($prevEmp)
+                                <div class="alert alert-light border small py-2 px-3 mt-2 mb-0" style="background:#f0fdf4;border-color:#bbf7d0!important">
+                                    <strong class="text-success d-block mb-1"><i class="fas fa-box-open mr-1"></i>{{ $prevEmp['titulo'] }}</strong>
+                                    <span class="d-block"><i class="fas fa-archive text-muted mr-1"></i><strong>Empaque:</strong> {{ $prevEmp['empaque'] }}</span>
+                                    <span class="d-block"><i class="fas fa-cubes text-muted mr-1"></i><strong>Cantidad:</strong> {{ $prevEmp['unidades'] }}</span>
+                                    <span class="d-block"><i class="fas fa-weight text-muted mr-1"></i>{{ $prevEmp['kg_producto'] }} · {{ $prevEmp['kg_materia'] }}</span>
+                                </div>
+                                @endif
+                            @endif
                         </div>
                     </div>
                     @if(!empty($puedeAsignarEtapa))
                     <div class="lp-paso--pendiente__accion">
-                        <form method="POST" action="{{ route('procesamiento.completar-etapa-asignada', [$lote, $asig]) }}" class="mb-0"
+                        <form method="POST" action="{{ route('procesamiento.completar-etapa-asignada', [$lote, $asig]) }}" class="mb-0 js-lp-guardar-scroll"
                               data-ajax-lp-action="completar-etapa">
                             @csrf
                             <button type="button" class="btn btn-success btn-sm font-weight-bold"
@@ -461,12 +515,19 @@
             @endif
 
             @if($panelActivo === 'transformacion' && in_array($fase_actual, ['transformacion', 'creacion']) && empty($transformacion_completa))
-            @if(!empty($puedeAsignarEtapa) && !empty($puedeAsignarNuevaEtapa))
-            <div class="lp-form-etapa mt-3" id="lp-form-registrar-etapa">
+            @if(!empty($puedeAsignarEtapa))
+            <div class="lp-form-etapa mt-3 {{ empty($puedeAsignarNuevaEtapa) ? 'd-none' : '' }}" id="lp-form-registrar-etapa">
                 <h6 class="font-weight-bold text-success mb-3">
                     <i class="fas fa-user-plus mr-1"></i>
                     Asignar etapa {{ $ordenEtapaActual ?? 1 }} a operario
                 </h6>
+                @php $empaquePlan = \App\Support\ProductoPlantaCatalogo::empaquePlanificadoResumen($lote); @endphp
+                @if($empaquePlan)
+                <div class="alert alert-light border small py-2 px-3 mb-3">
+                    <i class="fas fa-box-open text-success mr-1"></i>
+                    <strong>Empaquetado planificado:</strong> {{ $empaquePlan }}
+                </div>
+                @endif
                 <form method="POST" action="{{ route('procesamiento.asignar-etapa', $lote) }}" id="formAsignarEtapa" class="js-lp-guardar-scroll">
                     @csrf
                     <div class="form-row lp-etapa-asignar-row">
@@ -592,33 +653,33 @@
                 </div>
             @elseif($panelActivo === 'certificacion')
             <p class="small text-muted mb-3">
-                Completar la transformación no implica certificación automática: debe registrar el resultado del control de calidad.
-                Solo los lotes <strong>certificados</strong> pueden pasar a almacenaje.
+                Registre el resultado del control de calidad. Solo los lotes <strong>conformes</strong> pueden pasar a almacenaje.
             </p>
-            <form method="POST" action="{{ route('procesamiento.certificar', $lote) }}" class="lp-form-etapa mb-0">
-                @csrf
-                <div class="form-row">
-                    <div class="col-md-4 form-group">
-                        <label class="small font-weight-bold">Resultado</label>
-                        <select name="razon" class="form-control form-control-sm" required>
-                            <option value="{{ \App\Models\EvaluacionFinalLoteProduccion::RAZON_CERTIFICADO }}">Certificado</option>
-                            <option value="{{ \App\Models\EvaluacionFinalLoteProduccion::RAZON_NO_CONFORME }}">No conforme</option>
-                        </select>
-                        <small class="text-muted d-block mt-1">No conforme cierra el lote sin almacenar.</small>
-                    </div>
-                    <div class="col-md-4 form-group">
-                        <label class="small font-weight-bold">Motivo / observaciones</label>
-                        <input type="text" name="observaciones" class="form-control form-control-sm" maxlength="500" placeholder="Obligatorio si es no conforme">
-                    </div>
-                    <div class="col-md-4 form-group mb-md-0">
-                        <label class="small font-weight-bold">Recomendaciones</label>
-                        <input type="text" name="recomendaciones" class="form-control form-control-sm" maxlength="2000" placeholder="Sugerencias para mejorar (no conforme)">
-                    </div>
+            <div class="row">
+                <div class="col-lg-6 mb-3">
+                    <form action="{{ route('procesamiento.certificar', $lote) }}" method="POST" class="border rounded p-3 h-100" style="background:#f0fdf4;border-color:#bbf7d0!important">
+                        @csrf
+                        <input type="hidden" name="razon" value="{{ \App\Models\EvaluacionFinalLoteProduccion::RAZON_CERTIFICADO }}">
+                        <h6 class="font-weight-bold text-success mb-2"><i class="fas fa-check-circle mr-1"></i>Conforme</h6>
+                        <input type="text" name="observaciones" class="form-control form-control-sm mb-2" maxlength="500" placeholder="Observación (opcional)">
+                        <button type="submit" class="btn btn-success btn-sm font-weight-bold">
+                            <i class="fas fa-stamp mr-1"></i>Registrar conforme
+                        </button>
+                    </form>
                 </div>
-                <button type="submit" class="btn btn-sm mt-2 font-weight-bold" style="background:#7c3aed;color:#fff">
-                    <i class="fas fa-stamp mr-1"></i>Registrar evaluación
-                </button>
-            </form>
+                <div class="col-lg-6 mb-3">
+                    <form action="{{ route('procesamiento.certificar', $lote) }}" method="POST" class="border rounded p-3 h-100" style="background:#fffbeb;border-color:#fde68a!important" onsubmit="return confirm('¿Marcar este lote como no conforme? No podrá almacenarse.');">
+                        @csrf
+                        <input type="hidden" name="razon" value="{{ \App\Models\EvaluacionFinalLoteProduccion::RAZON_NO_CONFORME }}">
+                        <h6 class="font-weight-bold text-warning mb-2"><i class="fas fa-times-circle mr-1"></i>No conforme</h6>
+                        <input type="text" name="observaciones" class="form-control form-control-sm mb-2" maxlength="500" placeholder="Motivo obligatorio: daños, calidad…" required>
+                        <input type="text" name="recomendaciones" class="form-control form-control-sm mb-2" maxlength="2000" placeholder="Recomendaciones (opcional)">
+                        <button type="submit" class="btn btn-warning btn-sm font-weight-bold text-dark">
+                            <i class="fas fa-ban mr-1"></i>Registrar no conforme
+                        </button>
+                    </form>
+                </div>
+            </div>
             @endif
         </div>
     </div>
@@ -637,7 +698,7 @@
                 <div class="lp-historial-readonly">
                     <p class="mb-1"><strong>{{ $almacenaje->ubicacion }}</strong></p>
                     <p class="small text-muted mb-0">
-                        {{ number_format((float) $almacenaje->cantidad, 2) }} {{ $unidadProductoAlmacen ?? 'kg' }}
+                        {{ \App\Support\ProductoPlantaCatalogo::formatearCantidadAlmacenaje((float) ($cantidadAlmacenajeMostrar ?? $almacenaje->cantidad), $lote) }} {{ $unidadProductoAlmacen ?? 'kg' }}
                         · {{ $almacenaje->condicion }}
                         · {{ optional($almacenaje->fecha_almacenaje)->format('d/m/Y H:i') }}
                     </p>
@@ -646,7 +707,11 @@
             @if(!empty($produccionEstimada['entrada_kg']))
             <div class="alert alert-light border small mx-3 mt-3 mb-0">
                 <i class="fas fa-calculator text-success mr-1"></i>
-                <strong>Producción calculada:</strong>
+                <strong>Producción calculada</strong>
+                @if(!empty($produccionEstimada['empaque']))
+                    · {{ $produccionEstimada['empaque'] }}
+                @endif
+                <br>
                 {{ number_format($produccionEstimada['entrada_kg'], 2) }} kg de materia prima
                 × {{ number_format($produccionEstimada['rendimiento'] * 100, 0) }}&nbsp;% rendimiento
                 → <strong>{{ number_format($produccionEstimada['cantidad'], 0) }} {{ $produccionEstimada['unidad'] }}</strong>
@@ -722,6 +787,12 @@
                     @empty
                         <p class="lp-resumen-empty mb-0"><i class="fas fa-inbox d-block mb-2 opacity-25"></i>Sin materias registradas</p>
                     @endforelse
+                    @php $estimadosMp = \App\Support\ProductoPlantaCatalogo::estimadosUnidadesMateriaPrimaUsadas($lote, app(\App\Services\AlmacenCapacidadService::class)); @endphp
+                    @foreach($estimadosMp as $estMp)
+                        <p class="small text-success font-weight-bold mb-0 mt-2 border-top pt-2">
+                            <i class="fas fa-seedling mr-1"></i>Cantidad estimada usada: {{ number_format($estMp['cantidad'], 0) }} {{ $estMp['etiqueta'] }}
+                        </p>
+                    @endforeach
                 </div>
             </div>
         </div>
@@ -765,7 +836,7 @@
                         </div>
                         <div class="lp-resumen-item">
                             <span class="nombre">Producto almacenado</span>
-                            <span class="dato">{{ number_format((float) $almacenaje->cantidad, 2) }} {{ $unidadProductoAlmacen ?? 'kg' }}</span>
+                            <span class="dato">{{ \App\Support\ProductoPlantaCatalogo::formatearCantidadAlmacenaje((float) ($cantidadAlmacenajeMostrar ?? $almacenaje->cantidad), $lote) }} {{ $unidadProductoAlmacen ?? 'kg' }}</span>
                         </div>
                         <div class="lp-resumen-item">
                             <span class="nombre">Condición</span>
@@ -774,6 +845,11 @@
                         <small class="text-muted d-block mt-2 text-center">
                             <i class="far fa-clock mr-1"></i>{{ optional($almacenaje->fecha_almacenaje)->format('d/m/Y H:i') }}
                         </small>
+                        @if($almacenaje->almacenid)
+                        <a href="{{ route('almacen-planta.show', $almacenaje->almacenid) }}" class="btn btn-outline-warning btn-sm btn-block mt-3 font-weight-bold">
+                            <i class="fas fa-external-link-alt mr-1"></i>Ir al almacén
+                        </a>
+                        @endif
                     @else
                         <p class="lp-resumen-empty mb-0">
                             <i class="fas fa-warehouse d-block mb-2"></i>
@@ -1124,28 +1200,41 @@
     }
 
     function claseRutaPaso(estado) {
-        if (estado === 'hecho') return 'badge px-2 py-1 badge-success';
-        if (estado === 'actual') return 'badge px-2 py-1 badge-warning text-dark lp-ruta-paso is-actual';
-        if (estado === 'en_curso') return 'badge px-2 py-1 badge-info lp-ruta-paso is-en-curso';
-        return 'badge px-2 py-1 badge-light border text-muted lp-ruta-paso is-bloqueado';
+        if (estado === 'hecho') return 'lp-stepper__item--hecho';
+        if (estado === 'actual') return 'lp-stepper__item--actual';
+        if (estado === 'en_curso') return 'lp-stepper__item--en-curso';
+        return 'lp-stepper__item--bloqueado';
     }
 
-    function htmlRutaPaso(paso) {
-        let extra = '';
-        if (paso.estado === 'hecho') extra = '<i class="fas fa-check ml-1"></i>';
-        else if (paso.estado === 'en_curso') extra = '<i class="fas fa-hourglass-half ml-1"></i>';
-        else if (paso.estado === 'bloqueado') {
-            extra = '<span class="lp-ruta-paso__lock"><i class="fas fa-lock mr-1"></i>Complete etapa ' + Math.max(1, paso.orden - 1) + '</span>';
+    function htmlRutaPaso(paso, idx, prevEstado) {
+        const itemClass = claseRutaPaso(paso.estado);
+        let connector = '';
+        if (idx > 0) {
+            const connClass = paso.estado === 'hecho' || prevEstado === 'hecho' ? 'lp-stepper__connector--hecho' : '';
+            connector = '<div class="lp-stepper__connector ' + connClass + '"></div>';
         }
-        const title = paso.estado === 'bloqueado' ? ' title="Complete la etapa anterior para habilitar este paso"' : '';
-        return '<span class="' + claseRutaPaso(paso.estado) + '"' + title + '>' +
-            escHtml(paso.orden) + '. ' + escHtml(paso.proceso) + extra + '</span>';
+        const circle = paso.estado === 'hecho'
+            ? '<i class="fas fa-check"></i>'
+            : escHtml(paso.orden);
+        let lock = '';
+        if (paso.estado === 'bloqueado') {
+            lock = '<span class="lp-stepper__lock"><i class="fas fa-lock"></i> Etapa ' + Math.max(1, paso.orden - 1) + '</span>';
+        }
+        return connector +
+            '<div class="lp-stepper__item ' + itemClass + '">' +
+            '<div class="lp-stepper__circle">' + circle + '</div>' +
+            '<div class="lp-stepper__label">' + escHtml(paso.proceso) + '</div>' + lock +
+            '</div>';
     }
 
     window.LpProcesamientoAjax = {
         completarEtapa: function (form) {
             const card = form.closest('[data-asignacion-id]');
             const btn = form.querySelector('button');
+            const scrollKey = 'lp_procesamiento_scroll';
+            try {
+                sessionStorage.setItem(scrollKey, String(window.scrollY));
+            } catch (e) {}
             if (btn) btn.classList.add('lp-ajax-loading');
 
             fetch(form.action, {
@@ -1177,6 +1266,15 @@
                 })
                 .then(function (data) {
                     if (btn) btn.classList.remove('lp-ajax-loading');
+                    if (data.transformacion_completa) {
+                        window.location.assign(window.location.pathname + '#certificacion');
+                        window.location.reload();
+                        return;
+                    }
+                    if (data.reload) {
+                        window.location.reload();
+                        return;
+                    }
                     if (card) {
                         card.style.transition = 'opacity .3s ease';
                         card.style.opacity = '0';
@@ -1189,7 +1287,17 @@
 
                     const ruta = document.getElementById('lp-ruta-plantilla-pasos');
                     if (ruta && Array.isArray(data.ruta_plantilla)) {
-                        ruta.innerHTML = data.ruta_plantilla.map(htmlRutaPaso).join('');
+                        let html = '';
+                        data.ruta_plantilla.forEach(function (paso, idx) {
+                            const prev = idx > 0 ? data.ruta_plantilla[idx - 1].estado : '';
+                            html += htmlRutaPaso(paso, idx, prev);
+                        });
+                        ruta.innerHTML = html;
+                    }
+
+                    const formAsignar = document.getElementById('lp-form-registrar-etapa');
+                    if (formAsignar && data.puede_asignar_nueva) {
+                        formAsignar.classList.remove('d-none');
                     }
 
                     const bloqueo = document.getElementById('lp-bloqueo-asignacion');
@@ -1208,8 +1316,6 @@
                         seccion.style.opacity = '0';
                         setTimeout(function () { seccion.remove(); }, 350);
                     }
-
-                    mostrarFlashAjax(data.message, 'success');
                 })
                 .catch(function (err) {
                     if (btn) btn.classList.remove('lp-ajax-loading');

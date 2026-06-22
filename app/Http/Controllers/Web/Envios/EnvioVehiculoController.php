@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\Envios;
 use App\Http\Controllers\Controller;
 use App\Models\TipoVehiculo;
 use App\Models\Vehiculo;
+use App\Services\VehiculoEmpaqueCapacidadService;
 use App\Services\VehiculoFlotaEstadoService;
 use App\Support\EstadoVehiculoCatalogo;
 use App\Support\TransportistaFlotaCatalogo;
@@ -26,7 +27,7 @@ class EnvioVehiculoController extends Controller
     {
         $estadoSvc = app(VehiculoFlotaEstadoService::class);
 
-        $q = Vehiculo::query()->with(['tipoVehiculo', 'estadoVehiculo']);
+        $q = Vehiculo::query()->with(['tipoVehiculo.tiposTransporte', 'tiposTransporte', 'estadoVehiculo']);
 
         if ($request->filled('buscar')) {
             $b = '%'.trim((string) $request->buscar).'%';
@@ -46,7 +47,11 @@ class EnvioVehiculoController extends Controller
             $q->where('ambito_flota', $request->string('ambito_flota')->toString());
         }
 
-        $vehiculos = $q->orderBy('placa')->paginate(15)->withQueryString();
+        $vehiculos = $q
+            ->orderByRaw("CASE COALESCE(ambito_flota, 'agricola') WHEN 'agricola' THEN 1 WHEN 'planta' THEN 2 WHEN 'mayorista' THEN 3 ELSE 4 END")
+            ->orderBy('placa')
+            ->paginate(15)
+            ->withQueryString();
         $conteoEstados = $estadoSvc->contarPorEstadoVisual();
         $mapaEnRuta = $estadoSvc->mapaEnRuta();
 
@@ -76,10 +81,12 @@ class EnvioVehiculoController extends Controller
         $vehiculo->load(['tipoVehiculo', 'estadoVehiculo']);
 
         $estadoSvc = app(VehiculoFlotaEstadoService::class);
+        $capacidadResumen = app(VehiculoEmpaqueCapacidadService::class)->resumenParaVehiculo($vehiculo);
 
         return view('envios.vehiculos.show', [
             'vehiculo' => $vehiculo,
             'tiposCatalogo' => TipoVehiculo::orderBy('nombre')->get(),
+            'capacidadResumen' => $capacidadResumen,
             'estadoVisual' => $estadoSvc->codigoVisual($vehiculo),
             'estadoLabel' => $estadoSvc->etiquetaVisual($vehiculo),
             'badgeEstado' => $estadoSvc->badgeClaseVisual($vehiculo),

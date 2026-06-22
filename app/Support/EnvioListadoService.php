@@ -45,6 +45,7 @@ final class EnvioListadoService
                 $q->where('transportista_usuarioid', $user?->usuarioid)
                     ->whereNotNull('transportista_usuarioid');
             });
+            $query->whereIn('estado', PedidoCatalogo::estadosListosParaLogistica());
         } else {
             if ($filtroTransportista > 0) {
                 $query->whereHas('envioAsignacion', fn ($q) => $q->where('transportista_usuarioid', $filtroTransportista));

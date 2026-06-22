@@ -12,8 +12,35 @@ final class PlantaCatalogoRegistry
     /** @return array<string, array<string, mixed>> */
     public static function all(): array
     {
+        $config = LogisticaCatalogoRegistry::get('tipos-empaque');
+        if ($config) {
+            $config['titulo'] = 'Tipos de empaque';
+            $config['subtitulo'] = 'Empaques comerciales para productos terminados de planta';
+            $config['tema'] = ['accent' => '#5b21b6', 'soft' => '#f5f3ff', 'mid' => '#6d28d9'];
+            $config['scope'] = fn ($q) => TipoEmpaqueAmbito::scopePlanta($q);
+            $config['defaults'] = [
+                'ambito' => TipoEmpaqueAmbito::PLANTA,
+                'capacidad_unidades' => 1,
+            ];
+            $config['campos'] = [
+                'nombre' => ['label' => 'Nombre', 'rules' => 'required|string|max:100'],
+                'descripcion' => ['label' => 'Descripción', 'rules' => 'nullable|string|max:500'],
+                'largo_cm' => ['label' => 'Largo (cm)', 'rules' => 'nullable|numeric|min:0'],
+                'ancho_cm' => ['label' => 'Ancho (cm)', 'rules' => 'nullable|numeric|min:0'],
+                'alto_cm' => ['label' => 'Alto (cm)', 'rules' => 'nullable|numeric|min:0'],
+                'tara_kg' => ['label' => 'Tara (kg)', 'rules' => 'nullable|numeric|min:0'],
+                'unidades_por_pallet' => [
+                    'label' => 'Unidades por pallet',
+                    'rules' => 'nullable|integer|min:1',
+                    'ayuda' => 'Cuántos empaques de este tipo caben estibados en un pallet (referencia logística).',
+                ],
+                'activo' => ['label' => 'Activo', 'rules' => 'boolean', 'tipo' => 'checkbox', 'checkbox_label' => 'Activo'],
+            ];
+            $config['columnas'] = ['nombre', 'largo_cm', 'ancho_cm', 'alto_cm', 'tara_kg', 'unidades_por_pallet'];
+        }
+
         return [
-            'tipos-empaque' => LogisticaCatalogoRegistry::get('tipos-empaque'),
+            'tipos-empaque' => $config,
         ];
     }
 

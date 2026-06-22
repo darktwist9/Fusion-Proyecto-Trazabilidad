@@ -1229,9 +1229,6 @@
                         @can('almacen.reportes.view')
                         <li class="ag-sub-li"><a href="{{ route('almacen-agricola.movimientos.reportes') }}" class="ag-sub-a {{ request()->routeIs('almacen-agricola.movimientos.reportes') ? 'active' : '' }}">Reportes</a></li>
                         @endcan
-                        @if($authUser && \App\Support\EnvioTrayectoCatalogo::puedeUsarTrayecto($authUser, \App\Support\EnvioTrayectoCatalogo::TRAYECTO_PLANTA))
-                        <li class="ag-sub-li"><a href="{{ route('pedidos.create', ['destino' => 'planta']) }}" class="ag-sub-a {{ request()->routeIs('pedidos.create') && request('destino', 'planta') === 'planta' ? 'active' : '' }}">Nuevo envío a planta</a></li>
-                        @endif
                     </ul>
                 </li>
                 @endif
@@ -1345,10 +1342,17 @@
                         @if($authUser && \App\Support\UsuarioRol::esOperarioPlanta($authUser))
                         <li class="ag-sub-li"><a href="{{ route('tareas-planta.index') }}" class="ag-sub-a {{ request()->routeIs('tareas-planta.*') ? 'active' : '' }}">Mis tareas de transformación</a></li>
                         @endif
+                        @if($isAdmin || \App\Support\UsuarioRol::gestionaPlanta($authUser))
                         <li class="ag-sub-li"><a href="{{ route('procesos-planta.index') }}" class="ag-sub-a {{ request()->routeIs('procesos-planta.*') ? 'active' : '' }}">Procesos de planta</a></li>
                         <li class="ag-sub-li"><a href="{{ route('plantillas-transformacion.index') }}" class="ag-sub-a {{ request()->routeIs('plantillas-transformacion.*') ? 'active' : '' }}">Procesos de transformación</a></li>
                         <li class="ag-sub-li"><a href="{{ route('maquinas-planta.index') }}" class="ag-sub-a {{ request()->routeIs('maquinas-planta.*') ? 'active' : '' }}">Máquinas de planta</a></li>
                         <li class="ag-sub-li"><a href="{{ route('produccion-planta.catalogos.index', 'tipos-empaque') }}" class="ag-sub-a {{ request()->routeIs('produccion-planta.catalogos.*') ? 'active' : '' }}">Tipos de empaque</a></li>
+                        @elseif($authUser && \App\Support\UsuarioRol::esOperarioPlanta($authUser))
+                        <li class="ag-sub-li"><a href="{{ route('procesos-planta.index') }}" class="ag-sub-a {{ request()->routeIs('procesos-planta.*') ? 'active' : '' }}">Procesos de planta</a></li>
+                        <li class="ag-sub-li"><a href="{{ route('plantillas-transformacion.index') }}" class="ag-sub-a {{ request()->routeIs('plantillas-transformacion.*') ? 'active' : '' }}">Procesos de transformación</a></li>
+                        <li class="ag-sub-li"><a href="{{ route('maquinas-planta.index') }}" class="ag-sub-a {{ request()->routeIs('maquinas-planta.*') ? 'active' : '' }}">Máquinas de planta</a></li>
+                        <li class="ag-sub-li"><a href="{{ route('produccion-planta.catalogos.index', 'tipos-empaque') }}" class="ag-sub-a {{ request()->routeIs('produccion-planta.catalogos.*') ? 'active' : '' }}">Tipos de empaque</a></li>
+                        @endif
                     </ul>
                 </li>
                 @endif
@@ -1436,11 +1440,6 @@
                             <a href="{{ route('punto-venta.pedidos.index', ['ctx' => 'mayorista']) }}" class="ag-sub-a {{ ($pedidosEnSeccionMayorista ?? false) ? 'active' : '' }}">Pedidos minoristas</a>
                         </li>
                         @endcan
-                        @if($authUser && \App\Support\EnvioTrayectoCatalogo::puedeUsarTrayecto($authUser, \App\Support\EnvioTrayectoCatalogo::TRAYECTO_PDV))
-                        <li class="ag-sub-li">
-                            <a href="{{ route('pedidos.create', ['destino' => 'punto-venta']) }}" class="ag-sub-a {{ request()->routeIs('pedidos.create') && request('destino') === 'punto-venta' ? 'active' : '' }}">Nuevo envío a punto de venta</a>
-                        </li>
-                        @endif
                     </ul>
                 </li>
 
@@ -1614,6 +1613,7 @@
         @include('partials.modal-bienvenida')
         @include('partials.modal-aviso')
         @include('partials.transportista-asignacion-login-modal')
+        @include('partials.operario-planta-tarea-login-modal')
         @once
             @include('partials.selector-catalogo-assets')
             @include('partials.selector-catalogo-modal')

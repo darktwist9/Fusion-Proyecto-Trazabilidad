@@ -54,6 +54,7 @@ class EnvioCatalogoController extends Controller
         $config = $this->config($tipo);
         abort_if(! empty($config['solo_edicion']), 404);
         $data = $this->validar($request, $config);
+        $data = array_merge($config['defaults'] ?? [], $data);
         $registro = $config['modelo']::query()->create($data);
         $this->sincronizarRelaciones($request, $config, $registro);
 

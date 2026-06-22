@@ -32,7 +32,13 @@ class LoteProduccionPlantaService
         ?int $unidadmedidaid,
         array $lineas,
         ?string $observaciones = null,
-        ?int $plantillatransformacionid = null
+        ?int $plantillatransformacionid = null,
+        ?string $empaqueCatalogoSlug = null,
+        ?string $modoPlanificacion = null,
+        ?float $cantidadEmpaquesObjetivo = null,
+        ?string $empaqueNombrePersonalizado = null,
+        ?float $empaquePesoNetoKg = null,
+        ?string $empaqueTipoEnvase = null,
     ): LoteProduccionPedido {
         if ($lineas === []) {
             throw new \InvalidArgumentException('Debe indicar al menos una materia prima del almacén.');
@@ -52,7 +58,21 @@ class LoteProduccionPlantaService
         $tipoSalida = $this->tipoMovimientoSalidaProduccion();
         $unidadmedidaid = ProductoPlantaCatalogo::resolverUnidadMedidaId($producto, $unidadmedidaid);
 
-        return DB::transaction(function () use ($usuario, $producto, $nombre, $pedidoid, $cantidadObjetivo, $unidadmedidaid, $lineas, $observaciones, $tipoSalida, $plantillatransformacionid) {
+        if ($empaqueCatalogoSlug !== null && ! \App\Support\EmpaquePlantaCatalogo::esSlugValido($empaqueCatalogoSlug)) {
+            throw new \InvalidArgumentException('Seleccione un tipo de empaque válido del catálogo.');
+        }
+
+        if ($empaqueCatalogoSlug !== null) {
+            $unidadmedidaid = ProductoPlantaCatalogo::unidadMedidaIdPorDefecto($producto)
+                ?? $unidadmedidaid;
+        }
+
+        return DB::transaction(function () use (
+            $usuario, $producto, $nombre, $pedidoid, $cantidadObjetivo, $unidadmedidaid, $lineas,
+            $observaciones, $tipoSalida, $plantillatransformacionid, $empaqueCatalogoSlug,
+            $modoPlanificacion, $cantidadEmpaquesObjetivo, $empaqueNombrePersonalizado,
+            $empaquePesoNetoKg, $empaqueTipoEnvase
+        ) {
             $pedidoIdFinal = $pedidoid ?? $this->crearPedidoInterno($nombre);
 
             $codigo = 'LOTE-'.str_pad((string) (LoteProduccionPedido::max('loteproduccionpedidoid') + 1), 4, '0', STR_PAD_LEFT).'-'.now()->format('Ymd');
@@ -75,6 +95,17 @@ class LoteProduccionPlantaService
             if ($plantillatransformacionid !== null
                 && \Illuminate\Support\Facades\Schema::hasColumn('lote_produccion_pedido', 'plantillatransformacionid')) {
                 $loteData['plantillatransformacionid'] = $plantillatransformacionid;
+            }
+
+            if ($empaqueCatalogoSlug !== null
+                && \Illuminate\Support\Facades\Schema::hasColumn('lote_produccion_pedido', 'empaque_catalogo_slug')) {
+                $loteData['empaque_catalogo_slug'] = $empaqueCatalogoSlug;
+                $loteData['modo_planificacion'] = $modoPlanificacion;
+                $loteData['cantidad_empaques_objetivo'] = $cantidadEmpaquesObjetivo;
+                $loteData['empaque_nombre_personalizado'] = $empaqueNombrePersonalizado;
+                $loteData['empaque_peso_neto_kg'] = $empaquePesoNetoKg;
+                $loteData['empaque_tipo_envase'] = $empaqueTipoEnvase
+                    ?: \App\Support\EmpaquePlantaCatalogo::tipoEnvaseDesdePlan($empaqueCatalogoSlug, $empaqueTipoEnvase);
             }
 
             $lote = LoteProduccionPedido::create($loteData);

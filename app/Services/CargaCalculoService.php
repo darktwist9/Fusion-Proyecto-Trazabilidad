@@ -10,6 +10,8 @@ use App\Models\TipoEmpaque;
  */
 class CargaCalculoService
 {
+    /** Tara del pallet estándar EUR (120×100 cm), no es un empaque de producto. */
+    public const TARA_PALLET_KG = 25.0;
     /**
      * @param  array{
      *   conteo_por_empaque?: int|null,
@@ -55,8 +57,8 @@ class CargaCalculoService
         };
 
         $pesoNeto = round($unidadesTotales * $pesoUnit, 3);
-        $pesoBruto = round($pesoNeto + ($empaques * $tara), 3);
         $pallets = $unidadesPorPallet > 0 ? (int) ceil($empaques / $unidadesPorPallet) : 0;
+        $pesoBruto = round($pesoNeto + ($empaques * $tara) + ($pallets * self::TARA_PALLET_KG), 3);
 
         $largo = isset($input['largo_cm']) ? (float) $input['largo_cm'] : null;
         $ancho = isset($input['ancho_cm']) ? (float) $input['ancho_cm'] : null;

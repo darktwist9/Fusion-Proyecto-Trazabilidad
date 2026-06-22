@@ -55,7 +55,7 @@
             icono="fa-cogs"
             :registros="$maquinas->total()"
             filtros-target="#filtrosMaquinasPanel"
-            :nuevo-href="route('maquinas-planta.create')"
+            :nuevo-href="auth()->user()?->can('lote_produccion.create') ? route('maquinas-planta.create') : null"
             nuevo-text="Nueva máquina"
         />
 
@@ -108,13 +108,18 @@
                         <td class="text-muted">{{ $maquina->descripcionMostrar() }}</td>
                         <td>@include('maquinas_planta.partials.estado-maquina', ['maquina' => $maquina])</td>
                         <td class="btn-actions text-nowrap">
+                            @can('lote_produccion.update')
                             @include('maquinas_planta.partials.btn-toggle-estado', ['maquina' => $maquina])
+                            @endcan
                             <a href="{{ route('maquinas-planta.show', $maquina) }}" class="btn btn-sm btn-outline-info" title="Ver detalle">
                                 <i class="fas fa-eye"></i>
                             </a>
+                            @can('lote_produccion.update')
                             <a href="{{ route('maquinas-planta.edit', $maquina) }}" class="btn btn-sm btn-outline-primary" title="Editar">
                                 <i class="fas fa-edit"></i>
                             </a>
+                            @endcan
+                            @can('lote_produccion.delete')
                             <form method="POST" action="{{ route('maquinas-planta.destroy', $maquina) }}" class="d-inline">
                                 @csrf
                                 @method('DELETE')
@@ -125,6 +130,7 @@
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </form>
+                            @endcan
                         </td>
                     </tr>
                     @empty

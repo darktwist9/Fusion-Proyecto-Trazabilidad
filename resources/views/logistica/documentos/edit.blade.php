@@ -24,7 +24,7 @@
                         <div class="col-md-4 form-group">
                             <label class="small font-weight-bold">Tipo</label>
                             <select name="tipo_documento" class="form-control" required>
-                                @foreach(['pod' => 'POD / comprobante entrega', 'nota_entrega' => 'Nota entrega', 'guia_transporte' => 'Guía transporte', 'evidencia' => 'Evidencia'] as $val => $label)
+                                @foreach(\App\Support\DocumentoEntregaCatalogo::tiposDocumento() as $val => $label)
                                     <option value="{{ $val }}" @selected(old('tipo_documento', $documento->tipo_documento) === $val)>{{ $label }}</option>
                                 @endforeach
                             </select>

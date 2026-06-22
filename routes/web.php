@@ -31,6 +31,7 @@ use App\Http\Controllers\Web\UserProfileController;
 // 🔹 nuevos controladores web de almacenamiento
 use App\Http\Controllers\Web\TipoAlmacenController;
 use App\Http\Controllers\Web\AlmacenController;
+use App\Http\Controllers\Web\AlmacenPlantaCosechaController;
 use App\Http\Controllers\Web\AlmacenInventarioController;
 
 
@@ -214,6 +215,9 @@ Route::middleware(['auth', 'cuenta.aprobada'])->group(function () {
         Route::delete('{tipo}/{id}', [PlantaCatalogoController::class, 'destroy'])->name('destroy')->whereNumber('id');
     });
 
+    Route::get('procesamiento/calcular-planificacion', [\App\Http\Controllers\Web\LoteProduccionController::class, 'calcularPlanificacion'])
+        ->name('procesamiento.calcular-planificacion')
+        ->middleware('can:lote_produccion.create');
     Route::get('procesamiento', [\App\Http\Controllers\Web\LoteProduccionController::class, 'index'])
         ->name('procesamiento.index')
         ->middleware('action.permission:lote_produccion,read');
@@ -252,7 +256,7 @@ Route::middleware(['auth', 'cuenta.aprobada'])->group(function () {
         ->middleware('action.permission:lote_produccion,read');
     Route::post('mis-tareas-planta/{asignacion}/completar', [\App\Http\Controllers\Web\TareaPlantaController::class, 'completar'])
         ->name('tareas-planta.completar')
-        ->middleware('action.permission:lote_produccion,create');
+        ->middleware('action.permission:lote_produccion,read');
     Route::post('procesamiento/{loteProduccion}/certificar', [\App\Http\Controllers\Web\LoteProduccionController::class, 'certificar'])
         ->name('procesamiento.certificar')
         ->middleware('action.permission:lote_produccion,create');
@@ -324,6 +328,22 @@ Route::middleware(['auth', 'cuenta.aprobada'])->group(function () {
                 Route::delete('/{almacen}/inventario/{insumo}', [AlmacenInventarioController::class, 'destroy'])
                     ->whereNumber(['almacen', 'insumo'])
                     ->name('inventario.destroy')
+                    ->middleware('action.permission:inventario,delete');
+
+                Route::get('/{almacen}/cosecha/{clave}', [AlmacenPlantaCosechaController::class, 'show'])
+                    ->whereNumber('almacen')
+                    ->where('clave', '[a-z0-9\-]+')
+                    ->name('cosecha.show')
+                    ->middleware('action.permission:inventario,read');
+                Route::delete('/{almacen}/cosecha/{clave}/produccion/{produccionAlmacenamiento}', [AlmacenPlantaCosechaController::class, 'destroyProduccion'])
+                    ->whereNumber(['almacen', 'produccionAlmacenamiento'])
+                    ->where('clave', '[a-z0-9\-]+')
+                    ->name('cosecha.destroy-produccion')
+                    ->middleware('action.permission:inventario,delete');
+                Route::delete('/{almacen}/cosecha/{clave}/recepcion/{insumo}', [AlmacenPlantaCosechaController::class, 'destroyRecepcion'])
+                    ->whereNumber(['almacen', 'insumo'])
+                    ->where('clave', '[a-z0-9\-]+')
+                    ->name('cosecha.destroy-recepcion')
                     ->middleware('action.permission:inventario,delete');
 
                 Route::get('/{almacen}', [AlmacenController::class, 'show'])

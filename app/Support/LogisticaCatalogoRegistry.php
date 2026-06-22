@@ -10,6 +10,7 @@ use App\Models\TipoIncidenteTransporte;
 use App\Models\TipoTransporte;
 use App\Models\TipoVehiculo;
 use App\Support\InsumoCatalogo;
+use App\Support\TipoEmpaqueAmbito;
 
 /**
  * Registro de catálogos administrables bajo Envíos / Logística.
@@ -22,11 +23,14 @@ final class LogisticaCatalogoRegistry
         return [
             'tipos-empaque' => [
                 'titulo' => 'Tipos de empaque',
+                'subtitulo' => 'Catálogos de logística — verduras y transporte. El pallet no es un empaque: se calcula al armar envíos según «unidades por pallet» y capacidad del vehículo.',
                 'icono' => 'fa-box',
                 'tema' => ['accent' => '#2c5530', 'soft' => '#e8f4ec', 'mid' => '#4a7c59'],
                 'modelo' => TipoEmpaque::class,
                 'pk' => 'tipoempaqueid',
                 'orden' => 'nombre',
+                'scope' => fn ($q) => TipoEmpaqueAmbito::scopeAgricola($q),
+                'defaults' => ['ambito' => TipoEmpaqueAmbito::AGRICOLA],
                 'campos' => [
                     'nombre' => ['label' => 'Nombre', 'rules' => 'required|string|max:100'],
                     'descripcion' => ['label' => 'Descripción', 'rules' => 'nullable|string|max:500'],
@@ -34,10 +38,10 @@ final class LogisticaCatalogoRegistry
                     'ancho_cm' => ['label' => 'Ancho (cm)', 'rules' => 'nullable|numeric|min:0'],
                     'alto_cm' => ['label' => 'Alto (cm)', 'rules' => 'nullable|numeric|min:0'],
                     'tara_kg' => ['label' => 'Tara (kg)', 'rules' => 'nullable|numeric|min:0'],
-                    'capacidad_unidades' => ['label' => 'Capacidad (unidades)', 'rules' => 'nullable|integer|min:1'],
-                    'unidades_por_pallet' => ['label' => 'Unidades por pallet', 'rules' => 'nullable|integer|min:1'],
+                    'capacidad_unidades' => ['label' => 'Capacidad (unidades)', 'rules' => 'nullable|integer|min:1', 'ayuda' => 'Cuántas unidades de producto (verduras, tubérculos, etc.) caben en un empaque de este tipo.'],
+                    'unidades_por_pallet' => ['label' => 'Unidades por pallet', 'rules' => 'nullable|integer|min:1', 'ayuda' => 'Cuántos empaques de este tipo caben estibados en un pallet.'],
                 ],
-                'columnas' => ['nombre', 'largo_cm', 'ancho_cm', 'alto_cm', 'tara_kg', 'capacidad_unidades'],
+                'columnas' => ['nombre', 'largo_cm', 'ancho_cm', 'alto_cm', 'tara_kg', 'capacidad_unidades', 'unidades_por_pallet'],
             ],
             'tamano-conteo' => [
                 'titulo' => 'Tamaño / conteo (calibres)',
@@ -66,7 +70,11 @@ final class LogisticaCatalogoRegistry
                         'label' => 'Tipo de empaque',
                         'rules' => 'nullable|exists:tipo_empaque,tipoempaqueid',
                         'tipo' => 'select',
-                        'opciones' => fn () => TipoEmpaque::query()->where('activo', true)->orderBy('nombre')->pluck('nombre', 'tipoempaqueid'),
+                        'opciones' => fn () => TipoEmpaque::query()
+                            ->where('activo', true)
+                            ->tap(fn ($q) => TipoEmpaqueAmbito::scopeAgricola($q))
+                            ->orderBy('nombre')
+                            ->pluck('nombre', 'tipoempaqueid'),
                     ],
                     'activo' => ['label' => 'Activo', 'rules' => 'boolean', 'tipo' => 'checkbox'],
                 ],

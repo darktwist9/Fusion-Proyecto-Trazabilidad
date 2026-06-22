@@ -16,6 +16,7 @@ use App\Models\Usuario;
 use App\Support\DocumentoEntregaArchivo;
 use App\Support\EnvioAsignacionEstadoCatalogo;
 use App\Support\EnvioCierreAgricolaCatalogo;
+use App\Support\PedidoCatalogo;
 use App\Support\SimulacionRutaCatalogo;
 use App\Support\UsuarioRol;
 use Illuminate\Support\Facades\DB;
@@ -58,6 +59,7 @@ class CierreEnvioAgricolaService
         $tieneIncidentes = $envio->checklistIncidente !== null;
         $firmaTransportista = $envio->firmaTransportista !== null;
         $firmaRecepcion = $envio->firmaRecepcion !== null;
+        $pedidoConfirmado = PedidoCatalogo::envioOperativoParaTransportista($envio);
 
         $pasoActual = EnvioCierreAgricolaCatalogo::PASO_CONDICIONES;
         if ($recibido) {
@@ -87,8 +89,9 @@ class CierreEnvioAgricolaService
             'firma_transportista' => $firmaTransportista,
             'firma_recepcion' => $firmaRecepcion,
             'recibido_planta' => $recibido,
-            'puede_registrar_condiciones' => ! $tieneCondiciones && ! $enRuta && ! $recibido,
-            'puede_empezar_ruta' => SimulacionRutaCatalogo::puedeEmpezarAgricola($envio) && $tieneCondiciones,
+            'pedido_confirmado' => $pedidoConfirmado,
+            'puede_registrar_condiciones' => $pedidoConfirmado && ! $tieneCondiciones && ! $enRuta && ! $recibido,
+            'puede_empezar_ruta' => $pedidoConfirmado && SimulacionRutaCatalogo::puedeEmpezarAgricola($envio) && $tieneCondiciones,
             'puede_confirmar_llegada' => $enRuta && ! $llegadaConfirmada && ! $recibido && $progreso >= 100,
             'puede_registrar_incidentes' => $llegadaConfirmada && ! $tieneIncidentes && ! $recibido,
             'puede_firmar_transportista' => $llegadaConfirmada && $tieneIncidentes && ! $recibido && ! $firmaTransportista,
@@ -118,6 +121,13 @@ class CierreEnvioAgricolaService
 
         if (EnvioAsignacionEstadoCatalogo::llegoADestino($envio)) {
             throw new InvalidArgumentException('Este envío ya fue recibido en planta.');
+        }
+
+        $envio->loadMissing('pedido');
+        if ($envio->pedido && ! PedidoCatalogo::listoParaLogistica($envio->pedido)) {
+            if ($this->esTransportistaAsignado($usuario, $envio) && ! $this->esAdminOperativo($usuario)) {
+                throw new InvalidArgumentException('El pedido aún no fue confirmado por producción agrícola.');
+            }
         }
 
         $catalogo = CondicionTransporte::query()->orderBy('condiciontransporteid')->get();

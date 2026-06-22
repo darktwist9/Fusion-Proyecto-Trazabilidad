@@ -8,6 +8,9 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
+/**
+ * @method bool can(string $ability, mixed $arguments = [])
+ */
 class Usuario extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable, HasRoles;

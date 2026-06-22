@@ -194,6 +194,54 @@ final class CultivoSiembraCatalogo
         return null;
     }
 
+    /**
+     * Rendimiento de cosecha de referencia (kg netos por hectárea).
+     *
+     * @return array{kg_ha: float, etiqueta: string}|null
+     */
+    public static function rendimientoCosechaPorNombreCultivo(?string $nombre): ?array
+    {
+        if ($nombre === null || trim($nombre) === '') {
+            return null;
+        }
+
+        $key = mb_strtolower(trim($nombre));
+
+        $tabla = [
+            'cebolla' => ['kg_ha' => 25000.0, 'etiqueta' => '25.000 kg/ha'],
+            'tomate' => ['kg_ha' => 40000.0, 'etiqueta' => '40.000 kg/ha'],
+            'zanahoria' => ['kg_ha' => 35000.0, 'etiqueta' => '35.000 kg/ha'],
+            'papa' => ['kg_ha' => 20000.0, 'etiqueta' => '20.000 kg/ha'],
+            'lechuga' => ['kg_ha' => 15000.0, 'etiqueta' => '15.000 kg/ha'],
+            'pimentón' => ['kg_ha' => 30000.0, 'etiqueta' => '30.000 kg/ha'],
+            'pimenton' => ['kg_ha' => 30000.0, 'etiqueta' => '30.000 kg/ha'],
+            'maíz' => ['kg_ha' => 8000.0, 'etiqueta' => '8.000 kg/ha'],
+            'maiz' => ['kg_ha' => 8000.0, 'etiqueta' => '8.000 kg/ha'],
+            'mango' => ['kg_ha' => 12000.0, 'etiqueta' => '12.000 kg/ha'],
+        ];
+
+        foreach ($tabla as $fragmento => $dato) {
+            if (str_contains($key, $fragmento)) {
+                return $dato;
+            }
+        }
+
+        return null;
+    }
+
+    public static function rendimientoCosechaKgHaDesdeInsumo(Insumo $insumo): ?float
+    {
+        if ($insumo->rendimiento_cosecha_kg_ha !== null && (float) $insumo->rendimiento_cosecha_kg_ha > 0) {
+            return (float) $insumo->rendimiento_cosecha_kg_ha;
+        }
+
+        $ref = self::rendimientoCosechaPorNombreCultivo(
+            \App\Support\PedidoCatalogo::cultivoDesdeInsumo($insumo)
+        );
+
+        return $ref ? (float) $ref['kg_ha'] : null;
+    }
+
     public static function semillasPorKgDesdeInsumo(\App\Models\Insumo $insumo): ?float
     {
         if ($insumo->semillas_por_kg !== null && (float) $insumo->semillas_por_kg > 0) {

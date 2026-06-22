@@ -21,6 +21,13 @@ final class TransportistaLoginEnvio
             ->where('transportista_usuarioid', $user->usuarioid)
             ->whereIn('estado', ['asignado', 'asignada', 'pendiente', 'creada', 'en_ruta', 'en_transporte_planta', 'en_transito'])
             ->whereNull('fecha_recepcion_planta')
+            ->where(function ($q) {
+                $q->whereDoesntHave('pedido')
+                    ->orWhereHas('pedido', fn ($p) => $p->whereIn(
+                        'estado',
+                        PedidoCatalogo::estadosListosParaLogistica()
+                    ));
+            })
             ->with(['pedido.detalles'])
             ->orderByDesc('fecha_asignacion')
             ->first();

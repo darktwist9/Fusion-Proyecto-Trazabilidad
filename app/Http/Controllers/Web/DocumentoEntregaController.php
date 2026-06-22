@@ -168,6 +168,7 @@ class DocumentoEntregaController extends Controller
     public function edit(DocumentoEntrega $documento): View
     {
         $this->autorizarAccesoDocumento($documento);
+        $this->autorizarEdicionDocumento($documento);
 
         return view('logistica.documentos.edit', compact('documento'));
     }
@@ -175,6 +176,7 @@ class DocumentoEntregaController extends Controller
     public function update(Request $request, DocumentoEntrega $documento): RedirectResponse
     {
         $this->autorizarAccesoDocumento($documento);
+        $this->autorizarEdicionDocumento($documento);
 
         $validated = $request->validate([
             'titulo' => ['required', 'string', 'max:255'],
@@ -200,6 +202,8 @@ class DocumentoEntregaController extends Controller
         unset($validated['archivo']);
         $documento->update($validated);
 
+        DocumentoEntregaArchivo::asegurarPdfOperativo($documento->fresh());
+
         return redirect()->route('logistica.documentos.show', $documento)
             ->with('success', 'Documento actualizado.');
     }
@@ -207,6 +211,11 @@ class DocumentoEntregaController extends Controller
     public function destroy(DocumentoEntrega $documento): RedirectResponse
     {
         $this->autorizarAccesoDocumento($documento);
+        abort_unless(
+            DocumentoEntregaCatalogo::puedeEliminar($documento, auth()->user()),
+            403,
+            'No tiene permiso para eliminar este documento.'
+        );
 
         if ($documento->archivo_path && Storage::disk('public')->exists($documento->archivo_path)) {
             Storage::disk('public')->delete($documento->archivo_path);
@@ -242,6 +251,15 @@ class DocumentoEntregaController extends Controller
         abort_unless(
             DocumentoEntregaAcceso::puedeVerDocumento($documento, auth()->user()),
             403
+        );
+    }
+
+    private function autorizarEdicionDocumento(DocumentoEntrega $documento): void
+    {
+        abort_unless(
+            DocumentoEntregaCatalogo::puedeEditar($documento, auth()->user()),
+            403,
+            'No tiene permiso para modificar este documento.'
         );
     }
 }

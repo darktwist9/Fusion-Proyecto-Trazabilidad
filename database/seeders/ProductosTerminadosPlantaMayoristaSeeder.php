@@ -46,7 +46,7 @@ class ProductosTerminadosPlantaMayoristaSeeder extends Seeder
             'presentaciones' => [
                 ['nombre' => 'Lata 400 g', 'tipo_envase' => 'lata', 'tipo_empaque' => 'Lata', 'peso_neto_kg' => 0.4],
                 ['nombre' => 'Pouch 1 kg', 'tipo_envase' => 'bolsa', 'tipo_empaque' => 'Pouch', 'peso_neto_kg' => 1.0],
-                ['nombre' => 'Bidón 20 kg', 'tipo_envase' => 'bidon', 'tipo_empaque' => 'Bidón', 'peso_neto_kg' => 20.0],
+                ['nombre' => 'Bidón 5 kg', 'tipo_envase' => 'bidon', 'tipo_empaque' => 'Bidón', 'peso_neto_kg' => 5.0],
             ],
         ],
         [
@@ -87,10 +87,11 @@ class ProductosTerminadosPlantaMayoristaSeeder extends Seeder
 
     /** @var list<array{nombre: string, descripcion: string, largo_cm: float, ancho_cm: float, alto_cm: float, tara_kg: float, capacidad_unidades: int}> */
     private const TIPOS_EMPAQUE_PLANTA = [
-        ['nombre' => 'Lata', 'descripcion' => 'Lata metálica para purés y conservas', 'largo_cm' => 8, 'ancho_cm' => 8, 'alto_cm' => 11, 'tara_kg' => 0.045, 'capacidad_unidades' => 1],
-        ['nombre' => 'Frasco', 'descripcion' => 'Frasco de vidrio para salsas', 'largo_cm' => 7, 'ancho_cm' => 7, 'alto_cm' => 12, 'tara_kg' => 0.18, 'capacidad_unidades' => 1],
-        ['nombre' => 'Bidón', 'descripcion' => 'Bidón plástico industrial', 'largo_cm' => 30, 'ancho_cm' => 30, 'alto_cm' => 40, 'tara_kg' => 1.2, 'capacidad_unidades' => 1],
-        ['nombre' => 'Pouch', 'descripcion' => 'Bolsa doypack para purés', 'largo_cm' => 12, 'ancho_cm' => 8, 'alto_cm' => 18, 'tara_kg' => 0.025, 'capacidad_unidades' => 1],
+        ['nombre' => 'Lata', 'descripcion' => 'Lata metálica para purés y conservas', 'largo_cm' => 8, 'ancho_cm' => 8, 'alto_cm' => 11, 'tara_kg' => 0.045, 'capacidad_unidades' => 1, 'unidades_por_pallet' => 120],
+        ['nombre' => 'Frasco', 'descripcion' => 'Frasco de vidrio para salsas', 'largo_cm' => 7, 'ancho_cm' => 7, 'alto_cm' => 12, 'tara_kg' => 0.18, 'capacidad_unidades' => 1, 'unidades_por_pallet' => 96],
+        ['nombre' => 'Bidón', 'descripcion' => 'Bidón plástico industrial', 'largo_cm' => 30, 'ancho_cm' => 30, 'alto_cm' => 40, 'tara_kg' => 1.2, 'capacidad_unidades' => 1, 'unidades_por_pallet' => 36],
+        ['nombre' => 'Pouch', 'descripcion' => 'Bolsa doypack para purés', 'largo_cm' => 12, 'ancho_cm' => 8, 'alto_cm' => 18, 'tara_kg' => 0.025, 'capacidad_unidades' => 1, 'unidades_por_pallet' => 200],
+        ['nombre' => 'Bolsa plástica', 'descripcion' => 'Bolsa comercial para producto terminado (500 g)', 'largo_cm' => 25, 'ancho_cm' => 15, 'alto_cm' => 8, 'tara_kg' => 0.05, 'capacidad_unidades' => 1, 'unidades_por_pallet' => 80],
     ];
 
     public function run(): void
@@ -249,7 +250,7 @@ class ProductosTerminadosPlantaMayoristaSeeder extends Seeder
         foreach (self::TIPOS_EMPAQUE_PLANTA as $row) {
             TipoEmpaque::query()->updateOrCreate(
                 ['nombre' => $row['nombre']],
-                array_merge($row, ['activo' => true])
+                array_merge($row, ['activo' => true, 'ambito' => \App\Support\TipoEmpaqueAmbito::PLANTA])
             );
         }
     }

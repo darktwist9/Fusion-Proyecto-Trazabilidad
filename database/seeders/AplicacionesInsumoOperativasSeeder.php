@@ -63,7 +63,7 @@ class AplicacionesInsumoOperativasSeeder extends Seeder
                 'observaciones' => 'Aspersión en hojas tras riego intenso.',
             ],
             [
-                'lote' => 'Prueba real',
+                'lote' => 'Lote Lechuga Crespa Equipetrol',
                 'insumo' => 'Fungicida cobre hidróxido',
                 'cantidad' => 6.0,
                 'fecha' => '2026-05-25',

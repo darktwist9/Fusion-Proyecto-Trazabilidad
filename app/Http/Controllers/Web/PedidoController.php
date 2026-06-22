@@ -90,7 +90,7 @@ class PedidoController extends Controller
             'trayectosPermitidos' => $trayectosPermitidos,
             'mostrarSelectorTrayecto' => count($trayectosPermitidos) > 1,
             'catalogosEmpaque' => [
-                'tiposEmpaque' => LocalOrgTrackFallback::tiposEmpaqueCatalogList(LocalOrgTrackFallback::AMBITO_EMPAQUE_AGRICOLA),
+                'tiposEmpaque' => LocalOrgTrackFallback::tiposEmpaqueCatalogList(),
                 'tamanoConteo' => LocalOrgTrackFallback::tamanoConteoCatalogList(),
             ],
         ], $this->datosVistaDistribucionPdv(request()->user())));
@@ -297,6 +297,11 @@ class PedidoController extends Controller
         );
         if ($erroresStock !== null) {
             throw \Illuminate\Validation\ValidationException::withMessages($erroresStock);
+        }
+
+        $erroresPresentacion = PedidoCatalogo::validarPresentacionDetallesPedido($data['detalles']);
+        if ($erroresPresentacion !== null) {
+            throw \Illuminate\Validation\ValidationException::withMessages($erroresPresentacion);
         }
 
         $pesoTotalKg = (float) array_sum(array_map(

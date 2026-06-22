@@ -37,9 +37,11 @@ class AsignacionMultipleController extends Controller
         $esTransportistaAsignado = (int) $asignacion->transportista_usuarioid === (int) $user?->usuarioid;
         $puedeVer = $user?->can('asignaciones.create')
             || $user?->can('asignaciones.view')
-            || $esTransportistaAsignado;
+            || ($esTransportistaAsignado && PedidoCatalogo::envioOperativoParaTransportista($asignacion));
         if (! $puedeVer) {
-            abort(403);
+            abort(403, $esTransportistaAsignado
+                ? 'Este envío estará disponible cuando producción agrícola confirme el pedido.'
+                : 'No tiene permiso para ver este envío.');
         }
 
         $asignacion->load([
@@ -420,6 +422,13 @@ class AsignacionMultipleController extends Controller
         $user = auth()->user();
         if (! $user?->can('asignaciones.update') && (int) $asignacion->transportista_usuarioid !== (int) $user?->usuarioid) {
             abort(403);
+        }
+
+        if (
+            ! $user?->can('asignaciones.update')
+            && ! PedidoCatalogo::envioOperativoParaTransportista($asignacion)
+        ) {
+            abort(403, 'Este envío estará disponible cuando producción agrícola confirme el pedido.');
         }
 
         try {

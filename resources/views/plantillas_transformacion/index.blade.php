@@ -51,7 +51,7 @@
             icono="fa-project-diagram"
             :registros="$plantillas->total()"
             filtros-target="#filtrosPlantillasPanel"
-            :nuevo-href="route('plantillas-transformacion.create')"
+            :nuevo-href="auth()->user()?->can('lote_produccion.create') ? route('plantillas-transformacion.create') : null"
             nuevo-text="Nuevo proceso"
         />
         <div id="filtrosPlantillasPanel" class="filtros-panel collapse {{ request()->hasAny(['buscar','estado']) ? 'show' : '' }}">
@@ -95,11 +95,15 @@
                         </td>
                         <td class="btn-actions text-nowrap">
                             <a href="{{ route('plantillas-transformacion.show', $p) }}" class="btn btn-sm btn-outline-info" title="Ver"><i class="fas fa-eye"></i></a>
+                            @can('lote_produccion.update')
                             <a href="{{ route('plantillas-transformacion.edit', $p) }}" class="btn btn-sm btn-outline-primary" title="Editar"><i class="fas fa-edit"></i></a>
+                            @endcan
+                            @can('lote_produccion.delete')
                             <form method="POST" action="{{ route('plantillas-transformacion.destroy', $p) }}" class="d-inline" onsubmit="return confirm('¿Eliminar este proceso de transformación?')">
                                 @csrf @method('DELETE')
                                 <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
                             </form>
+                            @endcan
                         </td>
                     </tr>
                     @empty

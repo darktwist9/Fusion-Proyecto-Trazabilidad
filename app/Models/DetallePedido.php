@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class DetallePedido extends Model
 {
@@ -32,17 +33,23 @@ class DetallePedido extends Model
         'cantidad'        => 'float',
     ];
 
-    public function pedido()
+    public function pedido(): BelongsTo
     {
         return $this->belongsTo(Pedido::class, 'pedidoid', 'pedidoid');
     }
 
-    public function insumo()
+    public function insumo(): BelongsTo
     {
         return $this->belongsTo(Insumo::class, 'insumoid', 'insumoid');
     }
 
-    public function cosechaAlmacen()
+    /** Alias legado para vistas y PDFs que usan «producto». */
+    public function producto(): BelongsTo
+    {
+        return $this->insumo();
+    }
+
+    public function cosechaAlmacen(): BelongsTo
     {
         return $this->belongsTo(ProduccionAlmacenamiento::class, 'produccionalmacenamientoid', 'produccionalmacenamientoid');
     }

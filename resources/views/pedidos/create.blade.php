@@ -2470,8 +2470,9 @@
             selLote.appendChild(opt);
         });
         selLote.disabled = false;
-        if (seleccionLoteId) selLote.value = String(seleccionLoteId);
-        if (lotes.length === 1) {
+        if (seleccionLoteId) {
+            selLote.value = String(seleccionLoteId);
+        } else {
             selLote.value = String(lotes[0].id);
         }
         aplicarStockLoteEnFilaTraslado(fila);
@@ -2535,7 +2536,7 @@
         const excede = (Number.isFinite(stockUnidades) && stockUnidades > 0 && unidades > stockUnidades)
             || (Number.isFinite(stockKg) && stockKg > 0 && kg > stockKg + 0.0001);
         const selLote = fila.querySelector('[data-field="inventario_lote"]');
-        const lotePendiente = selLote && !selLote.disabled && selLote.options.length > 1 && !selLote.value;
+        const lotePendiente = false;
         const mostrarErrorLote = lotePendiente && fila.dataset.mostrarErrorLote === '1';
 
         if (hint) {
@@ -2595,12 +2596,6 @@
             const ins = f.querySelector('[data-field="insumoid"]')?.value;
             if (!ins) return;
             if ((f.dataset.modoCantidad || '') !== 'unidades') return;
-            const pres = f.querySelector('[data-field="presentacion"]')?.value;
-            const loteSel = f.querySelector('[data-field="inventario_lote"]');
-            const loteRequerido = loteSel && !loteSel.disabled && loteSel.options.length > 1;
-            if (pres && loteRequerido && !loteSel.value) {
-                f.dataset.mostrarErrorLote = '1';
-            }
             recalcularKgFilaTraslado(f);
         });
     };
@@ -2831,9 +2826,9 @@
                     '</select>' +
                 '</div>' +
                 '<div class="col-lg-2 col-md-6 mb-2 mb-lg-0 js-bloque-lote d-none">' +
-                    '<span class="field-label">Lote</span>' +
+                    '<span class="field-label">Lote <span class="text-muted font-weight-normal">(FIFO)</span></span>' +
                     '<select data-field="inventario_lote" name="detalles[' + idx + '][inventario_presentacion_loteid]" class="form-control form-control-sm" disabled>' +
-                        '<option value="">Seleccione presentación…</option>' +
+                        '<option value="">Auto (primer lote)…</option>' +
                     '</select>' +
                 '</div>' +
                 '<div class="col-lg-2 col-md-4 mb-2 mb-lg-0 js-bloque-cantidad-unidades d-none">' +

@@ -128,6 +128,10 @@ final class PlantaLoginEnvio
 
     private static function aplicaRedirect(Usuario $user): bool
     {
+        if (UsuarioRol::esAdminGlobal($user)) {
+            return false;
+        }
+
         return UsuarioRol::esJefePlanta($user)
             || ($user->can('panel_planta.view') && $user->can('pedidos.view'));
     }

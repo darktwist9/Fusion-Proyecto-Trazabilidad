@@ -339,7 +339,7 @@
 
             <div class="row mb-3">
 
-                <div class="col-md-6 mb-2 mb-md-0">
+                <div class="col-md-4 mb-2 mb-md-0">
 
                     <label class="small text-muted mb-1">Buscar</label>
 
@@ -353,7 +353,7 @@
 
                 </div>
 
-                <div class="col-md-3 mb-2 mb-md-0">
+                <div class="col-md-2 mb-2 mb-md-0">
 
                     <label class="small text-muted mb-1">Categoría</label>
 
@@ -371,7 +371,7 @@
 
                 </div>
 
-                <div class="col-md-3">
+                <div class="col-md-2 mb-2 mb-md-0">
 
                     <label class="small text-muted mb-1">Tipo</label>
 
@@ -389,6 +389,20 @@
 
                 </div>
 
+                <div class="col-md-2">
+
+                    <label class="small text-muted mb-1">Fecha</label>
+
+                    <select id="contenidoFiltroFecha" class="form-control form-control-sm">
+
+                        <option value="reciente">Más reciente</option>
+
+                        <option value="antiguo">Más antiguo</option>
+
+                    </select>
+
+                </div>
+
             </div>
 
         </div>
@@ -401,7 +415,7 @@
 
                     <tr>
 
-                        <th>Producto</th><th>Categoría</th><th>Tipo</th>
+                        <th>Producto</th><th>Categoría</th><th>Tipo</th><th>Empaque</th>
 
                         <th class="text-right">Cantidad</th><th class="text-right">Equivalente (kg)</th><th>Detalle</th>
 
@@ -415,15 +429,24 @@
 
                     @forelse($contenidos as $item)
 
-                        <tr class="contenido-row" data-search="{{ $item->search }}" data-categoria="{{ $item->categoria }}" data-tipo="{{ strtolower($item->tipo_label) }}">
+                        <tr class="contenido-row" data-search="{{ $item->search }}" data-categoria="{{ $item->categoria }}" data-tipo="{{ strtolower($item->tipo_label) }}" data-fecha="{{ (int) ($item->fecha_orden ?? 0) }}">
 
                             <td><strong class="text-success">{{ $item->nombre }}</strong></td>
 
-                            <td><span class="badge badge-{{ match($item->categoria) { 'cosecha' => 'info', 'producto_planta' => 'warning', default => 'secondary' } }}">{{ match($item->categoria) { 'cosecha' => 'Cosecha', 'producto_planta' => 'Producto terminado', default => 'Insumo' } }}</span></td>
+                            <td><span class="badge badge-{{ match($item->categoria) { 'cosecha', 'cosecha_consolidada' => 'info', 'producto_planta' => 'warning', default => 'secondary' } }}">{{ match($item->categoria) { 'cosecha', 'cosecha_consolidada' => 'Cosecha', 'producto_planta' => 'Producto terminado', default => 'Insumo' } }}</span></td>
 
                             <td>{{ $item->tipo_label }}</td>
 
-                            <td class="text-right">{{ number_format($item->cantidad, 2) }} <small class="text-muted">{{ $item->unidad }}</small></td>
+                            <td class="small text-muted">{{ $item->empaque ?? '—' }}</td>
+
+                            <td class="text-right">
+                                @php
+                                    $uLower = strtolower($item->unidad ?? '');
+                                    $esUnidad = $item->categoria === 'producto_planta' && ! str_contains($uLower, 'kg');
+                                @endphp
+                                {{ number_format($item->cantidad, $esUnidad ? 0 : 2) }}
+                                <small class="text-muted">{{ $item->unidad }}</small>
+                            </td>
 
                             <td class="text-right">{{ number_format($item->kg, 2) }} kg</td>
 
@@ -442,6 +465,18 @@
                                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="fas fa-trash"></i></button>
                                         </form>
                                         @endcan
+                                    @elseif($item->categoria === 'cosecha_consolidada' && ! empty($item->accion_ver))
+                                        <a href="{{ $item->accion_ver }}" class="btn btn-sm btn-outline-info" title="Ver detalles"><i class="fas fa-eye"></i></a>
+                                        @if(! empty($item->accion_destroy))
+                                            @if($item->destroy_es_gestion ?? false)
+                                                <a href="{{ $item->accion_destroy }}" class="btn btn-sm btn-outline-danger" title="Eliminar entradas"><i class="fas fa-trash"></i></a>
+                                            @else
+                                                <form action="{{ $item->accion_destroy }}" method="POST" class="d-inline m-0 on-submit-confirm" data-confirm-title="¿Eliminar entrada?" data-confirm-text="Se quitará este stock del almacén de planta.">
+                                                    @csrf @method('DELETE')
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="fas fa-trash"></i></button>
+                                                </form>
+                                            @endif
+                                        @endif
                                     @elseif($item->categoria === 'cosecha' && ! empty($item->produccionid))
                                         <a href="{{ route('producciones.show', $item->produccionid) }}" class="btn btn-sm btn-outline-info" title="Ver"><i class="fas fa-eye"></i></a>
                                         <a href="{{ route('producciones.edit', $item->produccionid) }}" class="btn btn-sm btn-outline-warning" title="Editar"><i class="fas fa-edit"></i></a>
@@ -450,9 +485,8 @@
                                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="fas fa-trash"></i></button>
                                         </form>
                                     @elseif($item->categoria === 'producto_planta' && ! empty($item->lote_produccion_pedido_id))
-                                        <a href="{{ route('procesamiento.show', $item->lote_produccion_pedido_id) }}" class="btn btn-sm btn-outline-info" title="Ver"><i class="fas fa-eye"></i></a>
-                                        <a href="{{ route('procesamiento.edit', $item->lote_produccion_pedido_id) }}" class="btn btn-sm btn-outline-warning" title="Editar"><i class="fas fa-edit"></i></a>
-                                        <form action="{{ route('procesamiento.destroy', $item->lote_produccion_pedido_id) }}" method="POST" class="d-inline m-0 on-submit-confirm" data-confirm-title="¿Eliminar lote de procesamiento?" data-confirm-text="Esta acción no se puede deshacer.">
+                                        <a href="{{ route('procesamiento.show', $item->lote_produccion_pedido_id) }}" class="btn btn-sm btn-outline-info" title="Ver detalles"><i class="fas fa-eye"></i></a>
+                                        <form action="{{ route('procesamiento.destroy', $item->lote_produccion_pedido_id) }}" method="POST" class="d-inline m-0 on-submit-confirm" data-confirm-title="¿Eliminar producto terminado?" data-confirm-text="Se quitará este lote del almacén de planta.">
                                             @csrf @method('DELETE')
                                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="fas fa-trash"></i></button>
                                         </form>
@@ -468,7 +502,7 @@
 
                         <tr id="contenidoEmptyRow">
 
-                            <td colspan="7" class="text-center text-muted py-4">
+                            <td colspan="8" class="text-center text-muted py-4">
 
                                 <i class="fas fa-inbox fa-2x mb-2 d-block text-light"></i>
 
@@ -566,9 +600,41 @@
 
     const fTipo = document.getElementById('contenidoFiltroTipo');
 
-    const rows = Array.from(document.querySelectorAll('.contenido-row'));
+    const fFecha = document.getElementById('contenidoFiltroFecha');
+
+    const tbody = document.getElementById('contenidoTableBody');
+
+    let rows = Array.from(document.querySelectorAll('.contenido-row'));
 
     const sinResultados = document.getElementById('contenidoSinResultados');
+
+
+
+    function ordenarFilasPorFecha() {
+
+        if (!tbody || !fFecha) return;
+
+        const asc = fFecha.value === 'antiguo';
+
+        rows.sort(function (a, b) {
+
+            const fa = parseInt(a.dataset.fecha || '0', 10);
+
+            const fb = parseInt(b.dataset.fecha || '0', 10);
+
+            if (fa === fb) {
+
+                return (a.dataset.search || '').localeCompare(b.dataset.search || '');
+
+            }
+
+            return asc ? fa - fb : fb - fa;
+
+        });
+
+        rows.forEach(function (row) { tbody.appendChild(row); });
+
+    }
 
 
 
@@ -579,6 +645,8 @@
         const cat = (fCat?.value || '').toLowerCase();
 
         const tipo = (fTipo?.value || '').toLowerCase();
+
+        ordenarFilasPorFecha();
 
         let visibles = 0;
 
@@ -606,6 +674,10 @@
 
     if (fTipo) fTipo.addEventListener('change', aplicarFiltroContenido);
 
+    if (fFecha) fFecha.addEventListener('change', aplicarFiltroContenido);
+
+    aplicarFiltroContenido();
+
     document.querySelectorAll('.on-submit-confirm').forEach(function (form) {
         form.addEventListener('submit', function (e) {
             e.preventDefault();
@@ -623,7 +695,8 @@
                 showCancelButton: true,
                 confirmButtonColor: '#dc3545',
                 cancelButtonColor: '#6c757d',
-                confirmButtonText: 'Sí, eliminar'
+                confirmButtonText: 'Confirmar',
+                cancelButtonText: 'Cancelar'
             }).then(function (result) {
                 if (result.isConfirmed) {
                     el.submit();

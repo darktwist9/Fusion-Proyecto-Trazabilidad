@@ -63,6 +63,22 @@ final class PedidoCatalogo
         return self::listoParaLogistica($pedido);
     }
 
+    /** El transportista solo opera envíos cuyo pedido ya fue aceptado por producción agrícola. */
+    public static function envioOperativoParaTransportista(?EnvioAsignacionMultiple $asignacion): bool
+    {
+        if ($asignacion === null) {
+            return false;
+        }
+
+        $asignacion->loadMissing('pedido');
+
+        if ($asignacion->pedido === null) {
+            return true;
+        }
+
+        return self::listoParaLogistica($asignacion->pedido);
+    }
+
     /**
      * Nivel de edición permitido en logística/asignaciones/edit según pedido y envío.
      */
@@ -802,6 +818,29 @@ final class PedidoCatalogo
         return null;
     }
 
+    /**
+     * Exige empaque/presentación (@carga:…) en cada ítem del envío hacia planta.
+     *
+     * @param  array<int, array<string, mixed>>  $detalles
+     * @return array<string, string>|null
+     */
+    public static function validarPresentacionDetallesPedido(array $detalles): ?array
+    {
+        $errores = [];
+
+        foreach ($detalles as $idx => $detalle) {
+            $observaciones = trim((string) ($detalle['observaciones'] ?? ''));
+            $presentacion = self::descripcionEmpaqueDetalle($observaciones);
+
+            if ($presentacion === null || $presentacion === '') {
+                $errores['detalles.'.$idx.'.observaciones'] =
+                    'Indique el tipo de empaque y la presentación del producto antes de continuar.';
+            }
+        }
+
+        return $errores === [] ? null : $errores;
+    }
+
     /** Cultivo de producción agrícola vinculado al insumo de material de siembra. */
     public static function cultivoDesdeInsumo(Insumo $insumo): string
     {
@@ -849,6 +888,11 @@ final class PedidoCatalogo
             }
         } elseif ($forma === 'unidades' && $cantidadPedido !== '') {
             $meta = $cantidadPedido.' unidades';
+            if ($nombreCalibre) {
+                $meta .= ' · '.$nombreCalibre;
+            }
+        } elseif ($forma === 'kg' && $cantidadPedido !== '' && $nombreEmpaque) {
+            $meta = $cantidadPedido.' kg · '.$nombreEmpaque;
             if ($nombreCalibre) {
                 $meta .= ' · '.$nombreCalibre;
             }

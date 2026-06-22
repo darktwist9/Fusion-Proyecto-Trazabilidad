@@ -59,6 +59,7 @@ class AlmacenInventarioController extends Controller
             'producto' => $insumo,
             'estadoStock' => $estadoStock,
             'empaquetajes' => $empaquetajes,
+            'redirectAfter' => $this->redirectInterno($request->query('redirect')),
         ]));
     }
 
@@ -73,6 +74,7 @@ class AlmacenInventarioController extends Controller
             'almacen' => $almacen,
             'producto' => $insumo,
             'unidades' => UnidadMedida::query()->orderBy('nombre')->get(),
+            'redirectAfter' => $this->redirectInterno($request->query('redirect')),
         ]));
     }
 
@@ -103,8 +105,7 @@ class AlmacenInventarioController extends Controller
 
         $insumo->update($payload);
 
-        return redirect()
-            ->route($ctx['rutaPrefijo'].'.show', $almacen);
+        return $this->redirigirDespuesInventario($request, $ctx, $almacen, 'Producto actualizado en el almacén.');
     }
 
     public function destroy(Request $request, Almacen $almacen, Insumo $insumo): RedirectResponse
@@ -115,8 +116,33 @@ class AlmacenInventarioController extends Controller
         $this->eliminarImagenSubida($insumo->imagenurl);
         $insumo->delete();
 
+        return $this->redirigirDespuesInventario($request, $ctx, $almacen, 'Producto eliminado del almacén.');
+    }
+
+    private function redirectInterno(mixed $redirect): ?string
+    {
+        if (! is_string($redirect) || $redirect === '') {
+            return null;
+        }
+
+        return str_starts_with($redirect, url('/')) ? $redirect : null;
+    }
+
+    private function redirigirDespuesInventario(
+        Request $request,
+        array $ctx,
+        Almacen $almacen,
+        string $mensaje
+    ): RedirectResponse {
+        $redirect = $this->redirectInterno($request->input('redirect'));
+
+        if ($redirect !== null) {
+            return redirect($redirect)->with('success', $mensaje);
+        }
+
         return redirect()
-            ->route($ctx['rutaPrefijo'].'.show', $almacen);
+            ->route($ctx['rutaPrefijo'].'.show', $almacen)
+            ->with('success', $mensaje);
     }
 
     /**
@@ -164,7 +190,8 @@ class AlmacenInventarioController extends Controller
         InsumoCatalogo::asegurarInsumoGestionable($insumo);
 
         abort_unless(
-            InsumoCatalogo::esProductoTerminadoDistribucion($insumo),
+            InsumoCatalogo::esProductoTerminadoDistribucion($insumo)
+            || InsumoCatalogo::esCosechaRecepcionPlanta($insumo),
             404,
             'El producto no pertenece al inventario de este almacén.'
         );

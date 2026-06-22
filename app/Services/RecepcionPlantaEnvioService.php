@@ -89,19 +89,16 @@ class RecepcionPlantaEnvioService
             throw new \InvalidArgumentException('El pedido no tiene envío registrado.');
         }
 
-        $detalle = $pedido->detalles->first();
-        if ($detalle === null) {
+        if ($asignacion->fecha_recepcion_planta) {
+            return;
+        }
+
+        if (! in_array($asignacion->estado, ['en_transporte_planta', 'en_ruta', 'en_transito'], true)) {
+            throw new \InvalidArgumentException('El envío debe estar en transporte hacia planta para confirmar la recepción.');
+        }
+
+        if ($pedido->detalles->isEmpty()) {
             throw new \InvalidArgumentException('El pedido no tiene productos.');
-        }
-
-        $cantidad = (float) $detalle->cantidad;
-        if ($cantidad <= 0) {
-            throw new \InvalidArgumentException('La cantidad del pedido no es válida.');
-        }
-
-        $producto = trim((string) ($detalle->cultivo_personalizado ?? $detalle->insumo?->nombre ?? ''));
-        if ($producto === '') {
-            $producto = 'Cosecha recibida de pedido';
         }
 
         $almacen = $this->resolverAlmacenPlantaDesdePedido($pedido);
@@ -110,27 +107,59 @@ class RecepcionPlantaEnvioService
             throw new \InvalidArgumentException('No se encontró un almacén de planta destino.');
         }
 
-        $insumo = $this->resolverInsumoEnAlmacen($almacen, $producto);
-        if ($insumo === null && $detalle->insumoid) {
-            $ref = Insumo::query()->find($detalle->insumoid);
-            if ($ref !== null) {
-                $insumo = $this->resolverInsumoEnAlmacen($almacen, $ref->nombre);
-            }
-        }
-        if ($insumo === null || (int) $insumo->almacenid !== (int) $almacen->almacenid) {
-            $insumo = $this->crearInsumoRecepcionEnAlmacen($almacen, $producto, $pedido->numero_solicitud, $detalle->insumo);
-        } else {
-            $this->aplicarDetalleRecepcionPedido($insumo, $pedido->numero_solicitud);
-        }
+        $tipoIngreso = $this->tipoMovimientoIngresoRecepcion();
+        $numeroSolicitud = (string) $pedido->numero_solicitud;
 
-        $this->confirmar(
-            $asignacion,
-            $usuario,
-            (int) $almacen->almacenid,
-            (int) $insumo->insumoid,
-            $cantidad,
-            $this->textoRecepcionPedido($pedido->numero_solicitud)
-        );
+        DB::transaction(function () use ($asignacion, $usuario, $almacen, $pedido, $tipoIngreso, $numeroSolicitud) {
+            $ahora = now();
+
+            foreach ($pedido->detalles as $detalle) {
+                $cantidad = (float) $detalle->cantidad;
+                if ($cantidad <= 0) {
+                    continue;
+                }
+
+                $producto = trim((string) ($detalle->cultivo_personalizado ?? $detalle->insumo?->nombre ?? ''));
+                if ($producto === '') {
+                    $producto = 'Cosecha recibida de pedido';
+                }
+
+                $insumo = $this->resolverInsumoEnAlmacen($almacen, $producto);
+                if ($insumo === null && $detalle->insumoid) {
+                    $ref = Insumo::query()->find($detalle->insumoid);
+                    if ($ref !== null) {
+                        $insumo = $this->resolverInsumoEnAlmacen($almacen, $ref->nombre);
+                    }
+                }
+                if ($insumo === null || (int) $insumo->almacenid !== (int) $almacen->almacenid) {
+                    $insumo = $this->crearInsumoRecepcionEnAlmacen($almacen, $producto, $numeroSolicitud, $detalle->insumo);
+                } else {
+                    $this->aplicarDetalleRecepcionPedido($insumo, $numeroSolicitud);
+                }
+
+                AlmacenMovimiento::create([
+                    'almacenid' => $almacen->almacenid,
+                    'insumoid' => $insumo->insumoid,
+                    'tipo_movimiento_almacenid' => $tipoIngreso->tipo_movimiento_almacenid,
+                    'usuarioid' => $usuario->usuarioid,
+                    'fecha' => $ahora->toDateString(),
+                    'cantidad' => $cantidad,
+                    'referencia' => $asignacion->externo_envio_id,
+                    'destino_motivo' => $almacen->nombre,
+                    'observaciones' => '[Recepción planta — '.$asignacion->externo_envio_id.'] '
+                        .$producto.' · '.$this->textoRecepcionPedido($numeroSolicitud),
+                ]);
+
+                $insumo->incrementarStock($cantidad);
+            }
+
+            $asignacion->update(EnvioAsignacionEstadoCatalogo::applyToAttributes([
+                'estado' => 'recibido_planta',
+                'almacenid' => $almacen->almacenid,
+                'fecha_recepcion_planta' => $ahora,
+                'recepcion_usuarioid' => $usuario->usuarioid,
+            ]));
+        });
     }
 
     private function resolverAlmacenPlantaDesdePedido(Pedido $pedido): ?Almacen

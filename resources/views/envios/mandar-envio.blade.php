@@ -955,11 +955,12 @@
                 cantidadTotal = capacidadEmpaque * cantidadPedido;
             }
 
-            // B. Cálculo de Pesos y Pallets
+            // B. Cálculo de Pesos y Pallets (el pallet no es empaque; tara estándar EUR ~25 kg)
+            const TARA_PALLET_KG = 25;
             const pesoNeto = cantidadTotal * pesoPromedio;
             const pesoBrutoPorEmpaque = (capacidadEmpaque * pesoPromedio) + tara;
-            const pesoBrutoTotal = pesoBrutoPorEmpaque * empaquesCalculados;
             const numeroPallets = Math.ceil(empaquesCalculados / unidadesPallet);
+            const pesoBrutoTotal = (pesoBrutoPorEmpaque * empaquesCalculados) + (numeroPallets * TARA_PALLET_KG);
 
             // Actualizar UI
             el.querySelector('.js-empaques-calculados').value = empaquesCalculados;

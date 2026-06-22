@@ -932,7 +932,18 @@ class DashboardController extends Controller
                 'ingresos_bs' => $ingresos['total_bs'],
                 'servicios_completados' => $ingresos['servicios'],
             ],
-            'mis_asignaciones' => (clone $asignaciones)->with('pedido')->latest()->take(10)->get(),
+            'mis_asignaciones' => (clone $asignaciones)
+                ->with('pedido')
+                ->where(function ($q) {
+                    $q->whereDoesntHave('pedido')
+                        ->orWhereHas('pedido', fn ($p) => $p->whereIn(
+                            'estado',
+                            PedidoCatalogo::estadosListosParaLogistica()
+                        ));
+                })
+                ->latest()
+                ->take(10)
+                ->get(),
             'mis_rutas' => $rutas->latest()->take(6)->get(),
             'rutas_pendientes_salida' => $rutasPendientesSalida,
             'envios_pendientes_accion' => $enviosPendientesAccion,

@@ -26,6 +26,20 @@ class AsignacionEtapaPlantaService
             && $this->transformacion->puedeAsignarNuevaEtapa($lote);
     }
 
+    public function puedeCompletar(AsignacionEtapaPlanta $asignacion): bool
+    {
+        if (! $asignacion->estaPendiente()) {
+            return false;
+        }
+
+        $lote = $asignacion->loteProduccion;
+        if (! $lote) {
+            return false;
+        }
+
+        return ! $this->trazabilidad->transformacionCompleta($lote);
+    }
+
     /**
      * @param  array{procesoplantaid:int,maquinaplantaid:int,operador_usuarioid:int,observaciones?:?string}  $data
      */

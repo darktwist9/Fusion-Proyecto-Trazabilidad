@@ -438,9 +438,15 @@
                 const limites = this.limitesPedidoFila(fila);
                 if (ref && limites?.incompleto) {
                     if (!primerError) {
-                        primerError = forma === 'empaques'
+                        primerError = forma === 'empaques' || forma === 'kg'
                             ? 'Elija producto, empaque y calibre antes de continuar.'
                             : 'Elija producto y calibre antes de continuar.';
+                    }
+                }
+                const empaqueId = fila.querySelector('.js-tipo-empaque')?.value;
+                if (ref && (forma === 'empaques' || forma === 'kg') && !empaqueId) {
+                    if (!primerError) {
+                        primerError = 'Seleccione el tipo de empaque para cada producto del envío.';
                     }
                 }
                 let cant = 0;
@@ -651,6 +657,12 @@
                 usuario = usuario.split('\n').slice(1).join('\n').trim();
             }
             if (forma === 'kg' || !cantPedido) {
+                if (forma === 'kg' && cantPedido && empaque) {
+                    let meta = cantPedido + ' kg · ' + empaque;
+                    if (calibre) meta += ' · ' + calibre;
+                    obs.value = '@carga:' + meta + '@' + (usuario ? ' ' + usuario : '');
+                    return;
+                }
                 obs.value = usuario;
                 return;
             }
@@ -819,11 +831,13 @@
                 if (modoKg) modoKg.classList.toggle('d-none', val !== 'kg');
 
                 if (val === 'kg') {
-                    campoTipo?.classList.add('d-none');
+                    campoTipo?.classList.remove('d-none');
                     campoCalibre?.classList.remove('d-none');
-                    campoCant?.classList.add('d-none');
+                    campoCant?.classList.remove('d-none');
                     const lblCal = campoCalibre?.querySelector('label');
-                    if (lblCal) lblCal.textContent = 'Calibre (estima unidades según el peso)';
+                    if (lblCal) lblCal.textContent = 'Calibre';
+                    const lblCant = campoCant?.querySelector('.js-lbl-cantidad-pedido');
+                    if (lblCant) lblCant.textContent = '¿Cuántos kg?';
                     sugerenciaEmp?.classList.add('d-none');
                     if (sugerenciaEmp) sugerenciaEmp.textContent = '';
                     this.limpiarResumenCarga(fila);

@@ -14,14 +14,17 @@ use App\Models\RegistroProcesoMaquinaPlanta;
 use App\Models\UnidadMedida;
 use App\Models\Usuario;
 use App\Services\AlmacenCapacidadService;
+use App\Services\InventarioPresentacionService;
 use App\Services\LoteProduccionPlantaService;
+use App\Services\PresentacionProductoPlantaService;
 use App\Services\ProductoPlantaInventarioService;
 use App\Support\AlmacenAmbito;
 use App\Support\AlmacenajeLoteCondiciones;
 use App\Support\AsignacionEtapaPlantaService;
+use App\Support\EmpaquePlantaCatalogo;
 use App\Support\LoteProduccionNombre;
-use App\Support\LoteProduccionTransformacionService;
 use App\Support\LoteProduccionTrazabilidadService;
+use App\Support\LoteProduccionTransformacionService;
 use App\Support\MaquinaProcesoCompatibilidad;
 use App\Support\ProcesoPlantaCatalogo;
 use App\Support\ProductoPlantaCatalogo;
@@ -39,6 +42,8 @@ class LoteProduccionController extends Controller
         private readonly LoteProduccionTrazabilidadService $trazabilidad,
         private readonly LoteProduccionTransformacionService $transformacion,
         private readonly ProductoPlantaInventarioService $inventarioPlanta,
+        private readonly InventarioPresentacionService $inventarioPresentacion,
+        private readonly PresentacionProductoPlantaService $presentacionPlanta,
         private readonly AlmacenCapacidadService $capacidadService,
         private readonly AsignacionEtapaPlantaService $asignacionEtapa,
     ) {}
@@ -150,6 +155,8 @@ class LoteProduccionController extends Controller
             $plantillaLabel = $pltOld?->nombre;
         }
 
+        $empaquesPlanta = EmpaquePlantaCatalogo::opcionesSelect();
+
         return view('procesamiento.index', compact(
             'lotes',
             'stats',
@@ -165,7 +172,8 @@ class LoteProduccionController extends Controller
             'desde',
             'hasta',
             'procesosPlanta',
-            'plantillaLabel'
+            'plantillaLabel',
+            'empaquesPlanta',
         ));
     }
 
@@ -209,12 +217,19 @@ class LoteProduccionController extends Controller
         $produccionEstimada = ProductoPlantaCatalogo::resumenProduccion($loteProduccion, $this->capacidadService);
         $unidadProductoAlmacen = ProductoPlantaCatalogo::unidadEtiqueta(
             $productoLote,
-            $loteProduccion->unidadMedida
+            $loteProduccion->unidadMedida,
+            $loteProduccion
         );
         $cantidadProductoAlmacen = $produccionEstimada['cantidad'] > 0
             ? $produccionEstimada['cantidad']
             : $cantidadProductoAlmacen;
         $cantidadProductoAlmacenKg = $produccionEstimada['kg'];
+        $almacenajeRegistrado = $loteProduccion->almacenajes->first();
+        $cantidadAlmacenajeMostrar = ProductoPlantaCatalogo::cantidadAlmacenajeMostrar(
+            $loteProduccion,
+            $this->capacidadService,
+            $almacenajeRegistrado ? (float) $almacenajeRegistrado->cantidad : null
+        );
 
         $loteProduccion->load('plantillaTransformacion.pasos.proceso', 'plantillaTransformacion.pasos.maquina');
         $rutaPlantilla = $this->transformacion->rutaPlantilla($loteProduccion);
@@ -247,6 +262,7 @@ class LoteProduccionController extends Controller
             'cantidadProductoAlmacenKg' => $cantidadProductoAlmacenKg,
             'unidadProductoAlmacen' => $unidadProductoAlmacen,
             'produccionEstimada' => $produccionEstimada,
+            'cantidadAlmacenajeMostrar' => $cantidadAlmacenajeMostrar,
             'fases' => LoteProduccionTrazabilidadService::FASES,
             'puedeEliminar' => $this->loteService->puedeEliminar($loteProduccion),
             'puedeAsignarEtapa' => $puedeAsignarEtapa,
@@ -316,8 +332,6 @@ class LoteProduccionController extends Controller
 
         $asignacion->load(['proceso', 'maquina', 'operador']);
         $loteProduccion->refresh();
-        $proceso = $asignacion->proceso?->nombre ?? 'etapa';
-        $mensaje = "«{$proceso}» marcada como completada. La alerta del operario fue retirada.";
 
         if ($respondeJson) {
             $registro->load(['procesoMaquina.proceso', 'procesoMaquina.maquina', 'usuario']);
@@ -326,7 +340,7 @@ class LoteProduccionController extends Controller
 
             return response()->json([
                 'ok' => true,
-                'message' => $mensaje,
+                'reload' => $this->asignacionEtapa->puedeAsignar($loteProduccion),
                 'asignacion_id' => (int) $asignacion->asignacionetapaplantaid,
                 'etapa' => $ultima ? [
                     'numero' => $ultima['numero'],
@@ -346,9 +360,7 @@ class LoteProduccionController extends Controller
             ]);
         }
 
-        return redirect()
-            ->route('procesamiento.show', $loteProduccion)
-            ->with('success', $mensaje);
+        return redirect()->route('procesamiento.show', $loteProduccion);
     }
 
     public function registrarEtapa(Request $request, LoteProduccionPedido $loteProduccion): RedirectResponse
@@ -491,17 +503,18 @@ class LoteProduccionController extends Controller
             'observaciones' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $loteProduccion->loadMissing('materiasPrimas.insumo.unidadMedida', 'unidadMedida');
-
-        $cantidad = ProductoPlantaCatalogo::cantidadParaAlmacenaje($loteProduccion, $this->capacidadService);
-
-        if ($cantidad <= 0) {
-            return back()->with('error', 'No hay materia prima registrada ni cantidad objetivo para calcular el almacenaje.');
+        if (! ProductoPlantaCatalogo::loteTieneEmpaquePlanificado($loteProduccion)) {
+            return back()->with('error', 'Este lote no tiene empaque planificado. Vuelva a crear el lote indicando presentación comercial.');
         }
 
-        $cantidadKg = ProductoPlantaCatalogo::kgParaAlmacenaje($loteProduccion, $this->capacidadService);
-        if ($cantidadKg <= 0) {
-            return back()->with('error', 'No se pudo calcular el peso del producto terminado a partir de la materia prima.');
+        $loteProduccion->loadMissing('materiasPrimas.insumo.unidadMedida', 'unidadMedida', 'presentacion');
+
+        $resumen = ProductoPlantaCatalogo::resumenProduccion($loteProduccion, $this->capacidadService);
+        $cantidad = (float) ($resumen['cantidad'] ?? 0);
+        $cantidadKg = (float) ($resumen['kg'] ?? 0);
+
+        if ($cantidad <= 0 || $cantidadKg <= 0) {
+            return back()->with('error', 'No hay materia prima registrada para calcular el empaquetado.');
         }
 
         $almacen = Almacen::query()->with('unidadMedida')->findOrFail($data['almacenid']);
@@ -509,11 +522,11 @@ class LoteProduccionController extends Controller
             return back()->with('error', 'Seleccione un almacén de planta.');
         }
 
-        $resumen = $this->capacidadService->resumen($almacen);
-        if ($cantidadKg > $resumen['disponible_kg']) {
+        $capacidadAlmacen = $this->capacidadService->resumen($almacen);
+        if ($cantidadKg > $capacidadAlmacen['disponible_kg']) {
             return back()->with('error',
                 'La cantidad del lote excede la capacidad disponible del almacén. Disponible: '.
-                round($resumen['disponible_kg'], 2).' kg'
+                round($capacidadAlmacen['disponible_kg'], 2).' kg'
             );
         }
 
@@ -529,9 +542,27 @@ class LoteProduccionController extends Controller
         ]);
 
         $this->inventarioPlanta->sincronizarLoteAlmacenado($loteProduccion, $almacen);
+        $insumoTerminado = \App\Models\Insumo::query()
+            ->where('almacenid', $almacen->almacenid)
+            ->whereRaw('LOWER(TRIM(nombre)) = ?', [mb_strtolower(trim(LoteProduccionNombre::productoDesdeLote($loteProduccion)))])
+            ->where('tipoinsumoid', $this->inventarioPlanta->tipoProductoTerminadoId())
+            ->firstOrFail();
+
+        $presentacion = $this->presentacionPlanta->resolverPresentacionParaLote($loteProduccion, $insumoTerminado);
+        $this->inventarioPresentacion->ingresar(
+            (int) $almacen->almacenid,
+            (int) $insumoTerminado->insumoid,
+            (int) $presentacion->insumo_presentacionid,
+            (int) $loteProduccion->loteproduccionpedidoid,
+            $loteProduccion->codigo_lote,
+            $cantidad,
+            $cantidadKg
+        );
 
         $loteProduccion->update([
             'cantidad_objetivo' => $cantidad,
+            'cantidad_producida' => $cantidad,
+            'insumo_presentacionid' => $presentacion->insumo_presentacionid,
             'unidadmedidaid' => ProductoPlantaCatalogo::resolverUnidadMedidaId(
                 ProductoPlantaCatalogo::nombreProducto($loteProduccion),
                 $loteProduccion->unidadmedidaid
@@ -544,7 +575,8 @@ class LoteProduccionController extends Controller
 
         return redirect()
             ->route('procesamiento.show', $loteProduccion)
-            ->with('success', 'Almacenaje registrado. Lote completado al 100 %.');
+            ->with('success', 'Almacenaje registrado: '.number_format($cantidad, 0).' '
+                .$presentacion->etiquetaUnidad().' de «'.$presentacion->nombre.'». Lote completado.');
     }
 
     public function completar(LoteProduccionPedido $loteProduccion): RedirectResponse
@@ -581,6 +613,52 @@ class LoteProduccionController extends Controller
         ]);
     }
 
+    public function calcularPlanificacion(Request $request): JsonResponse
+    {
+        abort_unless(UsuarioRol::esPlantaOperativo($request->user()) || $request->user()?->hasRole('admin'), 403);
+
+        $data = $request->validate([
+            'empaque_catalogo_slug' => ['required', 'string', 'max:40'],
+            'modo_planificacion' => ['required', 'string', Rule::in([EmpaquePlantaCatalogo::MODO_EMPAQUES, EmpaquePlantaCatalogo::MODO_MATERIA_PRIMA])],
+            'cantidad_empaques' => ['nullable', 'numeric', 'min:0'],
+            'materia_prima_kg' => ['nullable', 'numeric', 'min:0'],
+            'empaque_peso_neto_kg' => ['nullable', 'numeric', 'min:0.001'],
+        ]);
+
+        if (! EmpaquePlantaCatalogo::esSlugValido($data['empaque_catalogo_slug'])) {
+            return response()->json(['error' => 'Empaque no válido'], 422);
+        }
+
+        $peso = EmpaquePlantaCatalogo::pesoNetoKg(
+            $data['empaque_catalogo_slug'],
+            $data['empaque_peso_neto_kg'] ?? null
+        );
+
+        if ($data['modo_planificacion'] === EmpaquePlantaCatalogo::MODO_EMPAQUES) {
+            $und = (float) ($data['cantidad_empaques'] ?? 0);
+            if ($und <= 0) {
+                return response()->json(['error' => 'Indique cantidad de empaques'], 422);
+            }
+            $calc = EmpaquePlantaCatalogo::calcularDesdeEmpaques($und, $peso, $data['empaque_catalogo_slug']);
+        } else {
+            $kg = (float) ($data['materia_prima_kg'] ?? 0);
+            if ($kg <= 0) {
+                return response()->json(['error' => 'Indique kg de materia prima'], 422);
+            }
+            $calc = EmpaquePlantaCatalogo::calcularDesdeMateriaPrima($kg, $peso, $data['empaque_catalogo_slug']);
+        }
+
+        return response()->json([
+            'data' => $calc,
+            'empaque_label' => EmpaquePlantaCatalogo::etiquetaEmpaquePlanificado(
+                $data['empaque_catalogo_slug'],
+                null,
+                $data['empaque_peso_neto_kg'] ?? null
+            ),
+            'rendimiento_pct' => EmpaquePlantaCatalogo::rendimientoPorcentaje(),
+        ]);
+    }
+
     public function store(Request $request): RedirectResponse
     {
         abort_unless(UsuarioRol::esPlantaOperativo($request->user()) || $request->user()?->hasRole('admin'), 403);
@@ -591,11 +669,40 @@ class LoteProduccionController extends Controller
             'cantidad_objetivo' => ['nullable', 'numeric', 'min:0'],
             'unidadmedidaid' => ['nullable', 'integer', 'exists:unidadmedida,unidadmedidaid'],
             'observaciones' => ['nullable', 'string', 'max:500'],
-            'materias' => ['required', 'array', 'min:1'],
+            'materias' => ['required', 'array', 'size:1'],
             'materias.*.insumoid' => ['required', 'integer', 'exists:insumo,insumoid'],
             'materias.*.cantidad' => ['required', 'numeric', 'min:0.001'],
             'plantillatransformacionid' => ['nullable', 'integer', 'exists:plantilla_transformacion,plantillatransformacionid'],
+            'empaque_catalogo_slug' => ['required', 'string', 'max:40'],
+            'modo_planificacion' => ['required', 'string', Rule::in([EmpaquePlantaCatalogo::MODO_EMPAQUES, EmpaquePlantaCatalogo::MODO_MATERIA_PRIMA])],
+            'cantidad_empaques_objetivo' => ['nullable', 'numeric', 'min:0'],
+            'empaque_nombre_personalizado' => ['nullable', 'string', 'max:120'],
+            'empaque_peso_neto_kg' => ['nullable', 'numeric', 'min:0.001'],
+            'empaque_tipo_envase' => ['nullable', 'string', Rule::in(['bolsa', 'lata', 'frasco', 'bidon', 'caja'])],
+        ], [
+            'materias.size' => 'Solo puede usar una materia prima por lote.',
         ]);
+
+        if (! EmpaquePlantaCatalogo::esSlugValido($data['empaque_catalogo_slug'])) {
+            return back()->withInput()->with('error', 'Seleccione un tipo de empaque del catálogo.');
+        }
+
+        if ($data['empaque_catalogo_slug'] === EmpaquePlantaCatalogo::SLUG_PERSONALIZADO) {
+            if (empty($data['empaque_nombre_personalizado']) || empty($data['empaque_peso_neto_kg'])) {
+                return back()->withInput()->with('error', 'Indique nombre y peso neto de la presentación personalizada.');
+            }
+        }
+
+        if ($data['modo_planificacion'] === EmpaquePlantaCatalogo::MODO_EMPAQUES
+            && (float) ($data['cantidad_empaques_objetivo'] ?? 0) <= 0
+            && (float) ($data['cantidad_objetivo'] ?? 0) <= 0) {
+            return back()->withInput()->with('error', 'Indique cuántos empaques desea producir.');
+        }
+
+        if ($data['modo_planificacion'] === EmpaquePlantaCatalogo::MODO_MATERIA_PRIMA
+            && (float) ($data['cantidad_objetivo'] ?? 0) <= 0) {
+            return back()->withInput()->with('error', 'Indique cuántos kg de materia prima usará.');
+        }
 
         $lineas = collect($data['materias'])
             ->map(fn (array $m) => [
@@ -603,6 +710,18 @@ class LoteProduccionController extends Controller
                 'cantidad' => (float) $m['cantidad'],
             ])
             ->all();
+
+        foreach ($lineas as $linea) {
+            $insumo = \App\Models\Insumo::query()->find($linea['insumoid']);
+            if ($insumo && ! $insumo->tieneStockSuficiente($linea['cantidad'])) {
+                return back()->withInput()->with(
+                    'error',
+                    'Stock insuficiente de «'.$insumo->nombre.'». Disponible: '.
+                    number_format((float) $insumo->stock, 2).' '.
+                    ($insumo->unidadMedida?->abreviatura ?? $insumo->unidadMedida?->nombre ?? 'ud')
+                );
+            }
+        }
 
         if (! empty($data['plantillatransformacionid'])) {
             $plantilla = \App\Models\PlantillaTransformacion::query()
@@ -625,7 +744,13 @@ class LoteProduccionController extends Controller
                 isset($data['unidadmedidaid']) ? (int) $data['unidadmedidaid'] : null,
                 $lineas,
                 $data['observaciones'] ?? null,
-                isset($data['plantillatransformacionid']) ? (int) $data['plantillatransformacionid'] : null
+                isset($data['plantillatransformacionid']) ? (int) $data['plantillatransformacionid'] : null,
+                $data['empaque_catalogo_slug'],
+                $data['modo_planificacion'],
+                isset($data['cantidad_empaques_objetivo']) ? (float) $data['cantidad_empaques_objetivo'] : null,
+                $data['empaque_nombre_personalizado'] ?? null,
+                isset($data['empaque_peso_neto_kg']) ? (float) $data['empaque_peso_neto_kg'] : null,
+                $data['empaque_tipo_envase'] ?? null,
             );
         } catch (\InvalidArgumentException $e) {
             return back()->withInput()->with('error', $e->getMessage());
@@ -714,7 +839,7 @@ class LoteProduccionController extends Controller
 
         if ($puedeEditarMaterias) {
             $rules['producto'] = ['required', 'string', 'max:100'];
-            $rules['materias'] = ['required', 'array', 'min:1'];
+            $rules['materias'] = ['required', 'array', 'size:1'];
             $rules['materias.*.insumoid'] = ['required', 'integer', 'exists:insumo,insumoid'];
             $rules['materias.*.cantidad'] = ['required', 'numeric', 'min:0.001'];
         }

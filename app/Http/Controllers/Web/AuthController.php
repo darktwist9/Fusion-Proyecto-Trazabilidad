@@ -8,6 +8,8 @@ use App\Services\UsuarioUsernameService;
 use App\Support\CuentaEstado;
 use App\Support\RegistroValidacion;
 use App\Support\TiposLicenciaBolivia;
+use App\Support\OperarioPlantaLoginNotificacion;
+use App\Support\OperarioPlantaTareaNotificacionVista;
 use App\Support\PlantaLoginEnvio;
 use App\Support\TransportistaAsignacionNotificacionVista;
 use App\Support\TransportistaLoginEnvio;
@@ -15,6 +17,7 @@ use App\Support\TransportistaLoginNotificacion;
 use App\Support\UsuarioRol;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Role;
@@ -23,20 +26,30 @@ class AuthController extends Controller
 {
     public function showLoginForm(Request $request)
     {
+        $usuarioActual = Auth::check() ? Auth::user() : null;
+
         return response()
-            ->view('auth.login')
+            ->view('auth.login', compact('usuarioActual'))
             ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
             ->header('Pragma', 'no-cache');
     }
 
     public function login(Request $request)
     {
+        if (Auth::check()) {
+            $this->cerrarSesionActiva($request);
+            Cookie::queue($this->cookieOlvidarRecordarme());
+        }
+
         $credentials = $request->validate([
             'email' => 'required|email',
             'password' => 'required|string',
         ]);
 
-        if (! Auth::attempt(['email' => $credentials['email'], 'password' => $credentials['password']])) {
+        if (! Auth::attempt(
+            ['email' => $credentials['email'], 'password' => $credentials['password']],
+            $request->boolean('remember')
+        )) {
             return back()
                 ->withErrors(['email' => 'Credenciales inválidas.'])
                 ->withInput($request->only('email'));
@@ -75,6 +88,14 @@ class AuthController extends Controller
             if ($envioTransportista) {
                 return redirect($envioTransportista['url'])
                     ->with('info', 'Tiene un envío asignado: '.$envioTransportista['codigo']);
+            }
+        }
+
+        if (UsuarioRol::esOperarioPlanta($user)) {
+            $nuevasTareas = OperarioPlantaLoginNotificacion::nuevasTareasDesdeLogin($user, $ultimoLoginPrevio);
+            if ($nuevasTareas !== []) {
+                OperarioPlantaTareaNotificacionVista::marcarVistas((int) $user->usuarioid, $nuevasTareas);
+                $request->session()->put('operario_planta_nuevas_tareas', $nuevasTareas);
             }
         }
 
@@ -169,13 +190,25 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        Auth::logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        $this->cerrarSesionActiva($request);
 
         return redirect()
             ->route('login')
+            ->with('success', 'Sesión cerrada correctamente.')
+            ->withCookie($this->cookieOlvidarRecordarme())
             ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
             ->header('Pragma', 'no-cache');
+    }
+
+    private function cerrarSesionActiva(Request $request): void
+    {
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+    }
+
+    private function cookieOlvidarRecordarme(): \Symfony\Component\HttpFoundation\Cookie
+    {
+        return Cookie::forget(Auth::getRecallerName());
     }
 }

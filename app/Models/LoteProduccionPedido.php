@@ -24,6 +24,13 @@ class LoteProduccionPedido extends Model
         'cantidad_objetivo',
         'unidadmedidaid',
         'cantidad_producida',
+        'empaque_catalogo_slug',
+        'empaque_nombre_personalizado',
+        'empaque_peso_neto_kg',
+        'empaque_tipo_envase',
+        'modo_planificacion',
+        'cantidad_empaques_objetivo',
+        'insumo_presentacionid',
         'observaciones',
     ];
 
@@ -33,7 +40,10 @@ class LoteProduccionPedido extends Model
         'hora_fin'            => 'datetime',
         'cantidad_objetivo'   => 'float',
         'cantidad_producida'  => 'float',
+        'empaque_peso_neto_kg' => 'float',
+        'cantidad_empaques_objetivo' => 'float',
         'unidadmedidaid'      => 'integer',
+        'insumo_presentacionid' => 'integer',
     ];
 
     public function unidadMedida(): BelongsTo
@@ -79,5 +89,10 @@ class LoteProduccionPedido extends Model
     public function asignacionesEtapa(): HasMany
     {
         return $this->hasMany(AsignacionEtapaPlanta::class, 'loteproduccionpedidoid', 'loteproduccionpedidoid');
+    }
+
+    public function presentacion(): BelongsTo
+    {
+        return $this->belongsTo(InsumoPresentacion::class, 'insumo_presentacionid', 'insumo_presentacionid');
     }
 }

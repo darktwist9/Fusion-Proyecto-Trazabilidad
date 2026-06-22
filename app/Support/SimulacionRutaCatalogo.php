@@ -12,6 +12,44 @@ final class SimulacionRutaCatalogo
 
     public const TIPO_DISTRIBUCION = 'distribucion';
 
+    public const TIPO_PLANTA_MAYORISTA = 'planta_mayorista';
+
+    /** @return array<string, array{etiqueta: string, variante: string, color: string, icono: string}> */
+    public static function catalogoVariantes(): array
+    {
+        return [
+            self::TIPO_AGRICOLA => [
+                'etiqueta' => 'Almacén agrícola → Planta',
+                'variante' => 'agricola_planta',
+                'color' => '#16a34a',
+                'icono' => 'fa-seedling',
+            ],
+            self::TIPO_PLANTA_MAYORISTA => [
+                'etiqueta' => 'Planta → Almacén mayorista',
+                'variante' => 'planta_mayorista',
+                'color' => '#ea580c',
+                'icono' => 'fa-industry',
+            ],
+            self::TIPO_DISTRIBUCION => [
+                'etiqueta' => 'Mayorista → Punto de venta',
+                'variante' => 'mayorista_pdv',
+                'color' => '#2563eb',
+                'icono' => 'fa-store',
+            ],
+        ];
+    }
+
+    /** @return array{etiqueta: string, variante: string, color: string, icono: string} */
+    public static function metaVariante(string $tipo): array
+    {
+        return self::catalogoVariantes()[$tipo] ?? [
+            'etiqueta' => 'Ruta',
+            'variante' => $tipo,
+            'color' => '#64748b',
+            'icono' => 'fa-truck',
+        ];
+    }
+
     /** Duración fija de la simulación (demo de trazabilidad en vivo). */
     public const DURACION_DEMO_SEG = 60;
 

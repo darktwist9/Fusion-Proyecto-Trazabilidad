@@ -188,7 +188,8 @@
                     <tr>
                         <th>Vehículo</th>
                         <th>Categoría</th>
-                        <th>Tipo / tamaño</th>
+                        <th>Tipo vehículo</th>
+                        <th>Transporte</th>
                         <th>Estado</th>
                         <th>Capacidad</th>
                         <th class="text-center veh-col-acciones">Acciones</th>
@@ -201,6 +202,9 @@
                         $cap = $capSvc->capacidadEfectiva($v);
                         $ambitoV = $v->ambito_flota ?? \App\Support\TransportistaFlotaCatalogo::AGRICOLA;
                         $marcaModelo = trim(($v->marca ?? '').' '.($v->modelo ?? ''));
+                        $tiposTransporte = $v->tiposTransporteEfectivos();
+                        $codigoTransporte = $tiposTransporte->first()?->codigo;
+                        $metaTransporte = \App\Support\VehiculoTransporteCatalogo::metaUi($codigoTransporte);
                     @endphp
                     <tr>
                         <td>
@@ -224,6 +228,11 @@
                             @if($v->tipoVehiculo?->tamano)
                             <span class="veh-tamano">{{ \App\Support\VehiculoTamanoCatalogo::etiqueta($v->tipoVehiculo->tamano) }}</span>
                             @endif
+                        </td>
+                        <td>
+                            <span class="badge {{ \App\Support\VehiculoTransporteCatalogo::badgeClaseBootstrap($codigoTransporte) }} badge-estado">
+                                <i class="fas {{ $metaTransporte['icon'] }} mr-1"></i>{{ $metaTransporte['nombre'] }}
+                            </span>
                         </td>
                         <td>
                             <span class="{{ $estadoSvc->badgeClaseVisual($v, $mapaEnRuta) }}">
@@ -253,7 +262,7 @@
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="6" class="text-center text-muted py-5">
+                        <td colspan="7" class="text-center text-muted py-5">
                             <i class="fas fa-truck fa-2x mb-2 text-light d-block"></i>
                             No hay vehículos que coincidan.
                             <a href="{{ route('envios.vehiculos.create') }}" class="d-block mt-2">Registrar vehículo</a>

@@ -599,10 +599,13 @@ class TrasladoPlantaMayoristaService
                 }
 
                 if ($inventarioId <= 0) {
-                    throw new InvalidArgumentException('Seleccione el lote de «'.$presentacion->nombre.'» a despachar.');
+                    $inventarioLote = $lotesDisponibles->first();
+                    if ($inventarioLote === null) {
+                        throw new InvalidArgumentException('No hay stock por lote para «'.$presentacion->nombre.'».');
+                    }
+                } else {
+                    $inventarioLote = $this->inventarioPresentacion->obtenerLote($inventarioId, $almacenPlantaId, $presentacionId);
                 }
-
-                $inventarioLote = $this->inventarioPresentacion->obtenerLote($inventarioId, $almacenPlantaId, $presentacionId);
                 $this->inventarioPresentacion->validarDisponibilidad($inventarioLote, $cantidadUnidades, $cantidad);
                 $loteProduccionId = $inventarioLote->loteproduccionpedidoid;
 

@@ -438,12 +438,6 @@ return [
 
             'lote_produccion.view',
 
-            'lote_produccion.create',
-
-            'lote_produccion.update',
-
-            'lote_produccion.delete',
-
             'inventario.view',
 
             'inventario.create',

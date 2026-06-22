@@ -49,8 +49,9 @@ class PuntoVentaController extends Controller
     public function create(Request $request): View
     {
         $minoristas = $this->minoristasParaSelector($request->user());
+        $puntosMapa = $this->puntosParaMapa($request->user());
 
-        return view('punto_venta.puntos.create', compact('minoristas'));
+        return view('punto_venta.puntos.create', compact('minoristas', 'puntosMapa'));
     }
 
     public function store(Request $request): RedirectResponse
@@ -127,8 +128,9 @@ class PuntoVentaController extends Controller
         abort_unless(PuntoVentaAccess::puedeEditarPunto(auth()->user(), $punto), 403);
 
         $minoristas = $this->minoristasParaSelector(auth()->user());
+        $puntosMapa = $this->puntosParaMapa(auth()->user(), $punto->puntoventaid);
 
-        return view('punto_venta.puntos.edit', compact('punto', 'minoristas'));
+        return view('punto_venta.puntos.edit', compact('punto', 'minoristas', 'puntosMapa'));
     }
 
     public function update(Request $request, PuntoVenta $punto): RedirectResponse
@@ -223,5 +225,33 @@ class PuntoVentaController extends Controller
         }
 
         return collect([$user])->filter();
+    }
+
+    /**
+     * @return list<array{id: int, nombre: string, direccion: ?string, lat: float, lng: float, usuarioid: ?int}>
+     */
+    private function puntosParaMapa(?Usuario $user, ?int $excluirPuntoId = null): array
+    {
+        $query = PuntoVentaAccess::scopePuntosDelUsuario(PuntoVenta::query(), $user)
+            ->whereNotNull('latitud')
+            ->whereNotNull('longitud');
+
+        if ($excluirPuntoId !== null) {
+            $query->where('puntoventaid', '!=', $excluirPuntoId);
+        }
+
+        return $query
+            ->orderBy('nombre')
+            ->get(['puntoventaid', 'nombre', 'direccion', 'latitud', 'longitud', 'usuarioid'])
+            ->map(fn (PuntoVenta $p) => [
+                'id' => (int) $p->puntoventaid,
+                'nombre' => (string) $p->nombre,
+                'direccion' => $p->direccion,
+                'lat' => (float) $p->latitud,
+                'lng' => (float) $p->longitud,
+                'usuarioid' => $p->usuarioid !== null ? (int) $p->usuarioid : null,
+            ])
+            ->values()
+            ->all();
     }
 }

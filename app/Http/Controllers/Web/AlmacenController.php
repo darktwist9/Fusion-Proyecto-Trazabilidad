@@ -26,6 +26,8 @@ use App\Services\UbicacionesAlmacenService;
 
 use App\Support\AlmacenAmbito;
 
+use App\Support\AlmacenPlantaCosechaCatalogo;
+
 use App\Support\InsumoCatalogo;
 
 use Illuminate\Http\Request;
@@ -211,6 +213,14 @@ class AlmacenController extends Controller
         $resumenCapacidad = $this->capacidadService->resumen($almacen);
 
         $contenidos = $this->contenidoAlmacen($almacen);
+
+        if (($almacen->ambito ?? '') === AlmacenAmbito::PLANTA) {
+            $contenidos = AlmacenPlantaCosechaCatalogo::consolidarItemsPlanta(
+                $contenidos,
+                $almacen,
+                $ctx['rutaPrefijo']
+            );
+        }
 
         $tiposContenidoFiltro = $contenidos->pluck('tipo_label')->unique()->sort()->values();
 
@@ -465,13 +475,28 @@ class AlmacenController extends Controller
     private function contenidoAlmacen(Almacen $almacen): \Illuminate\Support\Collection
     {
         $items = collect();
+        $esPlanta = ($almacen->ambito ?? '') === AlmacenAmbito::PLANTA;
 
-        $insumos = InsumoCatalogo::aplicarFiltroOperativo(
-            Insumo::query()->with(['tipo', 'unidadMedida'])
-        )
-            ->where('almacenid', $almacen->almacenid)
-            ->orderBy('nombre')
-            ->get();
+        $insumosQuery = Insumo::query()->with(['tipo', 'unidadMedida'])
+            ->where('almacenid', $almacen->almacenid);
+
+        if ($esPlanta) {
+            $insumosQuery = InsumoCatalogo::aplicarFiltroExcluirProductoTerminado($insumosQuery);
+            $tipoSiembraId = InsumoCatalogo::tiposOrdenados()
+                ->filter(fn ($t) => InsumoCatalogo::slugFromNombreTipo($t->nombre) === 'material_siembra')
+                ->pluck('tipoinsumoid')
+                ->first();
+            if ($tipoSiembraId) {
+                $insumosQuery->where(function ($q) use ($tipoSiembraId) {
+                    $q->where('tipoinsumoid', '!=', (int) $tipoSiembraId)
+                        ->orWhere('descripcion', 'like', 'Recepción pedido%');
+                });
+            }
+        } else {
+            $insumosQuery = InsumoCatalogo::aplicarFiltroOperativo($insumosQuery);
+        }
+
+        $insumos = $insumosQuery->orderBy('nombre')->get();
 
         foreach ($insumos as $insumo) {
             if ((float) $insumo->stock <= 0) {
@@ -480,19 +505,27 @@ class AlmacenController extends Controller
 
             $tipoNombre = $insumo->tipo?->nombre ?? 'Insumo';
             $slug = InsumoCatalogo::slugFromNombreTipo($tipoNombre) ?? 'insumo';
+            $esRecepcionPedido = AlmacenPlantaCosechaCatalogo::esRecepcionPedidoInsumo($insumo);
             $kg = $this->capacidadService->convertirAKg((float) $insumo->stock, $insumo->unidadMedida);
+            $claveCultivo = AlmacenPlantaCosechaCatalogo::claveCultivo($insumo->nombre);
 
             $items->push((object) [
-                'categoria' => 'insumo',
-                'tipo_label' => $tipoNombre,
-                'tipo_filtro' => $slug,
-                'nombre' => $insumo->nombre,
+                'categoria' => $esRecepcionPedido ? 'cosecha' : 'insumo',
+                'tipo_label' => $esRecepcionPedido ? 'Cosecha' : $tipoNombre,
+                'tipo_filtro' => $esRecepcionPedido ? 'cosecha' : $slug,
+                'nombre' => $esRecepcionPedido
+                    ? AlmacenPlantaCosechaCatalogo::etiquetaCultivo($insumo->nombre)
+                    : $insumo->nombre,
                 'detalle' => $insumo->descripcion ? \Illuminate\Support\Str::limit($insumo->descripcion, 60) : '—',
                 'cantidad' => (float) $insumo->stock,
                 'unidad' => $insumo->unidadMedida?->abreviatura ?? $insumo->unidadMedida?->nombre ?? '',
                 'kg' => $kg,
+                'empaque' => null,
+                'fecha_orden' => AlmacenPlantaCosechaCatalogo::fechaDesdeDescripcionRecepcion($insumo->descripcion)?->timestamp ?? 0,
                 'search' => strtolower(trim($insumo->nombre.' '.$tipoNombre)),
                 'insumoid' => $insumo->insumoid,
+                'origen_tipo' => $esRecepcionPedido ? 'recepcion_pedido' : 'insumo',
+                'clave_cultivo' => $claveCultivo,
             ]);
         }
 
@@ -509,17 +542,26 @@ class AlmacenController extends Controller
             $nombre = $cultivo.' · '.($lote?->nombre ?? 'Producción #'.$c->produccionid);
             $kg = $this->capacidadService->convertirAKg((float) $c->cantidad, $c->unidadMedida);
 
+            $fechaEntrada = $c->fechaentrada ? \Carbon\Carbon::parse($c->fechaentrada) : null;
+            $claveCultivo = AlmacenPlantaCosechaCatalogo::claveCultivo($cultivo !== '' ? $cultivo : $nombre, $cultivo !== '' ? $cultivo : null);
+
             $items->push((object) [
                 'categoria' => 'cosecha',
                 'tipo_label' => 'Cosecha',
                 'tipo_filtro' => 'cosecha',
-                'nombre' => $nombre,
-                'detalle' => $c->fechaentrada ? \Carbon\Carbon::parse($c->fechaentrada)->format('d/m/Y') : '—',
+                'nombre' => AlmacenPlantaCosechaCatalogo::etiquetaCultivo($cultivo !== '' ? $cultivo : $nombre, $claveCultivo),
+                'detalle' => $fechaEntrada ? $fechaEntrada->format('d/m/Y') : '—',
                 'cantidad' => (float) $c->cantidad,
                 'unidad' => $c->unidadMedida?->abreviatura ?? 'kg',
                 'kg' => $kg,
+                'empaque' => null,
+                'fecha_orden' => $fechaEntrada?->timestamp ?? 0,
                 'search' => strtolower(trim($nombre.' cosecha '.$cultivo)),
                 'produccionid' => $c->produccionid,
+                'produccionalmacenamientoid' => $c->produccionalmacenamientoid,
+                'origen_tipo' => 'produccion',
+                'clave_cultivo' => $claveCultivo,
+                'lote_nombre' => $lote?->nombre,
             ]);
         }
 
@@ -537,33 +579,47 @@ class AlmacenController extends Controller
             }
 
             $lote->loadMissing('materiasPrimas.insumo.unidadMedida', 'unidadMedida');
-            $producto = $lote->producto ?: $lote->nombre;
-            $nombre = $producto.' · '.$lote->nombre;
+            $producto = \App\Support\LoteProduccionNombre::productoDesdeLote($lote);
+            $nombre = \App\Support\ProductoPlantaCatalogo::etiquetaLoteAlmacen($lote);
             $resumen = \App\Support\ProductoPlantaCatalogo::resumenProduccion($lote, $this->capacidadService);
-            $kg = $resumen['kg'] > 0
-                ? $resumen['kg']
-                : $this->capacidadService->convertirAKg((float) $ingreso->cantidad, $lote->unidadMedida);
-            $cantidad = $resumen['cantidad'] > 0 ? $resumen['cantidad'] : (float) $ingreso->cantidad;
-            $unidad = \App\Support\ProductoPlantaCatalogo::unidadEtiqueta($producto, $lote->unidadMedida);
-            $detalle = trim(($ingreso->condicion ? $ingreso->condicion.' · ' : '').($ingreso->fecha_almacenaje
-                ? \Carbon\Carbon::parse($ingreso->fecha_almacenaje)->format('d/m/Y H:i')
-                : ''));
+            $kg = (float) ($resumen['kg'] ?? 0);
+            if ($kg <= 0) {
+                $kg = $this->capacidadService->convertirAKg((float) $ingreso->cantidad, $lote->unidadMedida);
+            }
+            $cantidad = \App\Support\ProductoPlantaCatalogo::esProduccionPorUnidades($lote)
+                ? (float) \App\Support\ProductoPlantaCatalogo::unidadesProducidas($lote, $this->capacidadService)
+                : ((float) ($resumen['cantidad'] ?? 0) > 0 ? (float) $resumen['cantidad'] : (float) $ingreso->cantidad);
+            $unidad = \App\Support\ProductoPlantaCatalogo::unidadEtiqueta($producto, $lote->unidadMedida, $lote);
+            $empaqueLabel = \App\Support\ProductoPlantaCatalogo::loteTieneEmpaquePlanificado($lote)
+                ? \App\Support\EmpaquePlantaCatalogo::etiquetaEmpaquePlanificado(
+                    $lote->empaque_catalogo_slug,
+                    $lote->empaque_nombre_personalizado,
+                    $lote->empaque_peso_neto_kg
+                )
+                : null;
+            $detalleEmpaque = \App\Support\ProductoPlantaCatalogo::detalleEmpaqueAlmacen($lote, $resumen);
+            $fechaAlm = $ingreso->fecha_almacenaje ? \Carbon\Carbon::parse($ingreso->fecha_almacenaje) : null;
+            $detalle = $detalleEmpaque !== ''
+                ? $detalleEmpaque
+                : trim(($ingreso->condicion ? $ingreso->condicion.' · ' : '').($fechaAlm ? $fechaAlm->format('d/m/Y H:i') : ''));
 
             $items->push((object) [
                 'categoria' => 'producto_planta',
                 'tipo_label' => 'Producto terminado',
                 'tipo_filtro' => 'producto terminado',
                 'nombre' => $nombre,
-                'detalle' => $detalle !== '' ? \Illuminate\Support\Str::limit($detalle, 80) : ($lote->codigo_lote ?? '—'),
+                'detalle' => $detalle !== '' ? \Illuminate\Support\Str::limit($detalle, 120) : ($lote->codigo_lote ?? '—'),
                 'cantidad' => $cantidad,
                 'unidad' => $unidad,
                 'kg' => $kg,
-                'search' => strtolower(trim($nombre.' producto planta '.$producto.' '.$lote->codigo_lote)),
+                'empaque' => $empaqueLabel,
+                'fecha_orden' => $fechaAlm?->timestamp ?? 0,
+                'search' => strtolower(trim($nombre.' producto planta '.$producto.' '.$lote->codigo_lote.' '.($empaqueLabel ?? ''))),
                 'lote_produccion_pedido_id' => $lote->loteproduccionpedidoid,
             ]);
         }
 
-        return $items->sortBy('nombre')->values();
+        return $items->sortByDesc('fecha_orden')->values();
     }
 
 }

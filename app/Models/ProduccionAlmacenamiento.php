@@ -18,6 +18,9 @@ class ProduccionAlmacenamiento extends Model
         'almacenid',
         'cantidad',
         'unidadmedidaid',
+        'catalogotamanoconteoid',
+        'cantidad_empaques',
+        'cantidad_unidades',
         'temperatura',
         'humedad',
         'temperatura_min',
@@ -34,6 +37,9 @@ class ProduccionAlmacenamiento extends Model
         'produccionid'               => 'integer',
         'almacenid'                  => 'integer',
         'unidadmedidaid'             => 'integer',
+        'catalogotamanoconteoid'     => 'integer',
+        'cantidad_empaques'          => 'integer',
+        'cantidad_unidades'          => 'integer',
         'cantidad'                   => 'float',
         'temperatura'                => 'float',
         'humedad'                    => 'float',
@@ -64,5 +70,10 @@ class ProduccionAlmacenamiento extends Model
     public function unidadMedida()
     {
         return $this->belongsTo(UnidadMedida::class, 'unidadmedidaid', 'unidadmedidaid');
+    }
+
+    public function catalogoTamanoConteo()
+    {
+        return $this->belongsTo(CatalogoTamanoConteo::class, 'catalogotamanoconteoid', 'catalogotamanoconteoid');
     }
 }

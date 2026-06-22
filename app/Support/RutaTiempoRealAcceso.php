@@ -236,10 +236,13 @@ final class RutaTiempoRealAcceso
 
     private static function envioEsAgricola(EnvioAsignacionMultiple $envio): bool
     {
-        $envio->loadMissing('almacen');
-        $ambito = AlmacenAmbito::resolverAmbito($envio->almacen);
+        $envio->loadMissing(['almacen', 'pedido']);
 
-        return $ambito === AlmacenAmbito::AGRICOLA;
+        if ($envio->almacen !== null) {
+            return AlmacenAmbito::resolverAmbito($envio->almacen) === AlmacenAmbito::AGRICOLA;
+        }
+
+        return $envio->pedido !== null && self::pedidoDestinoEsPlanta($envio->pedido);
     }
 
     private static function pedidoDestinoEsPlanta(?Pedido $pedido): bool

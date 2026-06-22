@@ -193,7 +193,7 @@ final class DocumentoEntregaArchivo
 
             $lineasProducto[] = [
                 'producto' => $detalle->cultivo_personalizado
-                    ?? $detalle->producto?->nombre
+                    ?? $detalle->insumo?->nombre
                     ?? 'Producto',
                 'cantidad' => number_format((float) $detalle->cantidad, 2, '.', '').' u.',
                 'empaquetaje' => $empaque ?? '—',

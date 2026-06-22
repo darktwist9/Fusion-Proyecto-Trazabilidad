@@ -108,9 +108,6 @@
                         <td>
                             @if($tipoLic)
                                 <span class="badge badge-info badge-estado">{{ $tipoLic }}</span>
-                                @if($numLic)
-                                    <span class="small text-muted d-block">{{ $numLic }}</span>
-                                @endif
                             @else
                                 —
                             @endif

@@ -48,6 +48,18 @@
     height: 100%;
     background: linear-gradient(90deg, #4a7c59, #2c5530);
 }
+.page-almacenes .almacen-acciones {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.25rem;
+    justify-content: center;
+}
+.page-almacenes .almacen-acciones .btn {
+    padding: 0.2rem 0.45rem;
+    line-height: 1.2;
+    font-size: 0.85rem;
+}
 </style>
 @endpush
 
@@ -172,15 +184,15 @@
                                 <small>{{ number_format($oc['ocupado_kg'], 0) }} / {{ number_format($oc['capacidad_kg'], 0) }} kg ({{ $pct }}%)</small>
                             </td>
                             <td class="text-center">
-                                <div class="btn-group btn-group-sm btn-actions">
-                                    <a href="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.show', $a) }}" class="btn btn-default" title="Ver"><i class="fas fa-eye text-info"></i></a>
+                                <div class="almacen-acciones">
+                                    <a href="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.show', $a) }}" class="btn btn-sm btn-outline-info" title="Ver detalles"><i class="fas fa-eye"></i></a>
                                     @can('inventario.update')
-                                    <a href="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.edit', $a) }}" class="btn btn-default" title="Editar"><i class="fas fa-edit text-warning"></i></a>
+                                    <a href="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.edit', $a) }}" class="btn btn-sm btn-outline-warning" title="Editar"><i class="fas fa-edit"></i></a>
                                     @endcan
                                     @can('inventario.delete')
-                                    <form action="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.destroy', $a) }}" method="POST" class="d-inline on-submit-confirm">
+                                    <form action="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.destroy', $a) }}" method="POST" class="d-inline m-0 on-submit-confirm" data-confirm-title="¿Eliminar almacén?" data-confirm-text="Se eliminará este almacén y su configuración.">
                                         @csrf @method('DELETE')
-                                        <button type="submit" class="btn btn-default" title="Eliminar"><i class="fas fa-trash text-danger"></i></button>
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="fas fa-trash"></i></button>
                                     </form>
                                     @endcan
                                 </div>
@@ -248,16 +260,18 @@
                             </div>
                         </div>
                         <div class="card-footer bg-light d-flex justify-content-end py-2">
-                            <a href="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.show', $a) }}" class="btn btn-sm btn-outline-info mr-1"><i class="fas fa-eye"></i></a>
+                            <div class="almacen-acciones">
+                            <a href="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.show', $a) }}" class="btn btn-sm btn-outline-info" title="Ver detalles"><i class="fas fa-eye"></i></a>
                             @can('inventario.update')
-                            <a href="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.edit', $a) }}" class="btn btn-sm btn-outline-warning mr-1"><i class="fas fa-edit"></i></a>
+                            <a href="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.edit', $a) }}" class="btn btn-sm btn-outline-warning" title="Editar"><i class="fas fa-edit"></i></a>
                             @endcan
                             @can('inventario.delete')
-                            <form action="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.destroy', $a) }}" method="POST" class="d-inline on-submit-confirm">
+                            <form action="{{ route(($rutaPrefijo ?? 'almacen-agricola').'.destroy', $a) }}" method="POST" class="d-inline m-0 on-submit-confirm" data-confirm-title="¿Eliminar almacén?" data-confirm-text="Se eliminará este almacén y su configuración.">
                                 @csrf @method('DELETE')
-                                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="fas fa-trash"></i></button>
                             </form>
                             @endcan
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -316,14 +330,23 @@ $(function () {
     $('.on-submit-confirm').on('submit', function (e) {
         e.preventDefault();
         var form = this;
+        var titulo = form.dataset.confirmTitle || '¿Está seguro?';
+        var texto = form.dataset.confirmText || 'Esta acción no se puede deshacer.';
+        if (typeof Swal === 'undefined') {
+            if (confirm(texto)) {
+                form.submit();
+            }
+            return;
+        }
         Swal.fire({
-            title: '¿Eliminar almacén?',
-            text: 'No podrás revertir esto',
+            title: titulo,
+            text: texto,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#dc3545',
             cancelButtonColor: '#6c757d',
-            confirmButtonText: 'Sí, eliminar'
+            confirmButtonText: 'Confirmar',
+            cancelButtonText: 'Cancelar'
         }).then(function (result) {
             if (result.isConfirmed) {
                 form.submit();

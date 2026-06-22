@@ -15,6 +15,16 @@
     </div>
 @endif
 
+@if(isset($usuarioActual) && $usuarioActual)
+    <div class="alert alert-success">
+        <i class="fas fa-user-check"></i>
+        <span>
+            Sesión activa como <strong>{{ $usuarioActual->nombre }} {{ $usuarioActual->apellido }}</strong>.
+            Inicie sesión con otra cuenta para cambiar de usuario.
+        </span>
+    </div>
+@endif
+
 @if($errors->any())
     <div class="alert alert-danger">
         <i class="fas fa-exclamation-circle"></i>
@@ -34,7 +44,10 @@
                 name="email" 
                 value="{{ old('email') }}" 
                 required 
-                autocomplete="email"
+                autocomplete="username"
+                autocorrect="off"
+                autocapitalize="none"
+                spellcheck="false"
                 autofocus
                 class="form-control" 
                 placeholder="tu@correo.com"

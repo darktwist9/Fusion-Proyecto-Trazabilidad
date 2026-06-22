@@ -3,8 +3,10 @@
 namespace App\Providers;
 
 use Illuminate\Pagination\Paginator;
+use App\Support\UsuarioRol;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -24,6 +26,14 @@ class AppServiceProvider extends ServiceProvider
     {
         App::setLocale('es');
         Paginator::useBootstrapFour();
+
+        Gate::before(function ($user, $ability) {
+            if (UsuarioRol::esAdminGlobal($user)) {
+                return true;
+            }
+
+            return null;
+        });
 
         Blade::directive('superficie', function (string $expression) {
             return "<?php echo \\App\\Support\\SuperficieFormato::etiqueta($expression); ?>";

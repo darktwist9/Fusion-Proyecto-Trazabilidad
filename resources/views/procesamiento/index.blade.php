@@ -179,9 +179,9 @@
                         </td>
                         <td>{{ $lote->pedido?->numero_solicitud ?? '—' }}</td>
                         <td>
-                            @if($lote->cantidad_objetivo)
-                                {{ number_format((float) $lote->cantidad_objetivo, 2) }}
-                                {{ $lote->unidadMedida?->abreviatura ?? $lote->unidadMedida?->nombre ?? '' }}
+                            @php $objetivoLabel = \App\Support\ProductoPlantaCatalogo::etiquetaCantidadObjetivo($lote); @endphp
+                            @if($objetivoLabel)
+                                {{ $objetivoLabel }}
                             @else — @endif
                         </td>
                         <td>
@@ -219,6 +219,9 @@
 </div>
 
 @can('lote_produccion.create')
+@php
+    $unidadKgId = $unidadesMedida->first(fn ($um) => str_contains(strtolower($um->abreviatura ?? $um->nombre ?? ''), 'kg'))?->unidadmedidaid;
+@endphp
 <div class="modal fade" id="modalNuevoLote" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
@@ -277,41 +280,68 @@
                     </div>
 
                     <div class="lote-section">
-                        <div class="lote-section-title"><i class="fas fa-shopping-cart mr-1"></i> Pedido asociado <span class="text-muted font-weight-normal">(opcional)</span></div>
-                        <div class="picker-field">
-                            <input type="text" id="pedido_display" class="picker-display text-muted" readonly placeholder="Sin pedido asociado" value="{{ $pedidoLabel ?? '' }}">
-                            <input type="hidden" name="pedidoid" id="pedidoid" value="{{ old('pedidoid') }}">
-                            <div class="picker-actions">
-                                <button type="button" class="btn btn-outline-success btn-sm" id="btnBuscarPedido"><i class="fas fa-search mr-1"></i>Buscar</button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnLimpiarPedido" title="Quitar"><i class="fas fa-times"></i></button>
-                            </div>
-                        </div>
-                        <small class="text-muted d-block mt-1">Se abre un buscador encima para filtrar y elegir el pedido.</small>
-                    </div>
-
-                    <div class="lote-section">
-                        <div class="lote-section-title"><i class="fas fa-balance-scale mr-1"></i> Cantidad objetivo <span class="text-muted font-weight-normal">(referencia; purés se calculan de la MP)</span></div>
-                        <div class="input-group">
-                            <input type="number" name="cantidad_objetivo" id="cantidadObjetivoLote" class="form-control" step="0.01" min="0" value="{{ old('cantidad_objetivo') }}" placeholder="Opcional">
-                            <select name="unidadmedidaid" id="unidadObjetivoLote" class="custom-select" style="max-width:140px;">
-                                <option value="">Unidad</option>
-                                @foreach($unidadesMedida as $um)
-                                    <option value="{{ $um->unidadmedidaid }}" data-abbr="{{ strtolower($um->abreviatura ?? $um->nombre) }}" @selected(old('unidadmedidaid') == $um->unidadmedidaid)>{{ $um->abreviatura ?? $um->nombre }}</option>
+                        <div class="lote-section-title"><i class="fas fa-box-open mr-1"></i> Empaquetado planificado <span class="text-danger">*</span></div>
+                        <div class="form-group mb-2">
+                            <label class="small font-weight-bold mb-1">Presentación comercial</label>
+                            <select name="empaque_catalogo_slug" id="empaqueCatalogoSlug" class="form-control form-control-sm" required>
+                                <option value="">Seleccione empaque…</option>
+                                @foreach($empaquesPlanta ?? [] as $emp)
+                                    <option value="{{ $emp['slug'] }}"
+                                            data-peso="{{ $emp['peso_neto_kg'] ?? '' }}"
+                                            data-etiqueta="{{ $emp['etiqueta_unidad'] ?? 'unidades' }}"
+                                            @selected(old('empaque_catalogo_slug') === $emp['slug'])>
+                                        {{ $emp['nombre'] }}@if(!empty($emp['peso_etiqueta'])) ({{ $emp['peso_etiqueta'] }})@endif
+                                    </option>
                                 @endforeach
                             </select>
                         </div>
-                        <small id="hintCantidadObjetivo" class="text-muted d-none mt-1">Para purés, la cantidad en unidades y el peso se calculan al almacenar según la materia prima usada (~85&nbsp;% rendimiento, envases de 300&nbsp;g).</small>
+                        <div id="bloqueEmpaquePersonalizado" class="border rounded p-2 mb-2 bg-light {{ old('empaque_catalogo_slug') === 'personalizado' ? '' : 'd-none' }}">
+                            <div class="form-row">
+                                <div class="col-md-6 form-group mb-md-0">
+                                    <label class="small font-weight-bold">Nombre</label>
+                                    <input type="text" name="empaque_nombre_personalizado" id="empaqueNombrePersonalizado" class="form-control form-control-sm" maxlength="120" value="{{ old('empaque_nombre_personalizado') }}" placeholder="Ej. Bidón 20 kg">
+                                </div>
+                                <div class="col-md-3 form-group mb-md-0">
+                                    <label class="small font-weight-bold">Peso neto (kg)</label>
+                                    <input type="number" name="empaque_peso_neto_kg" id="empaquePesoNetoKg" class="form-control form-control-sm" step="0.001" min="0.001" value="{{ old('empaque_peso_neto_kg') }}" placeholder="5">
+                                </div>
+                                <div class="col-md-3 form-group mb-0">
+                                    <label class="small font-weight-bold">Tipo envase</label>
+                                    <select name="empaque_tipo_envase" id="empaqueTipoEnvase" class="form-control form-control-sm">
+                                        @foreach(['bolsa' => 'Bolsa', 'lata' => 'Lata', 'frasco' => 'Frasco', 'bidon' => 'Bidón', 'caja' => 'Caja'] as $val => $lbl)
+                                            <option value="{{ $val }}" @selected(old('empaque_tipo_envase', 'bolsa') === $val)>{{ $lbl }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <input type="hidden" name="modo_planificacion" id="modoPlanificacion" value="{{ old('modo_planificacion', 'empaques') }}">
+                        <div class="btn-group btn-group-toggle btn-group-sm d-flex mb-2" role="group" id="toggleModoPlanificacion">
+                            <button type="button" class="btn btn-outline-success flex-fill active" data-modo="empaques"><i class="fas fa-cubes mr-1"></i>Por empaques</button>
+                            <button type="button" class="btn btn-outline-success flex-fill" data-modo="materia_prima"><i class="fas fa-weight mr-1"></i>Por materia prima (kg)</button>
+                        </div>
+                        <div id="bloqueModoEmpaques">
+                            <label class="small font-weight-bold">Cantidad de empaques objetivo</label>
+                            <input type="number" name="cantidad_empaques_objetivo" id="cantidadEmpaquesObjetivo" class="form-control form-control-sm" step="1" min="1" value="{{ old('cantidad_empaques_objetivo') }}" placeholder="Ej. 100">
+                        </div>
+                        <div id="bloqueModoMateriaPrima" class="d-none">
+                            <label class="small font-weight-bold">Materia prima disponible (kg)</label>
+                            <input type="number" name="cantidad_objetivo" id="cantidadObjetivoLote" class="form-control form-control-sm" step="0.01" min="0.01" value="{{ old('cantidad_objetivo') }}" placeholder="Ej. 50" disabled>
+                        </div>
+                        <input type="hidden" name="unidadmedidaid" id="unidadObjetivoLoteKg" value="{{ $unidadKgId }}">
+                        <div id="planificacionEmpaqueBox" class="alert alert-light border small py-2 px-3 mt-2 mb-0 d-none">
+                            <i class="fas fa-calculator text-success mr-1"></i>
+                            <span id="planificacionEmpaqueTexto"></span>
+                        </div>
+                        <small class="text-muted d-block mt-1">Rendimiento estándar {{ \App\Support\EmpaquePlantaCatalogo::rendimientoPorcentaje() }}&nbsp;%. Al almacenar se calcula la producción real según la materia prima consumida.</small>
                     </div>
 
                     <div class="lote-section mb-0">
                         <div class="lote-section-title"><i class="fas fa-boxes mr-1"></i> Materia prima <span class="text-danger">*</span></div>
-                        <div id="recomendacionMpBox" class="recomendacion-mp-pure d-none mb-2">
-                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-                                <div class="recomendacion-mp-texto" id="recomendacionMpTexto"></div>
-                                <button type="button" class="btn btn-sm btn-success" id="btnAplicarRecomendacionMp">
-                                    <i class="fas fa-magic mr-1"></i> Aplicar cantidad sugerida
-                                </button>
-                            </div>
+                        <p class="small text-muted mb-2">Un solo insumo por lote (cosecha a granel del almacén de planta). La cantidad en kg se calcula según el empaquetado planificado.</p>
+                        <div id="alertaStockMateriaPrima" class="alert alert-danger small py-2 px-3 mb-2 d-none" role="alert">
+                            <i class="fas fa-exclamation-triangle mr-1"></i>
+                            <span id="alertaStockMateriaPrimaTexto"></span>
                         </div>
                         <div class="table-responsive tabla-materias mb-2">
                             <table class="table table-sm mb-0">
@@ -333,7 +363,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-light" data-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-success px-4"><i class="fas fa-check mr-1"></i>Crear lote</button>
+                    <button type="submit" class="btn btn-success px-4" id="btnCrearLote"><i class="fas fa-check mr-1"></i>Crear lote</button>
                 </div>
             </form>
         </div>
@@ -384,28 +414,52 @@
     display: inline-flex; align-items: center; justify-content: center;
 }
 .selector-plantilla-paso--cierre .selector-plantilla-paso-num { background: #17a2b8; }
+#modalSelectorCatalogo.sel-theme-materia-prima .sel-modal-header {
+    background: linear-gradient(135deg, #14532d, #2c5530);
+}
+#modalSelectorCatalogo.sel-theme-materia-prima .sel-modal-search-panel {
+    background: linear-gradient(180deg, #f0fdf4, #fff);
+    border: 1px solid #bbf7d0;
+    border-radius: 12px;
+    padding: .85rem;
+}
+#modalSelectorCatalogo.sel-theme-materia-prima .sel-modal-table-wrap { border-color: #86efac; }
+#modalSelectorCatalogo.sel-theme-materia-prima .sel-modal-table thead th {
+    background: #ecfdf5;
+    color: #166534;
+    border-bottom: 2px solid #86efac;
+}
+#modalSelectorCatalogo.sel-theme-materia-prima .selector-catalogo-row:hover { background: #dcfce7; }
+#modalSelectorCatalogo.sel-theme-materia-prima .sel-col-nombre .sel-row-icon {
+    background: #dcfce7;
+    color: #15803d;
+}
 </style>
 @endpush
 
 @push('scripts')
 @php
-    $pureCfgJs = [
-        'pesoKgUnd' => \App\Support\ProductoPlantaCatalogo::PESO_KG_POR_UNIDAD_PURE,
-        'rendimiento' => \App\Support\ProductoPlantaCatalogo::RENDIMIENTO_PURE,
-        'pesoEnvaseG' => (int) round(\App\Support\ProductoPlantaCatalogo::PESO_KG_POR_UNIDAD_PURE * 1000),
-        'rendimientoPct' => (int) round(\App\Support\ProductoPlantaCatalogo::RENDIMIENTO_PURE * 100),
+    $empaqueCfgJs = [
+        'rendimiento' => \App\Support\EmpaquePlantaCatalogo::RENDIMIENTO_TRANSFORMACION,
+        'rendimientoPct' => \App\Support\EmpaquePlantaCatalogo::rendimientoPorcentaje(),
+        'modoEmpaques' => \App\Support\EmpaquePlantaCatalogo::MODO_EMPAQUES,
+        'modoMateriaPrima' => \App\Support\EmpaquePlantaCatalogo::MODO_MATERIA_PRIMA,
+        'slugPersonalizado' => \App\Support\EmpaquePlantaCatalogo::SLUG_PERSONALIZADO,
     ];
 @endphp
 <script src="{{ asset('js/selector-catalogo.js') }}"></script>
 <script src="{{ asset('js/selector-plantilla-transformacion.js') }}"></script>
 <script>
 (function() {
-    const PURE_CFG = @json($pureCfgJs);
+    const EMPAQUE_CFG = @json($empaqueCfgJs);
+    const UNIDAD_KG_ID = @json($unidadKgId);
     const materias = [];
     const tbody = document.getElementById('tbodyMaterias');
     const filaVacia = document.getElementById('filaMateriasVacia');
-    const pedidoDisplay = document.getElementById('pedido_display');
-    const pedidoInput = document.getElementById('pedidoid');
+    const btnBuscarInsumo = document.getElementById('btnBuscarInsumo');
+    const btnCrearLote = document.getElementById('btnCrearLote');
+    const alertaStock = document.getElementById('alertaStockMateriaPrima');
+    const alertaStockTexto = document.getElementById('alertaStockMateriaPrimaTexto');
     const plantillaDisplay = document.getElementById('plantilla_display');
     const plantillaInput = document.getElementById('plantillatransformacionid');
     const productoInput = document.getElementById('productoLote');
@@ -417,9 +471,16 @@
         return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
     }
 
-    function esProductoPure() {
-        const p = (productoInput?.value || '').toLowerCase();
-        return p.includes('puré') || p.includes('pure');
+    function formatoNumero(n) {
+        return Number(n).toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function formatoEntero(n) {
+        return Math.round(Number(n)).toLocaleString('es-BO', { maximumFractionDigits: 0 });
+    }
+
+    function formatoKg(n) {
+        return Number(n).toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
     function esUnidadKg(unidad) {
@@ -427,85 +488,178 @@
         return u === 'kg' || u.includes('kilogram');
     }
 
-    function formatoNumero(n) {
-        return Number(n).toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    function pesoNetoEmpaqueSeleccionado() {
+        const sel = document.getElementById('empaqueCatalogoSlug');
+        const slug = sel?.value || '';
+        if (!slug) return 0;
+        if (slug === EMPAQUE_CFG.slugPersonalizado) {
+            return parseFloat(document.getElementById('empaquePesoNetoKg')?.value) || 0;
+        }
+        const opt = sel.options[sel.selectedIndex];
+        return parseFloat(opt?.dataset?.peso || 0);
     }
 
-    function calcularMpRecomendada() {
-        if (!esProductoPure()) return null;
-        const und = parseFloat(document.getElementById('cantidadObjetivoLote')?.value) || 0;
-        if (und <= 0) return null;
-        const salidaKg = und * PURE_CFG.pesoKgUnd;
-        const entradaKg = Math.round((salidaKg / PURE_CFG.rendimiento) * 100) / 100;
-        return { und, salidaKg: Math.round(salidaKg * 100) / 100, entradaKg };
+    function etiquetaUnidadEmpaque() {
+        const sel = document.getElementById('empaqueCatalogoSlug');
+        const opt = sel?.options[sel.selectedIndex];
+        return opt?.dataset?.etiqueta || 'unidades';
+    }
+
+    function modoPlanificacionActual() {
+        return document.getElementById('modoPlanificacion')?.value || EMPAQUE_CFG.modoEmpaques;
+    }
+
+    function calcularPlanificacionLocal() {
+        const peso = pesoNetoEmpaqueSeleccionado();
+        const slug = document.getElementById('empaqueCatalogoSlug')?.value || '';
+        if (!slug || peso <= 0) return null;
+
+        if (modoPlanificacionActual() === EMPAQUE_CFG.modoEmpaques) {
+            const und = parseFloat(document.getElementById('cantidadEmpaquesObjetivo')?.value) || 0;
+            if (und <= 0) return null;
+            const salidaKg = Math.round(und * peso * 10000) / 10000;
+            const entradaKg = Math.round((salidaKg / EMPAQUE_CFG.rendimiento) * 100) / 100;
+            return { unidades: und, salida_kg: salidaKg, entrada_kg: entradaKg, etiqueta_unidad: etiquetaUnidadEmpaque() };
+        }
+
+        const entradaKg = parseFloat(document.getElementById('cantidadObjetivoLote')?.value) || 0;
+        if (entradaKg <= 0) return null;
+        const salidaKg = Math.round(entradaKg * EMPAQUE_CFG.rendimiento * 10000) / 10000;
+        const und = Math.floor(salidaKg / peso);
+        return { unidades: und, salida_kg: salidaKg, entrada_kg: entradaKg, etiqueta_unidad: etiquetaUnidadEmpaque() };
+    }
+
+    function aplicarModoPlanificacion(modo) {
+        const inputModo = document.getElementById('modoPlanificacion');
+        const bloqueEmp = document.getElementById('bloqueModoEmpaques');
+        const bloqueMp = document.getElementById('bloqueModoMateriaPrima');
+        const inputEmp = document.getElementById('cantidadEmpaquesObjetivo');
+        const inputMp = document.getElementById('cantidadObjetivoLote');
+        if (inputModo) inputModo.value = modo;
+
+        document.querySelectorAll('#toggleModoPlanificacion [data-modo]').forEach(function (btn) {
+            btn.classList.toggle('active', btn.dataset.modo === modo);
+        });
+
+        const esEmpaques = modo === EMPAQUE_CFG.modoEmpaques;
+        bloqueEmp?.classList.toggle('d-none', !esEmpaques);
+        bloqueMp?.classList.toggle('d-none', esEmpaques);
+        if (inputEmp) {
+            inputEmp.disabled = !esEmpaques;
+            inputEmp.required = esEmpaques;
+        }
+        if (inputMp) {
+            inputMp.disabled = esEmpaques;
+            inputMp.required = !esEmpaques;
+        }
+        actualizarPlanificacionEmpaque();
     }
 
     function actualizarRecomendacionMp() {
-        const box = document.getElementById('recomendacionMpBox');
-        const texto = document.getElementById('recomendacionMpTexto');
-        const rec = calcularMpRecomendada();
+        autoRellenarMateriaPrima();
+    }
+
+    function toggleEmpaquePersonalizado() {
+        const slug = document.getElementById('empaqueCatalogoSlug')?.value || '';
+        const bloque = document.getElementById('bloqueEmpaquePersonalizado');
+        bloque?.classList.toggle('d-none', slug !== EMPAQUE_CFG.slugPersonalizado);
+        actualizarPlanificacionEmpaque();
+    }
+
+    function cantidadKgMateriaSeleccionada() {
+        const inp = tbody?.querySelector('.mp-cantidad-input');
+        return inp ? (parseFloat(inp.value) || 0) : 0;
+    }
+
+    function kgRequeridosMateriaPrima() {
+        const calc = calcularPlanificacionLocal();
+        const manual = cantidadKgMateriaSeleccionada();
+        if (calc && calc.entrada_kg > 0) {
+            return calc.entrada_kg;
+        }
+        return manual;
+    }
+
+    function validarStockMateriaPrima() {
+        if (!materias.length) {
+            alertaStock?.classList.add('d-none');
+            btnCrearLote?.setAttribute('disabled', 'disabled');
+            btnBuscarInsumo?.classList.remove('d-none');
+            return false;
+        }
+
+        btnBuscarInsumo?.classList.add('d-none');
+
+        const m = materias[0];
+        const usoKg = Math.max(kgRequeridosMateriaPrima(), cantidadKgMateriaSeleccionada());
+
+        if (esUnidadKg(m.unidad) && usoKg > m.stock) {
+            const msg = '«' + m.label + '» tiene ' + formatoKg(m.stock) + ' kg en stock y el lote requiere ' + formatoKg(usoKg) + ' kg. Reduzca empaques o elija otra materia prima.';
+            if (alertaStockTexto) {
+                alertaStockTexto.textContent = msg;
+            }
+            alertaStock?.classList.remove('d-none');
+            btnCrearLote?.setAttribute('disabled', 'disabled');
+            return false;
+        }
+
+        alertaStock?.classList.add('d-none');
+        btnCrearLote?.removeAttribute('disabled');
+        return true;
+    }
+
+    function actualizarPlanificacionEmpaque() {
+        const box = document.getElementById('planificacionEmpaqueBox');
+        const texto = document.getElementById('planificacionEmpaqueTexto');
+        const calc = calcularPlanificacionLocal();
         if (!box || !texto) return;
 
-        if (!rec || !materias.length) {
+        if (!calc) {
             box.classList.add('d-none');
-            tbody.querySelectorAll('.mp-rec-hint').forEach(el => el.remove());
             return;
         }
 
         texto.innerHTML =
-            '<i class="fas fa-calculator text-success mr-1"></i>' +
-            'Para <strong>' + formatoNumero(rec.und) + ' und</strong> de puré (~' + PURE_CFG.pesoEnvaseG + ' g/envase, ' + PURE_CFG.rendimientoPct + '% rendimiento): ' +
-            'se necesitan aprox. <strong>' + formatoNumero(rec.entradaKg) + ' kg</strong> de materia prima ' +
-            '(~' + formatoNumero(rec.salidaKg) + ' kg de producto terminado).';
+            'Estimado: <strong>' + formatoEntero(calc.unidades) + ' ' + calc.etiqueta_unidad + '</strong> ' +
+            '(~' + formatoKg(calc.salida_kg) + ' kg de producto). ' +
+            'Se usa <strong>' + formatoKg(calc.entrada_kg) + ' kg</strong> de materia prima.';
         box.classList.remove('d-none');
-
-        tbody.querySelectorAll('tr:not(#filaMateriasVacia)').forEach((tr, idx) => {
-            let hint = tr.querySelector('.mp-rec-hint');
-            const unidad = tr.querySelector('.mp-cantidad-input')?.dataset.unidad || '';
-            const td = tr.querySelector('td:nth-child(2)');
-            if (!esUnidadKg(unidad) || !td) {
-                if (hint) hint.remove();
-                return;
-            }
-            const sugerido = materias.length === 1 ? rec.entradaKg : (idx === 0 ? rec.entradaKg : null);
-            if (!sugerido) {
-                if (hint) hint.remove();
-                return;
-            }
-            const hintHtml = '<small class="d-block text-success mt-1 mp-rec-hint"><i class="fas fa-lightbulb mr-1"></i>Sugerido: ~' + formatoNumero(sugerido) + ' kg</small>';
-            if (hint) {
-                hint.outerHTML = hintHtml;
-            } else {
-                td.insertAdjacentHTML('beforeend', hintHtml);
-            }
-            const input = tr.querySelector('.mp-cantidad-input');
-            if (input && !input.value) {
-                input.placeholder = '~' + formatoNumero(sugerido);
-            }
-        });
+        autoRellenarMateriaPrima();
+        validarStockMateriaPrima();
     }
 
-    function aplicarRecomendacionMp() {
-        const rec = calcularMpRecomendada();
-        if (!rec) return;
+    function kgMateriaPrimaSugerido() {
+        const calc = calcularPlanificacionLocal();
+        return calc ? calc.entrada_kg : null;
+    }
+
+    function autoRellenarMateriaPrima() {
+        const entradaKg = kgMateriaPrimaSugerido();
+        if (entradaKg == null || entradaKg <= 0 || !materias.length) {
+            return;
+        }
+
         const inputsKg = Array.from(tbody.querySelectorAll('.mp-cantidad-input')).filter(inp => esUnidadKg(inp.dataset.unidad));
         if (!inputsKg.length) {
-            alert('La recomendación está en kg. Agregue un insumo cuya unidad sea kg (ej. papa a granel).');
             return;
         }
+
         if (inputsKg.length === 1) {
-            inputsKg[0].value = rec.entradaKg;
+            inputsKg[0].value = entradaKg;
+            validarStockMateriaPrima();
             return;
         }
-        const porInsumo = Math.round((rec.entradaKg / inputsKg.length) * 100) / 100;
+
+        const porInsumo = Math.round((entradaKg / inputsKg.length) * 100) / 100;
         inputsKg.forEach(inp => { inp.value = porInsumo; });
+        validarStockMateriaPrima();
     }
 
     function renderMaterias() {
         tbody.querySelectorAll('tr:not(#filaMateriasVacia)').forEach(r => r.remove());
         if (!materias.length) {
             filaVacia.style.display = '';
-            actualizarRecomendacionMp();
+            validarStockMateriaPrima();
             return;
         }
         filaVacia.style.display = 'none';
@@ -515,23 +669,20 @@
                 '<td><strong>' + esc(m.label) + '</strong><br><small class="text-muted">' + esc(m.meta) + '</small>' +
                 '<input type="hidden" name="materias[' + i + '][insumoid]" value="' + m.id + '"></td>' +
                 '<td><div class="input-group input-group-sm">' +
-                '<input type="number" name="materias[' + i + '][cantidad]" class="form-control mp-cantidad-input" data-unidad="' + esc(m.unidad) + '" step="0.001" min="0.001" max="' + m.stock + '" required>' +
+                '<input type="number" name="materias[' + i + '][cantidad]" class="form-control mp-cantidad-input" data-unidad="' + esc(m.unidad) + '" data-stock="' + m.stock + '" step="0.001" min="0.001" max="' + m.stock + '" required>' +
                 '<div class="input-group-append"><span class="input-group-text">' + esc(m.unidad) + '</span></div></div></td>' +
-                '<td><button type="button" class="btn btn-outline-danger btn-sm btn-quitar-materia" data-idx="' + i + '"><i class="fas fa-trash"></i></button></td>';
+                '<td><button type="button" class="btn btn-outline-danger btn-sm btn-quitar-materia" data-idx="' + i + '" title="Quitar materia prima"><i class="fas fa-trash"></i></button></td>';
             tbody.appendChild(tr);
         });
-        actualizarRecomendacionMp();
-    }
-
-    function aplicarPedido(payload) {
-        if (!payload || !payload.id) return;
-        pedidoInput.value = payload.id;
-        pedidoDisplay.value = payload.label;
-        pedidoDisplay.classList.remove('text-muted');
+        validarStockMateriaPrima();
     }
 
     function aplicarInsumo(payload) {
         if (!payload || !payload.id) return;
+        if (materias.length >= 1) {
+            alert('Solo puede usar una materia prima por lote. Quite la actual para cambiarla.');
+            return;
+        }
         const extra = payload.extra || {};
         if (extra.sin_stock || (extra.stock ?? 0) <= 0) {
             alert('El insumo seleccionado no tiene stock disponible.');
@@ -569,57 +720,45 @@
     productoInput?.addEventListener('input', function () {
         clearTimeout(previewTimer);
         previewTimer = setTimeout(actualizarNombrePreview, 280);
-        actualizarHintCantidadObjetivo();
+    });
+    productoInput?.addEventListener('change', actualizarNombrePreview);
+
+    document.getElementById('empaqueCatalogoSlug')?.addEventListener('change', toggleEmpaquePersonalizado);
+    document.getElementById('empaquePesoNetoKg')?.addEventListener('input', function () {
+        actualizarPlanificacionEmpaque();
         actualizarRecomendacionMp();
     });
-    productoInput?.addEventListener('change', function () {
-        actualizarNombrePreview();
-        actualizarHintCantidadObjetivo();
+    document.getElementById('cantidadEmpaquesObjetivo')?.addEventListener('input', function () {
+        actualizarPlanificacionEmpaque();
         actualizarRecomendacionMp();
     });
-
-    document.getElementById('cantidadObjetivoLote')?.addEventListener('input', actualizarRecomendacionMp);
-    document.getElementById('btnAplicarRecomendacionMp')?.addEventListener('click', aplicarRecomendacionMp);
-
-    function actualizarHintCantidadObjetivo() {
-        const producto = (productoInput?.value || '').toLowerCase();
-        const esPure = producto.includes('puré') || producto.includes('pure');
-        const hint = document.getElementById('hintCantidadObjetivo');
-        const selectUm = document.getElementById('unidadObjetivoLote');
-        if (hint) hint.classList.toggle('d-none', !esPure);
-        if (esPure && selectUm) {
-            const optUnd = Array.from(selectUm.options).find(o => (o.dataset.abbr || '').includes('und') || (o.textContent || '').toLowerCase().includes('und'));
-            if (optUnd) selectUm.value = optUnd.value;
-        }
-    }
+    document.getElementById('cantidadObjetivoLote')?.addEventListener('input', function () {
+        actualizarPlanificacionEmpaque();
+        actualizarRecomendacionMp();
+    });
+    document.querySelectorAll('#toggleModoPlanificacion [data-modo]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            aplicarModoPlanificacion(btn.dataset.modo || EMPAQUE_CFG.modoEmpaques);
+        });
+    });
 
     document.addEventListener('DOMContentLoaded', function () {
         if (!window.CatalogoSelector) return;
 
-        CatalogoSelector.register('procesamiento_pedido', {
-            endpoint: @json(route('catalogo-selector.pedidos')),
-            title: 'Seleccionar pedido',
-            searchPlaceholder: 'Número, planta, dirección…',
-            filter: { param: 'estado', options: @json($filtroEstadosPedido) },
-            onSelect(item) {
-                aplicarPedido({ id: item.id, label: item.label, extra: item.extra });
-            },
-        });
-
         CatalogoSelector.register('procesamiento_insumo', {
             endpoint: @json(route('catalogo-selector.insumos')),
-            title: 'Seleccionar materia prima',
-            searchPlaceholder: 'Nombre del insumo…',
-            params: { ambito_planta: '1', solo_con_stock: '1' },
+            title: 'Seleccionar materia prima (cosecha)',
+            searchPlaceholder: 'Buscar verdura o tubérculo…',
+            colNombre: 'Materia prima',
+            colDetalle: 'Almacén y stock',
+            theme: 'materia-prima',
+            params: { ambito_planta: '1', solo_con_stock: '1', solo_materia_prima_cosecha: '1' },
             filter: { param: 'almacenid', options: @json($filtroAlmacenes) },
             onSelect(item) {
                 aplicarInsumo({ id: item.id, label: item.label, meta: item.meta, extra: item.extra });
             },
         });
 
-        document.getElementById('btnBuscarPedido')?.addEventListener('click', function () {
-            CatalogoSelector.open('procesamiento_pedido');
-        });
         document.getElementById('btnBuscarInsumo')?.addEventListener('click', function () {
             CatalogoSelector.open('procesamiento_insumo');
         });
@@ -637,6 +776,9 @@
         });
 
         actualizarNombrePreview();
+        toggleEmpaquePersonalizado();
+        aplicarModoPlanificacion(document.getElementById('modoPlanificacion')?.value || EMPAQUE_CFG.modoEmpaques);
+        validarStockMateriaPrima();
     });
 
     document.getElementById('btnLimpiarPlantilla')?.addEventListener('click', function () {
@@ -646,11 +788,10 @@
         plantillaDisplay.placeholder = 'Sin proceso asignado';
     });
 
-    document.getElementById('btnLimpiarPedido')?.addEventListener('click', function () {
-        pedidoInput.value = '';
-        pedidoDisplay.value = '';
-        pedidoDisplay.classList.add('text-muted');
-        pedidoDisplay.placeholder = 'Sin pedido asociado';
+    tbody.addEventListener('input', function (e) {
+        if (e.target.classList.contains('mp-cantidad-input')) {
+            validarStockMateriaPrima();
+        }
     });
 
     tbody.addEventListener('click', function (e) {
@@ -661,10 +802,22 @@
     });
 
     document.getElementById('formNuevoLote')?.addEventListener('submit', function (e) {
-        if (!materias.length) { e.preventDefault(); alert('Agregue al menos una materia prima.'); }
+        if (!materias.length) { e.preventDefault(); alert('Seleccione una materia prima.'); return; }
+        if (materias.length > 1) { e.preventDefault(); alert('Solo puede usar una materia prima por lote.'); return; }
+        if (!validarStockMateriaPrima()) {
+            e.preventDefault();
+            alert(alertaStockTexto?.textContent || 'La cantidad supera el stock disponible.');
+            return;
+        }
+        const slug = document.getElementById('empaqueCatalogoSlug')?.value;
+        if (!slug) { e.preventDefault(); alert('Seleccione la presentación comercial (empaque).'); return; }
+        if (slug === EMPAQUE_CFG.slugPersonalizado) {
+            const nom = (document.getElementById('empaqueNombrePersonalizado')?.value || '').trim();
+            const peso = parseFloat(document.getElementById('empaquePesoNetoKg')?.value || '0');
+            if (!nom || peso <= 0) { e.preventDefault(); alert('Complete nombre y peso de la presentación personalizada.'); return; }
+        }
     });
 
-    if (pedidoInput.value && pedidoDisplay.value) pedidoDisplay.classList.remove('text-muted');
     if (plantillaInput.value && plantillaDisplay.value) plantillaDisplay.classList.remove('text-muted');
 
     @if($errors->any() || old('producto'))

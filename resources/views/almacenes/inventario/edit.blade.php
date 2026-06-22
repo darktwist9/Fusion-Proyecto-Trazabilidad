@@ -109,7 +109,7 @@
                             Inventario de <strong>{{ $almacen->nombre }}</strong> — {{ $tituloModulo }}
                         </small>
                     </div>
-                    <a href="{{ route($rutaPrefijo.'.show', $almacen) }}" class="btn btn-light btn-sm">
+                    <a href="{{ $redirectAfter ?? route($rutaPrefijo.'.show', $almacen) }}" class="btn btn-light btn-sm">
                         <i class="fas fa-times mr-1"></i> Cancelar
                     </a>
                 </div>
@@ -117,6 +117,9 @@
                 <form action="{{ route($rutaPrefijo.'.inventario.update', [$almacen, $producto]) }}" method="POST" enctype="multipart/form-data">
                     @csrf
                     @method('PUT')
+                    @if(! empty($redirectAfter))
+                        <input type="hidden" name="redirect" value="{{ $redirectAfter }}">
+                    @endif
                     <div class="row no-gutters">
                         <div class="col-lg-4 preview-panel">
                             <p class="text-muted small text-uppercase mb-2" style="letter-spacing:.05em;">Vista previa</p>

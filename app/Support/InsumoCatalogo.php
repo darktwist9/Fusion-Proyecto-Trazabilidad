@@ -2,9 +2,13 @@
 
 namespace App\Support;
 
+use App\Models\Insumo;
 use App\Models\TipoInsumo;
 use App\Models\UnidadMedida;
+use App\Services\InsumoEliminacionService;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class InsumoCatalogo
 {
@@ -207,6 +211,45 @@ class InsumoCatalogo
         return $ids === [] ? $query->whereRaw('1 = 0') : $query->whereIn('tipoinsumoid', $ids);
     }
 
+    public static function tipoProductoTerminadoId(): ?int
+    {
+        $id = TipoInsumo::query()
+            ->whereRaw('LOWER(TRIM(nombre)) = ?', ['producto terminado'])
+            ->value('tipoinsumoid');
+
+        return $id ? (int) $id : null;
+    }
+
+    /** Solo productos terminados de planta (empaquetados). */
+    public static function aplicarFiltroProductoTerminado(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        $tipoId = self::tipoProductoTerminadoId();
+
+        return $tipoId ? $query->where('tipoinsumoid', $tipoId) : $query->whereRaw('1 = 0');
+    }
+
+    /** Excluye productos ya procesados; útil para elegir materia prima de cosecha. */
+    public static function aplicarFiltroExcluirProductoTerminado(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        $tipoId = self::tipoProductoTerminadoId();
+
+        return $tipoId ? $query->where('tipoinsumoid', '!=', $tipoId) : $query;
+    }
+
+    /** Materia prima de cosecha en planta (verduras a granel, no producto empaquetado). */
+    public static function aplicarFiltroMateriaPrimaCosecha(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = self::aplicarFiltroExcluirProductoTerminado($query);
+
+        $tipoIds = self::tiposOrdenados()
+            ->filter(fn (TipoInsumo $t) => self::slugFromNombreTipo($t->nombre) === 'material_siembra')
+            ->pluck('tipoinsumoid')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        return $tipoIds === [] ? $query->whereRaw('1 = 0') : $query->whereIn('tipoinsumoid', $tipoIds);
+    }
+
     public static function esInsumoOperativo(?\App\Models\Insumo $insumo): bool
     {
         if ($insumo === null) {
@@ -214,6 +257,170 @@ class InsumoCatalogo
         }
 
         return in_array((int) $insumo->tipoinsumoid, self::tiposValidosIds(), true);
+    }
+
+    /** Insumo operativo de campo o producto terminado en planta/mayorista. */
+    public static function esInsumoGestionable(?Insumo $insumo): bool
+    {
+        return self::esInsumoOperativo($insumo) || self::esProductoTerminadoDistribucion($insumo);
+    }
+
+    public static function asegurarInsumoGestionable(Insumo $insumo): void
+    {
+        if (! self::esInsumoGestionable($insumo)) {
+            abort(404, 'El registro no corresponde al catálogo de insumos operativos.');
+        }
+    }
+
+    /** Producto terminado en almacén de planta o mayorista (distribución). */
+    public static function esProductoTerminadoDistribucion(?Insumo $insumo): bool
+    {
+        if ($insumo === null) {
+            return false;
+        }
+
+        if ((int) $insumo->tipoinsumoid !== self::tipoProductoTerminadoId()) {
+            return false;
+        }
+
+        $insumo->loadMissing('almacen');
+
+        return in_array($insumo->almacen?->ambito ?? '', [AlmacenAmbito::PLANTA, AlmacenAmbito::MAYORISTA], true);
+    }
+
+    /** Cosecha recibida en planta desde un pedido agrícola. */
+    public static function esCosechaRecepcionPlanta(?Insumo $insumo): bool
+    {
+        if ($insumo === null) {
+            return false;
+        }
+
+        $insumo->loadMissing('almacen');
+
+        return ($insumo->almacen?->ambito ?? '') === AlmacenAmbito::PLANTA
+            && str_starts_with(trim((string) ($insumo->descripcion ?? '')), 'Recepción pedido');
+    }
+
+    /**
+     * @return array{clase: string, etiqueta: string, icono: string, porcentaje: float, mensaje: string, umbral: float}
+     */
+    public static function estadoStockAlmacen(Insumo $insumo): array
+    {
+        $stock = (float) $insumo->stock;
+        $umbral = (float) ($insumo->stockminimo ?? self::UMBRAL_ALERTA_STOCK);
+        if ($umbral <= 0) {
+            $umbral = (float) self::UMBRAL_ALERTA_STOCK;
+        }
+
+        if ($stock <= 0) {
+            return [
+                'clase' => 'agotado',
+                'etiqueta' => 'Agotado',
+                'icono' => 'times-circle',
+                'porcentaje' => 0.0,
+                'mensaje' => 'Sin stock disponible en este almacén.',
+                'umbral' => $umbral,
+            ];
+        }
+
+        if (self::stockCritico($stock) || $stock <= $umbral) {
+            return [
+                'clase' => 'bajo',
+                'etiqueta' => 'Stock bajo',
+                'icono' => 'exclamation-triangle',
+                'porcentaje' => min(100.0, max(5.0, ($stock / max($umbral * 2, 1)) * 100)),
+                'mensaje' => 'El stock está por debajo del mínimo recomendado.',
+                'umbral' => $umbral,
+            ];
+        }
+
+        if (self::stockMedio($stock)) {
+            return [
+                'clase' => 'medio',
+                'etiqueta' => 'Stock moderado',
+                'icono' => 'info-circle',
+                'porcentaje' => min(100.0, ($stock / max($umbral * 4, 1)) * 100),
+                'mensaje' => 'Stock dentro del rango aceptable; conviene reponer pronto.',
+                'umbral' => $umbral,
+            ];
+        }
+
+        return [
+            'clase' => 'ok',
+            'etiqueta' => 'Stock saludable',
+            'icono' => 'check-circle',
+            'porcentaje' => 100.0,
+            'mensaje' => 'Hay suficiente inventario para operar con normalidad.',
+            'umbral' => $umbral,
+        ];
+    }
+
+    /** @return Collection<int|string, string> */
+    public static function insumosVerdurasParaLogistica(): Collection
+    {
+        self::asegurarCatalogosBase();
+
+        return self::aplicarFiltroMateriaPrimaCosecha(Insumo::query())
+            ->orderBy('nombre')
+            ->pluck('nombre', 'insumoid');
+    }
+
+    /**
+     * Fusiona insumos duplicados de material de siembra con el mismo nombre (p. ej. por almacén).
+     */
+    public static function consolidarMaterialSiembraPorNombre(): int
+    {
+        if (! Schema::hasTable('insumo')) {
+            return 0;
+        }
+
+        self::asegurarCatalogosBase();
+
+        $tipoId = TipoInsumo::query()
+            ->where('nombre', self::TIPOS['material_siembra'])
+            ->value('tipoinsumoid');
+
+        if (! $tipoId) {
+            return 0;
+        }
+
+        $svc = app(InsumoEliminacionService::class);
+        $fusionados = 0;
+
+        $grupos = Insumo::query()
+            ->where('tipoinsumoid', $tipoId)
+            ->orderBy('insumoid')
+            ->get()
+            ->groupBy(fn (Insumo $insumo) => mb_strtolower(trim($insumo->nombre)));
+
+        foreach ($grupos as $insumos) {
+            if ($insumos->count() <= 1) {
+                continue;
+            }
+
+            $canonico = $insumos->sort(function (Insumo $a, Insumo $b) {
+                $porStock = (float) $b->stock <=> (float) $a->stock;
+
+                return $porStock !== 0 ? $porStock : (int) $a->insumoid <=> (int) $b->insumoid;
+            })->first();
+
+            if ($canonico === null) {
+                continue;
+            }
+
+            foreach ($insumos as $dup) {
+                if ((int) $dup->insumoid === (int) $canonico->insumoid) {
+                    continue;
+                }
+
+                $canonico->stock = (float) $canonico->stock + (float) $dup->stock;
+                $canonico->save();
+                $svc->fusionarEn((int) $dup->insumoid, (int) $canonico->insumoid);
+                $fusionados++;
+            }
+        }
+
+        return $fusionados;
     }
 
     public static function asegurarInsumoOperativo(\App\Models\Insumo $insumo): void
@@ -243,14 +450,48 @@ class InsumoCatalogo
             return 0;
         }
 
-        if (\Illuminate\Support\Facades\Schema::hasTable('loteinsumo')) {
+        if (Schema::hasTable('loteinsumo')) {
             \App\Models\LoteInsumo::query()->whereIn('insumoid', $invalidIds)->delete();
         }
 
-        if (\Illuminate\Support\Facades\Schema::hasTable('almacen_movimiento')) {
-            \Illuminate\Support\Facades\DB::table('almacen_movimiento')
+        if (Schema::hasTable('catalogo_tamano_conteo')) {
+            DB::table('catalogo_tamano_conteo')->whereIn('insumoid', $invalidIds)->delete();
+        }
+
+        if (Schema::hasTable('insumo_presentacion')) {
+            $presentacionIds = DB::table('insumo_presentacion')
                 ->whereIn('insumoid', $invalidIds)
-                ->delete();
+                ->pluck('insumo_presentacionid');
+            if ($presentacionIds->isNotEmpty() && Schema::hasTable('inventario_presentacion_lote')) {
+                DB::table('inventario_presentacion_lote')
+                    ->whereIn('insumo_presentacionid', $presentacionIds)
+                    ->delete();
+            }
+            DB::table('insumo_presentacion')->whereIn('insumoid', $invalidIds)->delete();
+        }
+
+        if (Schema::hasTable('detalle_pedido_distribucion')) {
+            DB::table('detalle_pedido_distribucion')->whereIn('insumoid', $invalidIds)->update(['insumoid' => null]);
+        }
+
+        if (Schema::hasTable('almacen_movimiento')) {
+            DB::table('almacen_movimiento')->whereIn('insumoid', $invalidIds)->delete();
+        }
+
+        if (Schema::hasTable('lote_produccion_materia_prima')) {
+            DB::table('lote_produccion_materia_prima')->whereIn('insumoid', $invalidIds)->update(['insumoid' => null]);
+        }
+
+        if (Schema::hasTable('detalle_traslado_planta_mayorista')) {
+            DB::table('detalle_traslado_planta_mayorista')->whereIn('insumoid', $invalidIds)->delete();
+        }
+
+        if (Schema::hasTable('detallepedido')) {
+            DB::table('detallepedido')->whereIn('insumoid', $invalidIds)->update(['insumoid' => null]);
+        }
+
+        if (Schema::hasTable('lote') && Schema::hasColumn('lote', 'insumosemillaid')) {
+            DB::table('lote')->whereIn('insumosemillaid', $invalidIds)->update(['insumosemillaid' => null]);
         }
 
         return \App\Models\Insumo::query()->whereIn('insumoid', $invalidIds)->delete();

@@ -18,6 +18,9 @@
     $capSvc = app(\App\Services\TransporteCapacidadService::class);
     $cap = $capSvc->capacidadEfectiva($vehiculo);
     $ambitoV = $vehiculo->ambito_flota ?? \App\Support\TransportistaFlotaCatalogo::AGRICOLA;
+    $tiposTransporteV = $vehiculo->tiposTransporteEfectivos();
+    $codigoTransporteV = $tiposTransporteV->first()?->codigo;
+    $metaTransporteV = \App\Support\VehiculoTransporteCatalogo::metaUi($codigoTransporteV);
     $estadoVisual = $estadoVisual ?? 'operativo';
     $estadoLabel = $estadoLabel ?? 'Operativo';
     $badgeEstado = $badgeEstado ?? 'veh-estado veh-estado--operativo';
@@ -126,6 +129,14 @@
                             <span class="veh-det-item__value">{{ $vehiculo->color ?? '—' }}</span>
                         </div>
                         <div class="veh-det-item">
+                            <span class="veh-det-item__label">Tipo de transporte</span>
+                            <span class="veh-det-item__value">
+                                <span class="badge {{ \App\Support\VehiculoTransporteCatalogo::badgeClaseBootstrap($codigoTransporteV) }}">
+                                    <i class="fas {{ $metaTransporteV['icon'] }} mr-1"></i>{{ $metaTransporteV['nombre'] }}
+                                </span>
+                            </span>
+                        </div>
+                        <div class="veh-det-item">
                             <span class="veh-det-item__label">Estado operativo</span>
                             <span class="veh-det-item__value">
                                 <span class="{{ $badgeEstado }}">{{ $estadoLabel }}</span>
@@ -179,6 +190,15 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-lg-6">
+            @include('envios.vehiculos.partials.caja-3d', [
+                'capacidadResumen' => $capacidadResumen ?? [],
+                'vehiculo' => $vehiculo,
+            ])
         </div>
     </div>
 

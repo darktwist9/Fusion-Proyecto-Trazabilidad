@@ -25,6 +25,7 @@ class Lote extends Model
         'cultivoid',
         'insumosemillaid',
         'cantidad_semilla_planificada',
+        'catalogotamanoconteoid',
         'actorid',
         'codigo_trazabilidad',
         'fechasiembra',
@@ -44,6 +45,7 @@ class Lote extends Model
         'cultivoid'           => 'integer',
         'insumosemillaid'     => 'integer',
         'cantidad_semilla_planificada' => 'float',
+        'catalogotamanoconteoid' => 'integer',
         'actorid'             => 'integer',
         'estadolotetipoid'    => 'integer',
         'latitud'             => 'float',
@@ -79,6 +81,11 @@ class Lote extends Model
     public function insumoSemilla()
     {
         return $this->belongsTo(Insumo::class, 'insumosemillaid', 'insumoid');
+    }
+
+    public function catalogoTamanoConteo()
+    {
+        return $this->belongsTo(CatalogoTamanoConteo::class, 'catalogotamanoconteoid', 'catalogotamanoconteoid');
     }
 
     public function actorAbastecimiento()

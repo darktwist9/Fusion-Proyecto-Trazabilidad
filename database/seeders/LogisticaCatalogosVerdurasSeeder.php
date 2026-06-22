@@ -122,16 +122,6 @@ class LogisticaCatalogosVerdurasSeeder extends Seeder
                 'unidades_por_pallet' => 48,
             ],
             [
-                'nombre' => 'Bolsa plástica',
-                'descripcion' => 'Bolsa de polietileno',
-                'largo_cm' => 50,
-                'ancho_cm' => 35,
-                'alto_cm' => 15,
-                'tara_kg' => 0.1,
-                'capacidad_unidades' => 30,
-                'unidades_por_pallet' => 80,
-            ],
-            [
                 'nombre' => 'Bandeja',
                 'descripcion' => 'Bandeja de poliestireno expandido',
                 'largo_cm' => 40,
@@ -161,22 +151,12 @@ class LogisticaCatalogosVerdurasSeeder extends Seeder
                 'capacidad_unidades' => 100,
                 'unidades_por_pallet' => 40,
             ],
-            [
-                'nombre' => 'Pallet',
-                'descripcion' => 'Pallet estándar 120×100 cm',
-                'largo_cm' => 120,
-                'ancho_cm' => 100,
-                'alto_cm' => 15,
-                'tara_kg' => 25,
-                'capacidad_unidades' => 48,
-                'unidades_por_pallet' => 1,
-            ],
         ];
 
         foreach ($empaques as $row) {
             TipoEmpaque::query()->updateOrCreate(
                 ['nombre' => $row['nombre']],
-                array_merge($row, ['activo' => true])
+                array_merge($row, ['activo' => true, 'ambito' => \App\Support\TipoEmpaqueAmbito::AGRICOLA])
             );
         }
     }

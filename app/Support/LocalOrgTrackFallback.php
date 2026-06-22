@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\CatalogoTamanoConteo;
 use App\Models\EnvioAsignacionMultiple;
 use App\Models\IncidenteEnvio;
 use App\Models\RutaMultiEntrega;
@@ -49,8 +50,10 @@ final class LocalOrgTrackFallback
 
         return TipoEmpaque::query()
             ->where('activo', true)
+            ->tap(fn ($q) => TipoEmpaqueAmbito::scopeAgricola($q))
             ->orderBy('nombre')
             ->get()
+            ->filter(fn (TipoEmpaque $e) => TipoEmpaqueAmbito::esEmpaqueProducto($e->nombre))
             ->map(function (TipoEmpaque $e) {
                 return [
                     'id' => (int) $e->tipoempaqueid,
@@ -63,6 +66,37 @@ final class LocalOrgTrackFallback
                     'unidades_por_pallet' => '',
                 ];
             })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Calibres / tamaños de conteo para el wizard de envío (fallback local).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function tamanoConteoCatalogList(): array
+    {
+        if (! Schema::hasTable('catalogo_tamano_conteo')) {
+            return [];
+        }
+
+        return CatalogoTamanoConteo::query()
+            ->with(['insumo:insumoid,nombre', 'tipoEmpaque'])
+            ->where('activo', true)
+            ->orderBy('nombre')
+            ->get()
+            ->map(fn (CatalogoTamanoConteo $c) => [
+                'id' => (int) $c->catalogotamanoconteoid,
+                'id_producto' => (int) $c->insumoid,
+                'producto' => $c->insumo?->nombre,
+                'nombre' => $c->nombre,
+                'conteo_por_empaque' => (int) $c->conteo_por_empaque,
+                'peso_promedio_kg' => (float) $c->peso_promedio_kg,
+                'peso_promedio_unidad' => (float) $c->peso_promedio_kg,
+                'id_tipo_empaque' => $c->tipoempaqueid,
+                'tipo_empaque' => $c->tipoEmpaque?->nombre,
+            ])
             ->values()
             ->all();
     }

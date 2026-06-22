@@ -34,6 +34,10 @@ final class TransportistaLoginNotificacion
                     return;
                 }
 
+                if (! PedidoCatalogo::envioOperativoParaTransportista($a)) {
+                    return;
+                }
+
                 if (! self::asignacionEsNueva($a->fecha_asignacion, $ultimoLoginPrevio)) {
                     return;
                 }

@@ -30,17 +30,16 @@ final class DocumentoEntregaCatalogo
         return self::tiposDocumento()[$tipo] ?? str_replace('_', ' ', $tipo);
     }
 
-    /** @param  Builder<DocumentoEntrega>  $query */
     public static function aplicarFiltroOperativo(Builder $query): Builder
     {
         return $query
-            ->where(function (Builder $q) {
+            ->where(function ($q) {
                 $q->whereNull('archivo_path')
                     ->orWhere('archivo_path', 'not like', 'demo/%');
             })
-            ->where(function (Builder $q) {
+            ->where(function ($q) {
                 $q->whereNull('externo_envio_id')
-                    ->orWhere(function (Builder $w) {
+                    ->orWhere(function ($w) {
                         $w->where('externo_envio_id', 'not like', 'MOD-PANEL-%')
                             ->where('externo_envio_id', 'not like', 'ENV-MOD-%');
                     });
@@ -88,11 +87,11 @@ final class DocumentoEntregaCatalogo
             return $nombre;
         }
 
-        if (filled($usuario->nombreusuario)) {
+        if ($usuario->nombreusuario !== null && trim((string) $usuario->nombreusuario) !== '') {
             return (string) $usuario->nombreusuario;
         }
 
-        if (filled($usuario->email)) {
+        if ($usuario->email !== null && trim((string) $usuario->email) !== '') {
             return (string) $usuario->email;
         }
 
@@ -101,7 +100,7 @@ final class DocumentoEntregaCatalogo
 
     public static function etiquetaVinculo(DocumentoEntrega $documento): string
     {
-        if (filled($documento->externo_envio_id)) {
+        if ($documento->externo_envio_id !== null && trim((string) $documento->externo_envio_id) !== '') {
             return (string) $documento->externo_envio_id;
         }
 
@@ -117,6 +116,40 @@ final class DocumentoEntregaCatalogo
         $metadata = is_array($documento->metadata) ? $documento->metadata : [];
 
         return ! empty($metadata['envio_cierre_agricola']);
+    }
+
+    public static function puedeEditar(DocumentoEntrega $documento, ?Usuario $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if (UsuarioRol::esAdminGlobal($user)) {
+            return true;
+        }
+
+        if (! $user->can('documentos.update')) {
+            return false;
+        }
+
+        return ! self::esAutomatico($documento);
+    }
+
+    public static function puedeEliminar(DocumentoEntrega $documento, ?Usuario $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if (UsuarioRol::esAdminGlobal($user)) {
+            return true;
+        }
+
+        if (! $user->can('documentos.delete')) {
+            return false;
+        }
+
+        return ! self::esAutomatico($documento);
     }
 
     private static function textoEsDemo(?string $texto): bool

@@ -70,10 +70,23 @@ class TareaPlantaController extends Controller
 
         $asignacion->load(['proceso', 'maquina', 'loteProduccion.pedido', 'asignadoPor']);
 
+        $empaquePlan = null;
+        $vistaEmpaquetado = null;
+        if ($asignacion->loteProduccion) {
+            $empaquePlan = \App\Support\ProductoPlantaCatalogo::empaquePlanificadoResumen($asignacion->loteProduccion);
+            if (\App\Support\ProductoPlantaCatalogo::esProcesoEmpaquetado($asignacion->proceso?->nombre)) {
+                $vistaEmpaquetado = \App\Support\ProductoPlantaCatalogo::vistaPreviaEmpaquetado(
+                    $asignacion->loteProduccion,
+                    app(\App\Services\AlmacenCapacidadService::class)
+                );
+            }
+        }
+
         return view('tareas_planta.show', [
             'tarea' => $asignacion,
-            'puedeCompletar' => $asignacion->estaPendiente()
-                && $this->asignaciones->puedeAsignar($asignacion->loteProduccion),
+            'puedeCompletar' => $this->asignaciones->puedeCompletar($asignacion),
+            'empaquePlan' => $empaquePlan,
+            'vistaEmpaquetado' => $vistaEmpaquetado,
         ]);
     }
 
@@ -101,15 +114,7 @@ class TareaPlantaController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        $lote = $asignacion->loteProduccion()->first();
-        $mensaje = 'Tarea completada correctamente.';
-        if ($lote && $this->trazabilidad->transformacionCompleta($lote)) {
-            $mensaje .= ' La transformación del lote finalizó con «'.ProcesoPlantaCatalogo::PROCESO_CIERRE_TRANSFORMACION.'».';
-        }
-
-        return redirect()
-            ->route('tareas-planta.index')
-            ->with('success', $mensaje);
+        return redirect()->route('tareas-planta.index');
     }
 
     private function rechazarSiNoEsOperario(?Usuario $user): ?RedirectResponse

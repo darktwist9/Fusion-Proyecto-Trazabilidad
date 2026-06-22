@@ -61,7 +61,7 @@
             icono="fa-industry"
             :registros="$procesos->total()"
             filtros-target="#filtrosProcesosPanel"
-            :nuevo-href="route('procesos-planta.create')"
+            :nuevo-href="auth()->user()?->can('lote_produccion.create') ? route('procesos-planta.create') : null"
             nuevo-text="Nuevo proceso"
         />
 
@@ -113,9 +113,12 @@
                             <a href="{{ route('procesos-planta.show', $proceso) }}" class="btn btn-sm btn-outline-info" title="Ver detalle">
                                 <i class="fas fa-eye"></i>
                             </a>
+                            @can('lote_produccion.update')
                             <a href="{{ route('procesos-planta.edit', $proceso) }}" class="btn btn-sm btn-outline-primary" title="Editar">
                                 <i class="fas fa-edit"></i>
                             </a>
+                            @endcan
+                            @can('lote_produccion.delete')
                             <form method="POST" action="{{ route('procesos-planta.destroy', $proceso) }}" class="d-inline"
                                 onsubmit="return confirm('¿Eliminar este proceso?')">
                                 @csrf
@@ -124,6 +127,7 @@
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </form>
+                            @endcan
                         </td>
                     </tr>
                     @empty

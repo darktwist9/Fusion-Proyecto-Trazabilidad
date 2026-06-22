@@ -6,6 +6,7 @@ use App\Exceptions\EliminacionBloqueadaException;
 use App\Http\Controllers\Controller;
 use App\Support\EliminacionSegura;
 use App\Support\PlantaCatalogoRegistry;
+use App\Support\TipoEmpaqueAmbito;
 use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -47,6 +48,9 @@ class PlantaCatalogoController extends Controller
         if (! empty($config['with'])) {
             $query->with($config['with']);
         }
+        if (! empty($config['scope']) && is_callable($config['scope'])) {
+            ($config['scope'])($query);
+        }
 
         $registros = $query->orderBy($config['orden'])->paginate(20);
 
@@ -68,6 +72,11 @@ class PlantaCatalogoController extends Controller
     {
         $config = $this->config($tipo);
         $data = $this->validar($request, $config);
+        $data = array_merge($config['defaults'] ?? [], $data);
+        $data['capacidad_unidades'] = TipoEmpaqueAmbito::capacidadUnidadesPlanta();
+        if (empty($data['unidades_por_pallet'])) {
+            $data['unidades_por_pallet'] = TipoEmpaqueAmbito::unidadesPorPalletPlanta($data['nombre'] ?? '');
+        }
         $config['modelo']::query()->create($data);
 
         return redirect()
@@ -78,7 +87,11 @@ class PlantaCatalogoController extends Controller
     public function edit(string $tipo, int $id): View
     {
         $config = $this->config($tipo);
-        $registro = $config['modelo']::query()->findOrFail($id);
+        $query = $config['modelo']::query();
+        if (! empty($config['scope']) && is_callable($config['scope'])) {
+            ($config['scope'])($query);
+        }
+        $registro = $query->findOrFail($id);
 
         return view('produccion-planta.catalogos.form', compact('tipo', 'config', 'registro'));
     }
@@ -86,8 +99,17 @@ class PlantaCatalogoController extends Controller
     public function update(Request $request, string $tipo, int $id): RedirectResponse
     {
         $config = $this->config($tipo);
-        $registro = $config['modelo']::query()->findOrFail($id);
-        $registro->update($this->validar($request, $config));
+        $query = $config['modelo']::query();
+        if (! empty($config['scope']) && is_callable($config['scope'])) {
+            ($config['scope'])($query);
+        }
+        $registro = $query->findOrFail($id);
+        $data = $this->validar($request, $config);
+        $data['capacidad_unidades'] = TipoEmpaqueAmbito::capacidadUnidadesPlanta();
+        if (empty($data['unidades_por_pallet'])) {
+            $data['unidades_por_pallet'] = TipoEmpaqueAmbito::unidadesPorPalletPlanta($data['nombre'] ?? $registro->nombre);
+        }
+        $registro->update($data);
 
         return redirect()
             ->route(self::ROUTE_PREFIX.'.index', $tipo)

@@ -9,6 +9,7 @@ use App\Models\TipoIncidenteTransporte;
 use App\Services\CierreEnvioAgricolaService;
 use App\Support\EnvioCierreAgricolaCatalogo;
 use App\Support\EnvioPedidoService;
+use App\Support\PedidoCatalogo;
 use App\Support\UsuarioRol;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -222,8 +223,17 @@ class EnvioCierreAgricolaController extends Controller
             UsuarioRol::esAdminGlobal($user)
             || $user->can('asignaciones.read')
             || $user->can('asignaciones.update')
-            || (int) $asignacion->transportista_usuarioid === (int) $user->usuarioid
         ) {
+            return;
+        }
+
+        if ((int) $asignacion->transportista_usuarioid === (int) $user->usuarioid) {
+            abort_unless(
+                PedidoCatalogo::envioOperativoParaTransportista($asignacion),
+                403,
+                'Este envío estará disponible cuando producción agrícola confirme el pedido.'
+            );
+
             return;
         }
 

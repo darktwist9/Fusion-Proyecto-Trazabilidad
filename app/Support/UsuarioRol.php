@@ -10,7 +10,11 @@ final class UsuarioRol
 {
     public static function esAdminGlobal(?Usuario $user): bool
     {
-        return (bool) ($user && $user->hasRole('admin'));
+        if ($user === null) {
+            return false;
+        }
+
+        return $user->hasRole('admin') || ($user->role ?? '') === 'admin';
     }
 
     public static function esAgricultorOperativo(?Usuario $user): bool
@@ -45,7 +49,11 @@ final class UsuarioRol
         return Usuario::query()
             ->where('activo', true)
             ->whereHas('roles', fn (Builder $q) => $q->where('name', 'planta'))
-            ->whereDoesntHave('roles', fn (Builder $q) => $q->whereIn('name', ['jefe_planta', 'admin']));
+            ->whereDoesntHave('roles', fn (Builder $q) => $q->whereIn('name', ['jefe_planta', 'admin']))
+            ->where(function (Builder $q) {
+                $q->whereNull('email')
+                    ->orWhere('email', '!=', 'planta@agrofusion.com');
+            });
     }
 
     public static function puedeConfirmarRecepcionPlanta(?Usuario $user): bool

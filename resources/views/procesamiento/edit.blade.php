@@ -168,8 +168,13 @@
     function renderMaterias() {
         if (!tbody) return;
         tbody.querySelectorAll('tr:not(#filaMateriasVacia)').forEach(r => r.remove());
-        if (!materias.length) { if (filaVacia) filaVacia.style.display = ''; return; }
+        if (!materias.length) {
+            if (filaVacia) filaVacia.style.display = '';
+            document.getElementById('btnBuscarInsumo')?.classList.remove('d-none');
+            return;
+        }
         if (filaVacia) filaVacia.style.display = 'none';
+        document.getElementById('btnBuscarInsumo')?.classList.toggle('d-none', materias.length >= 1);
         materias.forEach((m, i) => {
             const tr = document.createElement('tr');
             tr.innerHTML =
@@ -212,6 +217,10 @@
                 const extra = item.extra || {};
                 if (extra.sin_stock || (extra.stock ?? 0) <= 0) {
                     alert('El insumo seleccionado no tiene stock disponible.');
+                    return;
+                }
+                if (materias.length >= 1) {
+                    alert('Solo puede usar una materia prima por lote. Quite la actual para cambiarla.');
                     return;
                 }
                 if (materias.some(m => String(m.id) === String(item.id))) {
