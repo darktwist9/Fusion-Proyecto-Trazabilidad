@@ -7,6 +7,7 @@ use App\Models\Insumo;
 use App\Models\PuntoVenta;
 use App\Models\Usuario;
 use App\Services\PuntoVentaAlmacenService;
+use App\Services\PuntoVentaInventarioPresentacionService;
 use App\Support\CuentaEstado;
 use App\Support\PuntoVentaAccess;
 use App\Support\PuntoVentaEliminacionCatalogo;
@@ -109,19 +110,19 @@ class PuntoVentaController extends Controller
             ->with('success', 'Punto de venta registrado correctamente.');
     }
 
-    public function show(PuntoVenta $punto): View
+    public function show(PuntoVenta $punto, PuntoVentaInventarioPresentacionService $presentaciones): View
     {
         abort_unless(PuntoVentaAccess::puedeVerPunto(auth()->user(), $punto), 403);
 
         $punto->load(['minorista', 'almacen']);
-        $insumos = app(PuntoVentaAlmacenService::class)->insumosEnPuntoVenta($punto);
+        $lineasInventario = $presentaciones->lineasParaPuntos(collect([$punto]));
         $pedidos = $punto->pedidosDistribucion()
             ->with('detalles')
             ->orderByDesc('pedidodistribucionid')
             ->limit(10)
             ->get();
 
-        return view('punto_venta.puntos.show', compact('punto', 'insumos', 'pedidos'));
+        return view('punto_venta.puntos.show', compact('punto', 'lineasInventario', 'pedidos'));
     }
 
     public function edit(PuntoVenta $punto): View

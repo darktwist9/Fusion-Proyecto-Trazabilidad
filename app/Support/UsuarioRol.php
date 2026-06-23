@@ -224,6 +224,33 @@ final class UsuarioRol
         };
     }
 
+    /** Etiqueta(s) de rol para listados; transportistas incluyen categoría de flota. */
+    public static function etiquetasUsuario(Usuario $usuario): string
+    {
+        $nombres = $usuario->relationLoaded('roles')
+            ? $usuario->roles->pluck('name')->all()
+            : $usuario->getRoleNames()->all();
+
+        if ($nombres === []) {
+            return filled($usuario->role)
+                ? self::etiquetaRol((string) $usuario->role)
+                : 'Sin rol';
+        }
+
+        $etiquetas = [];
+        foreach ($nombres as $nombre) {
+            if (strtolower((string) $nombre) === 'transportista') {
+                $ambito = $usuario->perfilTransportista?->ambito_flota
+                    ?? TransportistaFlotaCatalogo::AGRICOLA;
+                $etiquetas[] = 'Transportista/'.TransportistaFlotaCatalogo::categoriaRolTransportista($ambito);
+            } else {
+                $etiquetas[] = self::etiquetaRol((string) $nombre);
+            }
+        }
+
+        return implode(' · ', array_values(array_unique($etiquetas)));
+    }
+
     /** @return list<string> Slugs legacy que no deben listarse en selectores de rol. */
     public static function rolesLegacyOcultosEnSelector(): array
     {

@@ -79,37 +79,59 @@ class RecepcionPuntoVentaService
             throw new \InvalidArgumentException('Cantidad inválida en el detalle del pedido.');
         }
 
+        $detalle->loadMissing('presentacion.tipoEmpaque');
+        $presentacion = $detalle->presentacion;
+        $kgMovimiento = $presentacion
+            ? round($cantidad * $presentacion->pesoNetoKg(), 4)
+            : $cantidad;
+
         $insumoOrigen = $detalle->insumo;
         if ($insumoOrigen === null) {
             throw new \InvalidArgumentException('Producto de planta no encontrado.');
         }
 
-        if (! $insumoOrigen->tieneStockSuficiente($cantidad)) {
+        if ($presentacion && $kgMovimiento > (float) $insumoOrigen->stock + 0.0001) {
+            throw new \InvalidArgumentException(
+                "Stock insuficiente en origen para «{$insumoOrigen->nombre}». Disponible: {$insumoOrigen->stock} kg."
+            );
+        }
+
+        if (! $presentacion && ! $insumoOrigen->tieneStockSuficiente($cantidad)) {
             throw new \InvalidArgumentException(
                 "Stock insuficiente en planta para «{$insumoOrigen->nombre}». Disponible: {$insumoOrigen->stock}."
             );
         }
 
+        $nombrePdv = filled($detalle->producto_nombre)
+            ? trim((string) $detalle->producto_nombre)
+            : $insumoOrigen->nombre;
+
         $insumoDestino = Insumo::query()
             ->where('almacenid', $almacenPdv->almacenid)
-            ->whereRaw('LOWER(TRIM(nombre)) = ?', [Str::lower(trim($insumoOrigen->nombre))])
+            ->where(function ($q) use ($nombrePdv, $insumoOrigen) {
+                $q->whereRaw('LOWER(TRIM(nombre)) = ?', [Str::lower(trim($nombrePdv))])
+                    ->orWhereRaw('LOWER(TRIM(nombre)) = ?', [Str::lower(trim($insumoOrigen->nombre))]);
+            })
             ->first();
 
         if ($insumoDestino === null) {
             $codigo = 'TRZ-PDV-'.now()->format('Ymd').'-'.strtoupper(substr(uniqid(), -6));
             $insumoDestino = Insumo::create([
-                'nombre' => $insumoOrigen->nombre,
+                'nombre' => $nombrePdv,
                 'codigo_trazabilidad' => $codigo,
                 'tipoinsumoid' => $insumoOrigen->tipoinsumoid ?? TipoInsumo::query()->value('tipoinsumoid'),
                 'unidadmedidaid' => $insumoOrigen->unidadmedidaid,
                 'stock' => 0,
                 'stockminimo' => InsumoCatalogo::UMBRAL_ALERTA_STOCK,
-                'descripcion' => 'Producto recibido desde planta — '.$pedido->numero_solicitud,
+                'descripcion' => 'Producto recibido desde mayorista — '.$pedido->numero_solicitud,
                 'almacenid' => $almacenPdv->almacenid,
             ]);
         }
 
         $ref = $pedido->numero_solicitud;
+        $obsUnidades = $presentacion
+            ? number_format($cantidad, 0).' '.$presentacion->etiquetaUnidad().' ('.number_format($kgMovimiento, 2).' kg)'
+            : number_format($cantidad, 2).' ud';
 
         AlmacenMovimiento::create([
             'almacenid' => $insumoOrigen->almacenid,
@@ -117,10 +139,10 @@ class RecepcionPuntoVentaService
             'tipo_movimiento_almacenid' => $tipoSalida->tipo_movimiento_almacenid,
             'usuarioid' => $usuario->usuarioid,
             'fecha' => now()->toDateString(),
-            'cantidad' => $cantidad,
+            'cantidad' => $kgMovimiento,
             'referencia' => $ref,
             'destino_motivo' => $almacenPdv->nombre,
-            'observaciones' => '[Distribución PDV — salida planta] '.$ref,
+            'observaciones' => '[Distribución PDV — salida mayorista] '.$ref.' · '.$obsUnidades,
         ]);
 
         AlmacenMovimiento::create([
@@ -129,13 +151,13 @@ class RecepcionPuntoVentaService
             'tipo_movimiento_almacenid' => $tipoIngreso->tipo_movimiento_almacenid,
             'usuarioid' => $usuario->usuarioid,
             'fecha' => now()->toDateString(),
-            'cantidad' => $cantidad,
+            'cantidad' => $kgMovimiento,
             'referencia' => $ref,
             'destino_motivo' => $almacenPdv->nombre,
-            'observaciones' => '[Recepción PDV] '.$ref,
+            'observaciones' => '[Recepción PDV] '.$ref.' · '.$obsUnidades,
         ]);
 
-        $insumoOrigen->decrementarStock($cantidad);
-        $insumoDestino->incrementarStock($cantidad);
+        $insumoOrigen->decrementarStock($kgMovimiento);
+        $insumoDestino->incrementarStock($kgMovimiento);
     }
 }

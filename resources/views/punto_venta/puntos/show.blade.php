@@ -104,32 +104,36 @@
             <div class="card pdv-card card-outline card-success mb-3">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center">
                     <h3 class="card-title mb-0"><i class="fas fa-boxes mr-1"></i> Inventario</h3>
-                    <span class="badge badge-light">{{ $insumos->count() }} productos</span>
+                    <span class="badge badge-light">{{ $lineasInventario->count() }} productos</span>
                 </div>
-                @if($insumos->isEmpty())
+                @if($lineasInventario->isEmpty())
                 <div class="card-body text-center text-muted py-4">
                     Sin productos. Reciba un pedido de distribución desde planta.
                 </div>
                 @else
                 <div class="pdv-inv-grid">
-                    @foreach($insumos as $insumo)
+                    @foreach($lineasInventario as $linea)
                         @php
-                            $unidad = $insumo->unidadMedida?->abreviatura ?? $insumo->unidadMedida?->nombre ?? '';
+                            $insumo = $linea['insumo'];
                             $minimo = (float) ($insumo->stockminimo ?? 0);
-                            $stock = (float) $insumo->stock;
+                            $stock = (float) $linea['kg'];
                             $pct = $minimo > 0 ? min(100, round(($stock / max($minimo * 2, 1)) * 100)) : min(100, $stock > 0 ? 100 : 0);
                             $bajo = $minimo > 0 && $stock <= $minimo;
+                            $unidadesFmt = number_format($linea['unidades'], fmod($linea['unidades'], 1.0) === 0.0 ? 0 : 2);
                         @endphp
                         <article class="pdv-inv-card">
                             <div>
-                                <h4 class="pdv-inv-card__name">{{ $insumo->nombre }}</h4>
+                                <h4 class="pdv-inv-card__name">{{ $linea['producto_nombre'] }}</h4>
+                                @if($linea['presentacion_nombre'] !== '—')
+                                <div class="text-muted small mb-1">{{ $linea['presentacion_nombre'] }}</div>
+                                @endif
                                 @if($insumo->codigo_trazabilidad)
                                 <div class="pdv-inv-card__code">{{ $insumo->codigo_trazabilidad }}</div>
                                 @endif
                             </div>
                             <div class="pdv-inv-card__stock-row">
-                                <span class="pdv-inv-card__stock-val">{{ number_format($stock, 2) }}</span>
-                                @if($unidad)<span class="pdv-unidad-badge pdv-unidad-badge--inline">{{ $unidad }}</span>@endif
+                                <span class="pdv-inv-card__stock-val">{{ $unidadesFmt }} {{ $linea['unidad_etiqueta'] }}</span>
+                                <span class="text-muted small">· {{ number_format($stock, 2) }} kg</span>
                             </div>
                             <div class="pdv-inv-bar" title="{{ $bajo ? 'Stock bajo' : 'Nivel de stock' }}">
                                 <div class="pdv-inv-bar__fill{{ $bajo ? ' pdv-inv-bar__fill--bajo' : '' }}" style="width: {{ $pct }}%"></div>
@@ -149,7 +153,7 @@
                                         class="btn btn-xs btn-outline-success btn-qr-inventario"
                                         title="Código QR trazabilidad"
                                         data-url="{{ route('punto-venta.puntos.inventario.qr', [$punto, $insumo]) }}"
-                                        data-producto="{{ $insumo->nombre }}">
+                                        data-producto="{{ $linea['producto_nombre'] }}">
                                     <i class="fas fa-qrcode"></i>
                                 </button>
                                 @endcan
@@ -164,7 +168,7 @@
                                             title="Eliminar"
                                             data-confirm-modal
                                             data-confirm-title="Eliminar producto"
-                                            data-confirm-message="¿Eliminar «{{ $insumo->nombre }}» del inventario de este punto de venta?">
+                                            data-confirm-message="¿Eliminar «{{ $linea['producto_nombre'] }}» del inventario de este punto de venta?">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </form>

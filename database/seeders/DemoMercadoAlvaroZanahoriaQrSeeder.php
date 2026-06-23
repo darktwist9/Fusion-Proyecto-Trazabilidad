@@ -8,11 +8,13 @@ use App\Models\AlmacenMovimiento;
 use App\Models\DetallePedidoDistribucion;
 use App\Models\HistorialEstadoLote;
 use App\Models\Insumo;
+use App\Models\InsumoPresentacion;
 use App\Models\Lote;
 use App\Models\PedidoDistribucion;
 use App\Models\Produccion;
 use App\Models\ProduccionAlmacenamiento;
 use App\Models\PuntoVenta;
+use App\Models\TipoEmpaque;
 use App\Models\TipoInsumo;
 use App\Models\TipoMovimientoAlmacen;
 use App\Models\UnidadMedida;
@@ -44,7 +46,9 @@ class DemoMercadoAlvaroZanahoriaQrSeeder extends Seeder
 
     private const PEDIDO = 'PDV-20260612-ZAN';
 
-    private const STOCK_PDV = 25.00;
+    private const STOCK_PDV_KG = 25.00;
+
+    private const UNIDADES_PDV = 25;
 
     public function run(): void
     {
@@ -109,17 +113,23 @@ class DemoMercadoAlvaroZanahoriaQrSeeder extends Seeder
                 }
             }
 
-            $this->seedPedidoDistribucion($punto, $almacenMayorista, $insumoMayorista, $admin);
+            $presentacion = $this->asegurarPresentacionBolsa1Kg($insumoMayorista);
+
+            $this->seedPedidoDistribucion($punto, $almacenMayorista, $insumoMayorista, $presentacion, $admin);
+
+            $nombrePdv = $presentacion
+                ? self::PRODUCTO.' · '.$presentacion->nombre
+                : self::PRODUCTO;
 
             $insumoPdv = Insumo::updateOrCreate(
                 [
-                    'nombre' => self::PRODUCTO,
+                    'nombre' => $nombrePdv,
                     'almacenid' => $almacenPdv->almacenid,
                 ],
                 [
                     'tipoinsumoid' => $tipoProd?->tipoinsumoid,
                     'unidadmedidaid' => $kgId,
-                    'stock' => self::STOCK_PDV,
+                    'stock' => self::STOCK_PDV_KG,
                     'stockminimo' => 5,
                     'descripcion' => 'Producto procesado recibido del mayorista — trazabilidad lote '.self::LOTE_CODIGO.' — '.self::PEDIDO,
                 ]
@@ -129,7 +139,7 @@ class DemoMercadoAlvaroZanahoriaQrSeeder extends Seeder
 
             $this->command?->info('Listo: inventario PDV con lote real.');
             $this->command?->info('  Punto de venta: '.$punto->nombre);
-            $this->command?->info('  Producto PDV: '.self::PRODUCTO.' (stock '.self::STOCK_PDV.' kg)');
+            $this->command?->info('  Producto PDV: '.$nombrePdv.' ('.self::UNIDADES_PDV.' bolsas · '.self::STOCK_PDV_KG.' kg)');
             $this->command?->info('  Lote agrícola: '.self::LOTE_NOMBRE.' ('.self::LOTE_CODIGO.')');
             $this->command?->info('  Almacén origen: '.($almacenMayorista?->nombre ?? 'Centro mayorista'));
             $this->command?->info('  QR público: '.$urlQr);
@@ -140,19 +150,28 @@ class DemoMercadoAlvaroZanahoriaQrSeeder extends Seeder
     {
         $pedidoDemo = PedidoDistribucion::query()
             ->where('numero_solicitud', 'PDV-20260609-ZAN')
+            ->orWhere('numero_solicitud', self::PEDIDO)
             ->orWhere('observaciones', 'like', '%'.self::MARK_DEMO.'%')
-            ->first();
+            ->get();
 
-        if ($pedidoDemo) {
+        foreach ($pedidoDemo as $pedido) {
             if (Schema::hasTable('detalle_pedido_distribucion')) {
                 DetallePedidoDistribucion::query()
-                    ->where('pedidodistribucionid', $pedidoDemo->pedidodistribucionid)
+                    ->where('pedidodistribucionid', $pedido->pedidodistribucionid)
                     ->delete();
             }
             AlmacenMovimiento::query()
-                ->where('referencia', $pedidoDemo->numero_solicitud)
+                ->where('referencia', $pedido->numero_solicitud)
                 ->delete();
-            $pedidoDemo->delete();
+            $pedido->delete();
+        }
+
+        $puntoAlvaro = PuntoVenta::query()
+            ->whereRaw('LOWER(nombre) LIKE ?', ['%alvaro%'])
+            ->first();
+
+        if ($puntoAlvaro?->almacenid) {
+            Insumo::query()->where('almacenid', $puntoAlvaro->almacenid)->delete();
         }
 
         $almacenesPdv = PuntoVenta::query()
@@ -162,6 +181,8 @@ class DemoMercadoAlvaroZanahoriaQrSeeder extends Seeder
         Insumo::query()
             ->where('codigo_trazabilidad', 'TRZ-PDV-20260609-ZAN001')
             ->orWhere('nombre', 'Zanahoria fresca Valle')
+            ->orWhere('nombre', self::PRODUCTO)
+            ->orWhere('nombre', 'like', self::PRODUCTO.' · %')
             ->orWhere(function ($q) use ($almacenesPdv) {
                 $q->where('nombre', 'Zanahoria')
                     ->whereIn('almacenid', $almacenesPdv);
@@ -240,11 +261,18 @@ class DemoMercadoAlvaroZanahoriaQrSeeder extends Seeder
         PuntoVenta $punto,
         ?Almacen $almacenMayorista,
         ?Insumo $insumoMayorista,
+        ?InsumoPresentacion $presentacion,
         ?Usuario $admin
     ): void {
         if (! Schema::hasTable('pedido_distribucion') || ! $almacenMayorista || ! $insumoMayorista || ! $admin) {
             return;
         }
+
+        $presentacion = $presentacion ?? $this->asegurarPresentacionBolsa1Kg($insumoMayorista);
+
+        $productoNombre = $presentacion
+            ? self::PRODUCTO.' · '.$presentacion->nombre
+            : self::PRODUCTO;
 
         $pedido = PedidoDistribucion::updateOrCreate(
             ['numero_solicitud' => self::PEDIDO],
@@ -262,17 +290,19 @@ class DemoMercadoAlvaroZanahoriaQrSeeder extends Seeder
             ]
         );
 
-        DetallePedidoDistribucion::updateOrCreate(
-            [
-                'pedidodistribucionid' => $pedido->pedidodistribucionid,
-                'producto_nombre' => self::PRODUCTO,
-            ],
-            [
-                'insumoid' => $insumoMayorista->insumoid,
-                'cantidad' => self::STOCK_PDV,
-                'observaciones' => 'Producto envasado — lote agrícola '.self::LOTE_NOMBRE,
-            ]
-        );
+        DetallePedidoDistribucion::query()
+            ->where('pedidodistribucionid', $pedido->pedidodistribucionid)
+            ->delete();
+
+        DetallePedidoDistribucion::create([
+            'pedidodistribucionid' => $pedido->pedidodistribucionid,
+            'producto_nombre' => $productoNombre,
+            'insumoid' => $insumoMayorista->insumoid,
+            'insumo_presentacionid' => $presentacion?->insumo_presentacionid,
+            'tipo_envase' => $presentacion?->tipo_envase ?? 'bolsa',
+            'cantidad' => self::UNIDADES_PDV,
+            'observaciones' => 'Producto envasado — lote agrícola '.self::LOTE_NOMBRE,
+        ]);
 
         if (! Schema::hasTable('almacen_movimiento')) {
             return;
@@ -290,12 +320,19 @@ class DemoMercadoAlvaroZanahoriaQrSeeder extends Seeder
 
         $insumoPdv = Insumo::query()
             ->where('almacenid', $almacenPdv->almacenid)
-            ->where('nombre', self::PRODUCTO)
+            ->where(function ($q) use ($productoNombre) {
+                $q->where('nombre', $productoNombre)
+                    ->orWhere('nombre', self::PRODUCTO);
+            })
             ->first();
 
         if (! $insumoPdv) {
             return;
         }
+
+        $obs = $presentacion
+            ? '[Recepción PDV] '.self::PEDIDO.' · '.self::UNIDADES_PDV.' '.$presentacion->etiquetaUnidad().' ('.number_format(self::STOCK_PDV_KG, 2).' kg)'
+            : '[Recepción PDV] '.self::PEDIDO;
 
         AlmacenMovimiento::updateOrCreate(
             ['referencia' => self::PEDIDO, 'insumoid' => $insumoPdv->insumoid],
@@ -304,10 +341,41 @@ class DemoMercadoAlvaroZanahoriaQrSeeder extends Seeder
                 'tipo_movimiento_almacenid' => $tipoIngreso->tipo_movimiento_almacenid,
                 'usuarioid' => $admin->usuarioid,
                 'fecha' => now()->subDay()->toDateString(),
-                'cantidad' => self::STOCK_PDV,
-                'observaciones' => '[Recepción PDV] '.self::PEDIDO,
+                'cantidad' => self::STOCK_PDV_KG,
+                'observaciones' => $obs,
             ]
         );
+    }
+
+    private function asegurarPresentacionBolsa1Kg(?Insumo $insumo): ?InsumoPresentacion
+    {
+        if ($insumo === null || ! Schema::hasTable('insumo_presentacion')) {
+            return null;
+        }
+
+        $existente = InsumoPresentacion::query()
+            ->where('insumoid', $insumo->insumoid)
+            ->where('activo', true)
+            ->whereRaw('LOWER(nombre) LIKE ?', ['%1 kg%'])
+            ->first();
+
+        if ($existente) {
+            return $existente;
+        }
+
+        $tipoEmpaqueId = TipoEmpaque::query()
+            ->whereRaw('LOWER(nombre) LIKE ?', ['%bolsa%'])
+            ->value('tipoempaqueid');
+
+        return InsumoPresentacion::create([
+            'insumoid' => $insumo->insumoid,
+            'tipoempaqueid' => $tipoEmpaqueId,
+            'nombre' => 'Bolsa 1 kg',
+            'tipo_envase' => 'bolsa',
+            'peso_neto_kg' => 1.0,
+            'orden' => 1,
+            'activo' => true,
+        ]);
     }
 
     private function unidadKgId(): ?int

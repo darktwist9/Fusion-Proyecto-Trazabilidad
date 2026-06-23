@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Controller;
 use App\Models\Insumo;
 use App\Models\PuntoVenta;
+use App\Services\PuntoVentaInventarioPresentacionService;
 use App\Support\PuntoVentaAccess;
 use App\Support\TrazabilidadProductoPdvService;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,7 +15,7 @@ use Illuminate\View\View;
 
 class PuntoVentaInventarioController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request, PuntoVentaInventarioPresentacionService $presentaciones): View
     {
         $user = $request->user();
 
@@ -24,39 +24,17 @@ class PuntoVentaInventarioController extends Controller
             $user
         )->get();
 
-        $almacenPorPunto = $puntos->pluck('almacenid', 'puntoventaid');
-
-        $query = Insumo::query()
-            ->with(['unidadMedida', 'almacen'])
-            ->whereIn('almacenid', $almacenPorPunto->filter()->values());
-
+        $puntosFiltrados = $puntos;
         if ($request->filled('puntoventaid')) {
-            $almId = $almacenPorPunto->get((int) $request->puntoventaid);
-            if ($almId) {
-                $query->where('almacenid', $almId);
-            }
+            $puntosFiltrados = $puntos->where('puntoventaid', (int) $request->puntoventaid)->values();
         }
 
-        if ($request->filled('q')) {
-            $term = '%'.$request->string('q')->trim().'%';
-            $query->where(function (Builder $w) use ($term) {
-                $w->where('nombre', 'like', $term)
-                    ->orWhere('codigo_trazabilidad', 'like', $term);
-            });
-        }
-
-        $insumos = $query->orderBy('nombre')->get();
-
-        $insumos = $insumos->map(function (Insumo $insumo) use ($puntos) {
-            $punto = $puntos->firstWhere('almacenid', $insumo->almacenid);
-            $insumo->setAttribute('punto_venta', $punto);
-
-            return $insumo;
-        });
+        $termino = $request->filled('q') ? $request->string('q')->trim()->toString() : null;
+        $lineas = $presentaciones->lineasParaPuntos($puntosFiltrados, $termino);
 
         return view('punto_venta.inventario.index', [
             'puntos' => $puntos,
-            'insumos' => $insumos,
+            'lineas' => $lineas,
             'esAdmin' => $user && \App\Support\UsuarioRol::esAdminGlobal($user),
             'filtroPdv' => $request->integer('puntoventaid') ?: null,
             'filtroPdvNombre' => $request->filled('puntoventaid')

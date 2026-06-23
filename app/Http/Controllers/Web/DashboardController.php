@@ -12,6 +12,7 @@ use App\Support\DashboardCharts;
 use App\Support\DashboardFiltros;
 use App\Support\DashboardPanelUsuario;
 use App\Support\DashboardPresentacion;
+use App\Support\EnvioAsignacionEstadoCatalogo;
 use App\Models\Actividad;
 use App\Models\DocumentoEntrega;
 use App\Models\EnvioAsignacionMultiple;
@@ -913,19 +914,24 @@ class DashboardController extends Controller
             ->limit(8)
             ->get();
 
-        $enviosPendientesAccion = (clone $asignaciones)
+        $enviosPendientesRecoger = (clone $asignaciones)
             ->with(['pedido.detalles'])
-            ->whereIn('estado', ['asignado', 'asignada', 'pendiente', 'creada'])
+            ->whereIn('estado', array_merge(
+                EnvioAsignacionEstadoCatalogo::estadosEquivalentes('asignado'),
+                EnvioAsignacionEstadoCatalogo::estadosEquivalentes('pendiente'),
+            ))
             ->whereNull('simulacion_inicio_at')
+            ->whereNull('fecha_recepcion_planta')
             ->whereHas('pedido', fn ($q) => $q->whereIn('estado', PedidoCatalogo::estadosListosParaLogistica()))
             ->orderByDesc('fecha_asignacion')
-            ->limit(5)
-            ->get();
+            ->get()
+            ->filter(fn (EnvioAsignacionMultiple $asignacion) => EnvioAsignacionEstadoCatalogo::pendienteRecogerTransportista($asignacion))
+            ->values();
 
         return [
             'stats' => [
                 'asignados' => $total + (clone $rutasDistribucion)->count(),
-                'por_recoger' => (clone $asignaciones)->where('estado', 'asignado')->count(),
+                'por_recoger' => $enviosPendientesRecoger->count(),
                 'en_camino' => $enRuta,
                 'entregados_hoy' => $entregadosPeriodo,
                 'productividad' => $total > 0 ? round(($entregadosPeriodo / $total) * 100, 2) : 0,
@@ -948,7 +954,7 @@ class DashboardController extends Controller
                 ->get(),
             'mis_rutas' => $rutas->latest()->take(6)->get(),
             'rutas_pendientes_salida' => $rutasPendientesSalida,
-            'envios_pendientes_accion' => $enviosPendientesAccion,
+            'envios_pendientes_accion' => $enviosPendientesRecoger->take(5),
         ];
     }
 

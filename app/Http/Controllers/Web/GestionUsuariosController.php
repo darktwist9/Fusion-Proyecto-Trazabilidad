@@ -381,7 +381,7 @@ class GestionUsuariosController extends Controller
 
     private function usuariosFilteredQuery(Request $request)
     {
-        $query = Usuario::query()->with(['roles'])->withCount('lotes');
+        $query = Usuario::query()->with(['roles', 'perfilTransportista'])->withCount('lotes');
 
         if ($this->modoJefe()) {
             $jefe = auth()->user();

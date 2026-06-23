@@ -66,6 +66,7 @@ class InsumoPresentacion extends Model
             'frasco' => 'frascos',
             'bidon' => 'bidones',
             'caja' => 'cajas',
+            'bolsa' => 'bolsas',
             default => 'unidades',
         };
     }

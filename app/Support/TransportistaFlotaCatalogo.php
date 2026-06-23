@@ -41,6 +41,17 @@ final class TransportistaFlotaCatalogo
         };
     }
 
+    /** Sufijo para columna Rol: Transportista/Mayorista, Transportista/Agricultor, etc. */
+    public static function categoriaRolTransportista(?string $ambito): string
+    {
+        return match ($ambito) {
+            self::AGRICOLA => 'Agricultor',
+            self::PLANTA => 'Planta',
+            self::MAYORISTA => 'Mayorista',
+            default => '—',
+        };
+    }
+
     public static function badgeClase(?string $ambito): string
     {
         return match ($ambito) {

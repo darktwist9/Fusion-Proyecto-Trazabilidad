@@ -61,6 +61,25 @@ final class EnvioAsignacionEstadoCatalogo
         return in_array($estado, ['recibido_planta', 'entregado', 'entregada'], true);
     }
 
+    /** Envío agrícola pendiente de recogida por el transportista asignado. */
+    public static function pendienteRecogerTransportista(?\App\Models\EnvioAsignacionMultiple $asignacion): bool
+    {
+        if ($asignacion === null || self::llegoADestino($asignacion)) {
+            return false;
+        }
+
+        $estado = strtolower(trim((string) $asignacion->estado));
+        if (! in_array($estado, ['asignado', 'asignada', 'pendiente', 'creada'], true)) {
+            return false;
+        }
+
+        if ($asignacion->simulacion_inicio_at !== null) {
+            return false;
+        }
+
+        return PedidoCatalogo::envioOperativoParaTransportista($asignacion);
+    }
+
     public static function puedeGestionarAdmin(?\App\Models\EnvioAsignacionMultiple $asignacion): bool
     {
         return ! self::llegoADestino($asignacion);

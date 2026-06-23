@@ -222,11 +222,7 @@
                 @else
                     <span class="usu-show-badge estado-activo">Activo</span>
                 @endif
-                @forelse($usuario->roles as $role)
-                    <span class="usu-show-badge">{{ ucfirst($role->name) }}</span>
-                @empty
-                    <span class="usu-show-badge">Sin rol</span>
-                @endforelse
+                <span class="usu-show-badge">{{ \App\Support\UsuarioRol::etiquetasUsuario($usuario) }}</span>
             </div>
         </div>
 

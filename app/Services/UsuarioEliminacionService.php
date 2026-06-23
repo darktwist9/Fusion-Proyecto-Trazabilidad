@@ -11,6 +11,7 @@ use App\Models\Lote;
 use App\Models\LoteInsumo;
 use App\Models\OperadorPlanta;
 use App\Models\PerfilTransportista;
+use App\Models\PuntoVenta;
 use App\Models\RegistroMovimientoMateria;
 use App\Models\RegistroProcesoMaquinaPlanta;
 use App\Models\Usuario;
@@ -133,6 +134,9 @@ class UsuarioEliminacionService
     {
         $actualizaciones = [
             'pedido' => ['aceptado_por_usuarioid'],
+            'pedido_distribucion' => ['aceptado_por_usuarioid', 'creado_por_usuarioid', 'transportista_usuarioid', 'aprobado_por_usuarioid'],
+            'ruta_distribucion' => ['creado_por_usuarioid', 'transportista_usuarioid', 'aprobado_por_usuarioid'],
+            'almacen' => ['responsable_usuarioid'],
             'incidente_envio' => ['reportadopor_usuarioid', 'resueltopor_usuarioid'],
             'documento_entrega' => ['usuarioid'],
             'direccion_geo_envio' => ['usuarioid'],
@@ -197,6 +201,14 @@ class UsuarioEliminacionService
                 }
                 DB::table($tabla)->where($columna, $usuarioid)->update([$columna => $respaldoId]);
             }
+        }
+
+        if (Schema::hasTable('punto_venta') && Schema::hasColumn('punto_venta', 'usuarioid')) {
+            PuntoVenta::query()->where('usuarioid', $usuarioid)->update(['usuarioid' => $respaldoId]);
+        }
+
+        if (Schema::hasTable('usuario') && Schema::hasColumn('usuario', 'supervisor_usuarioid')) {
+            Usuario::query()->where('supervisor_usuarioid', $usuarioid)->update(['supervisor_usuarioid' => $respaldoId]);
         }
     }
 }

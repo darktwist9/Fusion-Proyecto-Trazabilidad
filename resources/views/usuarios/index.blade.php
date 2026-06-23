@@ -107,6 +107,24 @@
     color: #64748b;
     margin-bottom: 0.35rem;
 }
+.usu-index-filtros .selector-catalogo-wrapper.form-group {
+    margin-bottom: 0;
+}
+.usu-index-filtros .selector-filtros-field {
+    min-height: calc(1.8125rem + 2px);
+    border-radius: 10px;
+}
+.usu-index-filtros .selector-filtros-field__input {
+    font-size: 0.9rem;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: normal;
+    color: #1e293b;
+}
+.usu-index-filtros .form-control,
+.usu-index-filtros select.form-control {
+    height: calc(1.8125rem + 2px);
+}
 .usu-index-filtro-actions .btn {
     border-radius: 10px;
     font-weight: 600;
@@ -284,6 +302,7 @@
                     @endunless
                     @if($modoJefe && $lotes->isNotEmpty())
                     <div class="col-lg-3 col-md-6 mb-2 mb-lg-0">
+                        <label class="mb-1" for="usu_filtro_lote">Lote asignado</label>
                         @include('partials.selector-catalogo', [
                             'id' => 'usu_filtro_lote',
                             'name' => 'lote',
@@ -291,22 +310,22 @@
                             'labelSelected' => $loteSeleccionado?->nombre ?? '',
                             'endpoint' => route('catalogo-selector.lotes'),
                             'title' => 'Filtrar por lote asignado',
-                            'label' => '<i class="fas fa-map-marked-alt mr-1"></i> Lote asignado',
-                            'icon' => 'fa-map-marked-alt',
                             'searchPlaceholder' => 'Nombre del lote…',
                             'searchLabel' => 'Buscar lote',
                             'allowEmpty' => true,
                             'emptyLabel' => 'Todos los lotes',
                             'placeholderEmpty' => 'Todos los lotes',
-                            'modalIcon' => 'fa-map-marked-alt',
+                            'modalIcon' => 'fa-seedling',
                             'rowIcon' => 'fa-seedling',
                             'colNombre' => 'Lote',
                             'colDetalle' => 'Cultivo / responsable',
+                            'inputGroup' => true,
                             'variant' => 'filtros',
                         ])
                     </div>
                     @elseif(! $modoJefe)
                     <div class="col-lg-3 col-md-6 mb-2 mb-lg-0">
+                        <label class="mb-1" for="usu_filtro_lote">Lote asignado</label>
                         @include('partials.selector-catalogo', [
                             'id' => 'usu_filtro_lote',
                             'name' => 'lote',
@@ -314,17 +333,16 @@
                             'labelSelected' => $loteSeleccionado?->nombre ?? '',
                             'endpoint' => route('catalogo-selector.lotes'),
                             'title' => 'Filtrar por lote asignado',
-                            'label' => '<i class="fas fa-map-marked-alt mr-1"></i> Lote asignado',
-                            'icon' => 'fa-map-marked-alt',
                             'searchPlaceholder' => 'Nombre del lote…',
                             'searchLabel' => 'Buscar lote',
                             'allowEmpty' => true,
                             'emptyLabel' => 'Todos los lotes',
                             'placeholderEmpty' => 'Todos los lotes',
-                            'modalIcon' => 'fa-map-marked-alt',
+                            'modalIcon' => 'fa-seedling',
                             'rowIcon' => 'fa-seedling',
                             'colNombre' => 'Lote',
                             'colDetalle' => 'Cultivo / responsable',
+                            'inputGroup' => true,
                             'variant' => 'filtros',
                         ])
                     </div>
@@ -381,11 +399,7 @@
                         <td class="text-break">{{ $usuario->email }}</td>
                         <td class="text-muted">{{ $usuario->telefono ?: '—' }}</td>
                         <td>
-                            @forelse($usuario->roles as $role)
-                                <span class="usu-index-badge-rol">{{ \App\Support\UsuarioRol::etiquetaRol($role->name) }}</span>
-                            @empty
-                                <span class="text-muted small">Sin rol</span>
-                            @endforelse
+                            <span class="usu-index-badge-rol">{{ \App\Support\UsuarioRol::etiquetasUsuario($usuario) }}</span>
                         </td>
                         <td class="text-center usu-index-lotes-count">
                             <strong>{{ $usuario->lotes_count }}</strong>
@@ -412,10 +426,14 @@
                                     @endcan
                                     @can('usuarios.delete')
                                     <form action="{{ route('gestion.usuario.destroy', $usuario) }}" method="POST"
-                                        onsubmit="return confirm('¿Eliminar este usuario?')">
+                                        class="form-eliminar-usuario">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" class="btn btn-outline-danger" title="Eliminar">
+                                        <button type="button" class="btn btn-outline-danger" title="Eliminar"
+                                            data-confirm-modal
+                                            data-confirm-title="Eliminar usuario"
+                                            data-confirm-message="¿Eliminar a {{ $usuario->nombre }} {{ $usuario->apellido }}? Esta acción no se puede deshacer."
+                                            data-confirm-btn="Eliminar">
                                             <i class="fas fa-trash-alt"></i>
                                         </button>
                                     </form>
