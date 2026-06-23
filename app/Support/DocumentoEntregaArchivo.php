@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Storage;
 
 final class DocumentoEntregaArchivo
 {
-    private const PDF_VERSION = 9;
+    private const PDF_VERSION = 10;
 
     /** @var array<string, string> */
     private const TIPOS_ETIQUETA = [
