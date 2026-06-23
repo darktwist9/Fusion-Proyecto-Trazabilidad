@@ -1116,6 +1116,7 @@
     @php
         $sugeridoPasoJs = $siguientePasoPlantilla ? [
             'procesoplantaid' => $siguientePasoPlantilla->procesoplantaid,
+            'proceso_nombre' => $siguientePasoPlantilla->proceso?->nombre,
             'maquinaplantaid' => $siguientePasoPlantilla->maquinaplantaid,
             'maquina_nombre' => $siguientePasoPlantilla->maquina?->nombre,
             'maquina_codigo' => $siguientePasoPlantilla->maquina?->codigo,
@@ -1152,6 +1153,21 @@
         box.style.display = 'block';
     }
 
+    function syncSelectProcesoEtapa(procesoId, procesoNombre) {
+        if (!selectProceso || !procesoId) return;
+        const id = String(procesoId);
+        selectProceso.innerHTML = '';
+        const vacio = document.createElement('option');
+        vacio.value = '';
+        vacio.textContent = 'Seleccionar…';
+        selectProceso.appendChild(vacio);
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = procesoNombre || 'Proceso';
+        selectProceso.appendChild(opt);
+        selectProceso.value = id;
+    }
+
     window.LpActualizarEtapaAsignar = function (datos) {
         if (!datos) return;
 
@@ -1172,8 +1188,8 @@
             hint.innerHTML = '<span class="text-success"><i class="fas fa-magic mr-1"></i>Etapa ' + datos.orden + ': ' + datos.proceso_nombre + '</span>';
         }
 
-        if (selectProceso && datos.procesoplantaid) {
-            selectProceso.value = String(datos.procesoplantaid);
+        if (datos.procesoplantaid) {
+            syncSelectProcesoEtapa(datos.procesoplantaid, datos.proceso_nombre);
             actualizarEstadoProceso();
         }
 
@@ -1236,7 +1252,7 @@
     }
 
     if (sugerido && sugerido.procesoplantaid) {
-        selectProceso.value = String(sugerido.procesoplantaid);
+        syncSelectProcesoEtapa(sugerido.procesoplantaid, sugerido.proceso_nombre);
         actualizarEstadoProceso();
         if (sugerido.maquinaplantaid) {
             inputMaquina.value = String(sugerido.maquinaplantaid);

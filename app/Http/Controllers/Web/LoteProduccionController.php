@@ -461,6 +461,7 @@ class LoteProduccionController extends Controller
         }
 
         $loteProduccion->refresh();
+        $this->transformacion->limpiarAsignacionesObsoletas($loteProduccion);
 
         if ($request->expectsJson()) {
             return response()->json([
