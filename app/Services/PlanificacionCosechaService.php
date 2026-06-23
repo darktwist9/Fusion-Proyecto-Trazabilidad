@@ -26,6 +26,8 @@ class PlanificacionCosechaService
         $dosis = CultivoSiembraCatalogo::sugerenciaParaInsumo($insumo, 1.0);
         $rendimientoKgHa = CultivoSiembraCatalogo::rendimientoCosechaKgHaDesdeInsumo($insumo);
         $calibres = $this->calibresParaInsumo($insumoId);
+        $stock = (float) ($insumo->stock ?? 0);
+        $stockUnidad = $insumo->unidadMedida?->abreviatura ?? $insumo->unidadMedida?->nombre ?? ($dosis['unidad'] ?? 'kg');
 
         return [
             'ok' => true,
@@ -39,6 +41,9 @@ class PlanificacionCosechaService
             'tiene_dosis' => $dosis['tiene_dosis'],
             'rendimiento_kg_ha' => $rendimientoKgHa,
             'tiene_rendimiento' => $rendimientoKgHa !== null && $rendimientoKgHa > 0,
+            'stock_disponible' => $stock,
+            'stock_unidad' => $stockUnidad,
+            'hectareas_max_stock' => CultivoSiembraCatalogo::hectareasMaximasConStock($insumo),
             'calibres' => $calibres,
             'calibre_default_id' => $this->calibreDefaultId($calibres),
         ];
@@ -119,6 +124,14 @@ class PlanificacionCosechaService
         }
 
         $semilla = $dosisPorHa > 0 ? round($dosisPorHa * $hectareas, 3) : null;
+
+        $insumo = Insumo::query()->with('unidadMedida')->find($insumoId);
+        if ($insumo && $semilla !== null) {
+            $mensajeStock = CultivoSiembraCatalogo::mensajeStockInsuficiente($insumo, $semilla);
+            if ($mensajeStock !== null) {
+                return ['ok' => false, 'mensaje' => $mensajeStock];
+            }
+        }
 
         return [
             'ok' => true,

@@ -10,3 +10,8 @@
 /agrofusion-mobile/test-build
 *.log
 .env
+.phpunit.result.cache
+/.vscode/
+/public/storage
+/tmp_*.php
+scripts/debug_*.php

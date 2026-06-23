@@ -22,6 +22,8 @@ use App\Support\LoteAgricolaNombre;
 use App\Support\LoteCultivoResolver;
 use App\Support\LoteDefaults;
 use App\Services\PlanificacionCosechaService;
+use App\Services\LoteEliminacionService;
+use App\Services\LoteUbicacionTerrestreService;
 use Illuminate\Http\JsonResponse;
 use App\Support\SuperficieFormato;
 use App\Support\UbicacionGpsParser;
@@ -257,6 +259,25 @@ class LoteController extends Controller
         ]));
     }
 
+    public function validarUbicacion(Request $request, LoteUbicacionTerrestreService $ubicacion): JsonResponse
+    {
+        $data = $request->validate([
+            'latitud' => 'required|numeric|between:-90,90',
+            'longitud' => 'required|numeric|between:-180,180',
+            'superficie' => 'nullable|numeric|min:0',
+        ]);
+
+        $lat = (float) $data['latitud'];
+        $lng = (float) $data['longitud'];
+        $ha = (float) ($data['superficie'] ?? 0);
+
+        if ($ha > 0) {
+            return response()->json($ubicacion->validarSuperficie($lat, $lng, $ha, ligera: true));
+        }
+
+        return response()->json($ubicacion->validarMarcador($lat, $lng));
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate([
@@ -267,6 +288,9 @@ class LoteController extends Controller
             'insumosemillaid' => 'required|exists:insumo,insumoid',
             'cantidad_semilla_planificada' => 'nullable|numeric|min:0',
             'catalogotamanoconteoid' => 'nullable|exists:catalogo_tamano_conteo,catalogotamanoconteoid',
+            'plan_modo' => 'nullable|string|in:hectareas,unidades,empaques',
+            'plan_objetivo_empaques' => 'nullable|numeric|min:0',
+            'plan_objetivo_unidades' => 'nullable|numeric|min:0',
             'latitud' => 'nullable|numeric|between:-90,90',
             'longitud' => 'nullable|numeric|between:-180,180',
             'imagen' => 'nullable|image|max:2048',
@@ -288,6 +312,10 @@ class LoteController extends Controller
             (float) $data['superficie'],
             $data['cantidad_semilla_planificada'] ?? null
         );
+
+        $this->validarPlanificacionAlGuardar($request, $data);
+
+        $this->validarUbicacionTerrestreAlGuardar($data);
 
         $data['ubicacion'] = UbicacionGpsParser::normalizarUbicacionLote(
             $data['ubicacion'] ?? null,
@@ -587,6 +615,11 @@ class LoteController extends Controller
             (float) $data['superficie'],
             $data['cantidad_semilla_planificada'] ?? null
         );
+
+        $this->validarPlanificacionAlGuardar($request, $data);
+
+        $this->validarUbicacionTerrestreAlGuardar($data);
+
         $data['ubicacion'] = UbicacionGpsParser::normalizarUbicacionLote(
             $data['ubicacion'] ?? null,
             isset($data['latitud']) ? (float) $data['latitud'] : null,
@@ -600,15 +633,9 @@ class LoteController extends Controller
         return redirect()->route('lotes.index')->with('success', 'Lote actualizado.');
     }
 
-    public function destroy(Lote $lote)
+    public function destroy(Lote $lote, LoteEliminacionService $eliminacion)
     {
-        // ELIMINAR IMAGEN LOCAL
-        if ($lote->imagenurl) {
-            $path = str_replace('/storage/', '', $lote->imagenurl);
-            Storage::disk('public')->delete($path);
-        }
-
-        $lote->delete();
+        $eliminacion->eliminar($lote);
 
         return redirect()->route('lotes.index')->with('success', 'Lote eliminado.');
     }
@@ -801,6 +828,124 @@ class LoteController extends Controller
         $sugerencia = CultivoSiembraCatalogo::sugerenciaParaInsumo($insumo, $superficieHa);
 
         return $sugerencia['tiene_dosis'] ? (float) $sugerencia['sugerido'] : null;
+    }
+
+    private function validarPlanificacionAlGuardar(Request $request, array &$data): void
+    {
+        $insumoId = (int) ($data['insumosemillaid'] ?? 0);
+        if ($insumoId <= 0) {
+            return;
+        }
+
+        $calibreId = ! empty($data['catalogotamanoconteoid']) ? (int) $data['catalogotamanoconteoid'] : null;
+        $modo = (string) $request->input('plan_modo', PlanificacionCosechaService::MODO_HECTAREAS);
+
+        if ($calibreId && in_array($modo, [
+            PlanificacionCosechaService::MODO_HECTAREAS,
+            PlanificacionCosechaService::MODO_UNIDADES,
+            PlanificacionCosechaService::MODO_EMPAQUES,
+        ], true)) {
+            $calcInput = [
+                'insumoid' => $insumoId,
+                'calibre_id' => $calibreId,
+                'modo' => $modo,
+            ];
+
+            if ($modo === PlanificacionCosechaService::MODO_EMPAQUES) {
+                $objetivo = $request->input('plan_objetivo_empaques');
+                if ($objetivo === null || $objetivo === '') {
+                    throw ValidationException::withMessages([
+                        'superficie' => 'Indique cuántas cajas desea obtener en la planificación.',
+                    ]);
+                }
+                $calcInput['objetivo_empaques'] = $objetivo;
+            } elseif ($modo === PlanificacionCosechaService::MODO_UNIDADES) {
+                $objetivo = $request->input('plan_objetivo_unidades');
+                if ($objetivo === null || $objetivo === '') {
+                    throw ValidationException::withMessages([
+                        'superficie' => 'Indique cuántas unidades desea cosechar en la planificación.',
+                    ]);
+                }
+                $calcInput['objetivo_unidades'] = $objetivo;
+            } else {
+                $calcInput['hectareas'] = $data['superficie'];
+            }
+
+            $resultado = app(PlanificacionCosechaService::class)->calcular($calcInput);
+            if (! ($resultado['ok'] ?? false)) {
+                throw ValidationException::withMessages([
+                    'superficie' => $resultado['mensaje'] ?? 'No se puede guardar con esta planificación.',
+                    'cantidad_semilla_planificada' => $resultado['mensaje'] ?? 'No se puede guardar con esta planificación.',
+                ]);
+            }
+
+            $data['superficie'] = $resultado['hectareas'];
+            $data['cantidad_semilla_planificada'] = $resultado['semilla_cantidad'];
+
+            return;
+        }
+
+        $this->validarStockPlanificacionSemilla(
+            $insumoId,
+            (float) $data['superficie'],
+            $data['cantidad_semilla_planificada'] ?? null
+        );
+    }
+
+    /** @param  array<string, mixed>  $data */
+    private function validarUbicacionTerrestreAlGuardar(array $data): void
+    {
+        if (! isset($data['latitud'], $data['longitud'])) {
+            return;
+        }
+
+        $lat = (float) $data['latitud'];
+        $lng = (float) $data['longitud'];
+        $ha = (float) ($data['superficie'] ?? 0);
+
+        if ($ha <= 0) {
+            return;
+        }
+
+        $resultado = app(LoteUbicacionTerrestreService::class)->validarMarcador($lat, $lng);
+        if ($resultado['ok'] ?? false) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'latitud' => $resultado['mensaje'] ?? 'La ubicación del lote no es válida.',
+            'superficie' => $resultado['mensaje'] ?? 'La ubicación del lote no es válida.',
+        ]);
+    }
+
+    private function validarStockPlanificacionSemilla(?int $insumoSemillaId, float $superficieHa, ?float $cantidadPlanificada): void
+    {
+        if (! $insumoSemillaId) {
+            return;
+        }
+
+        $insumo = Insumo::query()->with('unidadMedida')->find($insumoSemillaId);
+        if ($insumo === null) {
+            return;
+        }
+
+        $cantidad = $cantidadPlanificada;
+        if ($cantidad === null || $cantidad <= 0) {
+            $sugerencia = CultivoSiembraCatalogo::sugerenciaParaInsumo($insumo, $superficieHa);
+            $cantidad = $sugerencia['tiene_dosis'] ? (float) $sugerencia['sugerido'] : null;
+        }
+
+        if ($cantidad === null) {
+            return;
+        }
+
+        $mensaje = CultivoSiembraCatalogo::mensajeStockInsuficiente($insumo, $cantidad);
+        if ($mensaje !== null) {
+            throw ValidationException::withMessages([
+                'cantidad_semilla_planificada' => $mensaje,
+                'superficie' => $mensaje,
+            ]);
+        }
     }
 
     /**

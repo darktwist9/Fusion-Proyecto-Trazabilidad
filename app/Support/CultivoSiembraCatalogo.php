@@ -337,4 +337,45 @@ final class CultivoSiembraCatalogo
 
         return $base.' (~'.number_format($estimado, 0, ',', '.').' '.$etiqueta.' est.)';
     }
+
+    public static function mensajeStockInsuficiente(\App\Models\Insumo $insumo, float $cantidadRequerida): ?string
+    {
+        if ($cantidadRequerida <= 0) {
+            return null;
+        }
+
+        $stock = (float) ($insumo->stock ?? 0);
+        if ($cantidadRequerida <= $stock + 0.0005) {
+            return null;
+        }
+
+        $unidad = $insumo->unidadMedida?->abreviatura
+            ?? $insumo->unidadMedida?->nombre
+            ?? ($insumo->dosis_unidad ?? 'kg');
+
+        return sprintf(
+            'Stock insuficiente de «%s». Disponible: %s %s; necesita: %s %s para esta planificación.',
+            $insumo->nombre,
+            number_format($stock, 2, ',', '.'),
+            $unidad,
+            number_format($cantidadRequerida, 2, ',', '.'),
+            $unidad
+        );
+    }
+
+    public static function hectareasMaximasConStock(\App\Models\Insumo $insumo): ?float
+    {
+        $dosis = self::sugerenciaParaInsumo($insumo, 1.0);
+        $porHa = (float) ($dosis['por_ha'] ?? 0);
+        if ($porHa <= 0) {
+            return null;
+        }
+
+        $stock = (float) ($insumo->stock ?? 0);
+        if ($stock <= 0) {
+            return 0.0;
+        }
+
+        return floor(($stock / $porHa) * 1000) / 1000;
+    }
 }

@@ -1,12 +1,25 @@
-# AgroNexus
+# AgroFusion (Fusion-Proyecto-Trazabilidad)
 
-Sistema de Gestión Agrícola integrado.
+Sistema de gestión agrícola integrado: lotes, trazabilidad, inventario, logística y planta.
 
-![AgroNexus Banner](https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg)
+## Instalación rápida (compañeros / nuevo equipo)
 
-## 📋 Documentación de Despliegue
+**Lee primero:** [INSTALACION.md](INSTALACION.md)
 
-Siguiendo los requisitos del proyecto, se presentan dos formas de ejecutar la aplicación: **Contenedorizada (Docker)** y **Nativa (Local)**.
+```powershell
+git clone https://github.com/JosuePadillaUnivalle/Fusion-Proyecto-Trazabilidad.git
+cd Fusion-Proyecto-Trazabilidad
+.\scripts\instalar-local.ps1
+php artisan serve --port=8001
+```
+
+Login administrador: `admin@agrofusion.com` / `12345`
+
+Si ves **403 Forbidden**, ejecuta: `php artisan agrofusion:reparar-permisos`
+
+---
+
+## Documentación legacy (Docker / PostgreSQL)
 
 ### 🐳 Opción 1: Ejecución con Contenedores (Docker) - **Recomendada**
 

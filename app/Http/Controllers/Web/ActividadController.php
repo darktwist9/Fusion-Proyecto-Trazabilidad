@@ -139,6 +139,14 @@ class ActividadController extends Controller
             return redirect()->route('lotes.siembra.create', $params);
         }
 
+        $loteid = $request->integer('loteid') ?: old('loteid');
+        if ($loteid) {
+            $loteAutorizado = Lote::find($loteid);
+            if ($loteAutorizado) {
+                $this->autorizarLoteParaActividad($request, $loteAutorizado);
+            }
+        }
+
         $user = $request->user();
         $tipos = TipoActividad::query()
             ->orderBy('nombre')
@@ -151,7 +159,6 @@ class ActividadController extends Controller
             ->values();
         $prioridades = Prioridad::all();
 
-        $loteid = $request->integer('loteid') ?: old('loteid');
         $lote = $loteid ? Lote::with('usuario')->find($loteid) : null;
         $loteLabel = $lote?->nombre;
 
@@ -338,6 +345,7 @@ class ActividadController extends Controller
 
         // Obtener el lote para asignar usuario automáticamente
         $lote = Lote::with('actividades.tipoActividad')->findOrFail($data['loteid']);
+        $this->autorizarLoteParaActividad($request, $lote);
         $tipo = TipoActividad::find($data['tipoactividadid']);
 
         $noPermitida = $this->trazabilidad->mensajeActividadNoPermitida($lote, $tipo->nombre ?? null);

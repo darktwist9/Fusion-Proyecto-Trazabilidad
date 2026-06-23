@@ -121,6 +121,10 @@
                             <label><i class="fas fa-map mr-1"></i> Ubicacion en el Mapa</label>
                             <small class="text-muted d-block mb-2">Haz clic en el mapa para cambiar la ubicacion</small>
                             <div id="map"></div>
+                            <div id="mapaUbicacionError" class="alert alert-warning small mt-2 mb-0 py-2 px-3 d-none">
+                                <i class="fas fa-water mr-1"></i>
+                                <span id="mapaUbicacionErrorTexto"></span>
+                            </div>
                         </div>
 
                         <input type="hidden" name="latitud" id="latitud" value="{{ $lote->latitud }}">
@@ -143,47 +147,117 @@
 @push('scripts')
     @include('lotes.partials.mapa-calle-helper')
     @include('lotes.partials.mapa-superficie-helper')
+    @include('lotes.partials.mapa-ubicacion-validacion-helper')
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         var initialLat = {{ $lote->latitud ?? -17.7833 }};
         var initialLng = {{ $lote->longitud ?? -63.1821 }};
         var ubicInput = document.getElementById('ubicacion');
         var supInput = document.getElementById('superficie');
+        var urlValidarUbicacion = @json(route('lotes.validar-ubicacion'));
 
-        var map = L.map('map').setView([initialLat, initialLng], {{ $lote->latitud ? 14 : 10 }});
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+        function avisoValidacionUbicacion(titulo, texto) {
+            if (window.Swal) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: titulo,
+                    text: texto,
+                    confirmButtonText: 'Entendido',
+                    confirmButtonColor: '#f59e0b',
+                });
+            } else {
+                window.alert(texto || titulo);
+            }
+        }
 
+        var map = null;
         var marker = null;
         var circleRef = { current: null };
+        var ubicacionPendiente = null;
 
-        function redibujarCirculo() {
+        var validadorUbicacion = window.AgroFusionLoteUbicacion.vincular({
+            urlValidar: urlValidarUbicacion,
+            onAviso: avisoValidacionUbicacion,
+            onResultado: function (estado) {
+                if (estado.ok || !ubicacionPendiente) {
+                    return;
+                }
+                const actual = {
+                    lat: parseFloat(document.getElementById('latitud').value),
+                    lng: parseFloat(document.getElementById('longitud').value),
+                };
+                if (actual.lat !== ubicacionPendiente.lat || actual.lng !== ubicacionPendiente.lng) {
+                    return;
+                }
+                if (marker) {
+                    map.removeLayer(marker);
+                    marker = null;
+                }
+                document.getElementById('latitud').value = '';
+                document.getElementById('longitud').value = '';
+                ubicacionPendiente = null;
+                window.AgroFusionLoteMapa.actualizarCirculo(map, circleRef, NaN, NaN, supInput.value);
+                avisoValidacionUbicacion('Ubicación no válida', estado.mensaje);
+            },
+        });
+
+        map = L.map('map').setView([initialLat, initialLng], {{ $lote->latitud ? 14 : 10 }});
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+
+        function redibujarCirculo(opciones) {
+            const opts = Object.assign({ validar: false, ajustarVista: true }, opciones || {});
             const lat = parseFloat(document.getElementById('latitud').value);
             const lng = parseFloat(document.getElementById('longitud').value);
-            window.AgroFusionLoteMapa.actualizarCirculo(map, circleRef, lat, lng, supInput.value);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+                window.AgroFusionLoteMapa.actualizarCirculo(map, circleRef, NaN, NaN, supInput.value);
+                return;
+            }
+            window.AgroFusionLoteMapa.actualizarCirculo(map, circleRef, lat, lng, supInput.value, {
+                ajustarVista: opts.ajustarVista,
+            });
+            if (opts.validar) {
+                validadorUbicacion.programarValidacion({ silencioso: true, espera: 1500 });
+            }
         }
 
         @if($lote->latitud && $lote->longitud)
             marker = L.marker([initialLat, initialLng]).addTo(map)
                 .bindPopup({!! json_encode($lote->ubicacion_visible) !!}).openPopup();
-            redibujarCirculo();
+            redibujarCirculo({ validar: false, ajustarVista: false });
         @endif
 
-        async function actualizarUbicacionMapa(lat, lng) {
-            document.getElementById('latitud').value = lat;
-            document.getElementById('longitud').value = lng;
+        function actualizarUbicacionMapa(lat, lng) {
+            const latNum = parseFloat(lat);
+            const lngNum = parseFloat(lng);
+            ubicacionPendiente = { lat: latNum, lng: lngNum };
 
-            if (marker) map.removeLayer(marker);
+            document.getElementById('latitud').value = latNum.toFixed(7);
+            document.getElementById('longitud').value = lngNum.toFixed(7);
+
+            if (marker) {
+                map.removeLayer(marker);
+            }
 
             const calleAnterior = ubicInput.value;
+            const popupInicial = calleAnterior && !window.AgroFusionMapaCalle.esTextoGps(calleAnterior)
+                ? calleAnterior
+                : 'Parcela';
+            marker = L.marker([latNum, lngNum]).addTo(map).bindPopup(popupInicial).openPopup();
+            redibujarCirculo();
+
             const debeActualizar = !calleAnterior || window.AgroFusionMapaCalle.esTextoGps(calleAnterior);
             if (debeActualizar) {
                 ubicInput.value = 'Buscando calle…';
-                const calle = await window.AgroFusionMapaCalle.resolver(lat, lng);
-                ubicInput.value = calle || calleAnterior || 'Zona agrícola, Santa Cruz de la Sierra';
+                window.AgroFusionMapaCalle.resolver(latNum, lngNum).then(function (calle) {
+                    if (!document.getElementById('latitud').value || !document.getElementById('longitud').value) {
+                        return;
+                    }
+                    ubicInput.value = calle || calleAnterior || 'Zona agrícola, Santa Cruz de la Sierra';
+                    if (marker) {
+                        marker.setPopupContent(ubicInput.value).openPopup();
+                    }
+                });
             }
-
-            marker = L.marker([lat, lng]).addTo(map).bindPopup(ubicInput.value).openPopup();
-            redibujarCirculo();
         }
 
         map.on('click', function (e) {
@@ -201,6 +275,40 @@
             ] : null),
             initialCantidad: @json(old('cantidad_semilla_planificada', $lote->cantidad_semilla_planificada)),
             initialStock: @json($semillaStockInicial ?? null),
+        });
+
+        var formEditarLote = document.querySelector('form');
+        var btnGuardarLote = formEditarLote?.querySelector('button[type="submit"]');
+        var guardandoLote = false;
+
+        formEditarLote?.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            if (guardandoLote) {
+                return;
+            }
+
+            if (!validadorUbicacion.esValida()) {
+                var validacionUbicacion = await Promise.race([
+                    validadorUbicacion.validar({ silencioso: true }),
+                    new Promise(function (resolve) {
+                        setTimeout(function () {
+                            resolve({ ok: true, omitida: true });
+                        }, 3500);
+                    }),
+                ]);
+                if (!validacionUbicacion.ok && !validacionUbicacion.omitida) {
+                    validadorUbicacion.mostrarErrorUi(validacionUbicacion.mensaje);
+                    avisoValidacionUbicacion('Ubicación no válida', validacionUbicacion.mensaje);
+                    return;
+                }
+            }
+
+            guardandoLote = true;
+            if (btnGuardarLote) {
+                btnGuardarLote.disabled = true;
+                btnGuardarLote.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Guardando…';
+            }
+            formEditarLote.submit();
         });
     </script>
 @endpush

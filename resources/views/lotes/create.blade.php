@@ -87,9 +87,10 @@
                             <label><i class="fas fa-tag mr-1"></i> Nombre del lote <span class="text-danger">*</span>
                                 <span class="badge badge-success auto-badge ml-1">Automático</span>
                             </label>
-                            <input type="text" name="nombre" id="nombreLote" class="form-control bg-light" maxlength="100" required
-                                   placeholder="Se genera al elegir semilla / cultivo" value="{{ old('nombre') }}" readonly>
-                            <p class="campo-guia">Se genera al elegir la semilla.</p>
+                            <input type="text" name="nombre" id="nombreLote" class="form-control" maxlength="100" required
+                                   placeholder="Se genera al elegir semilla / cultivo" value="{{ old('nombre') }}"
+                                   autocomplete="off">
+                            <p class="campo-guia">Se sugiere automáticamente al elegir la semilla; puede editarlo si lo necesita.</p>
                         </div>
 
                         <div class="form-group">
@@ -114,9 +115,13 @@
                             <label><i class="fas fa-map mr-1"></i> Marca la parcela en el mapa <span class="text-danger">*</span></label>
                             <p class="campo-guia mb-2">Haz clic donde está el lote (Santa Cruz por defecto). Es obligatorio para trazabilidad y el mapa general.</p>
                             <div id="map"></div>
+                            <div id="mapaUbicacionError" class="alert alert-warning small mt-2 mb-0 py-2 px-3 d-none">
+                                <i class="fas fa-water mr-1"></i>
+                                <span id="mapaUbicacionErrorTexto"></span>
+                            </div>
                         </div>
-                        <input type="hidden" name="latitud" id="latitud" value="{{ old('latitud', '-17.7833') }}">
-                        <input type="hidden" name="longitud" id="longitud" value="{{ old('longitud', '-63.1821') }}">
+                        <input type="hidden" name="latitud" id="latitud" value="{{ old('latitud') }}">
+                        <input type="hidden" name="longitud" id="longitud" value="{{ old('longitud') }}">
                     </div>
                 </div>
             </div>
@@ -137,6 +142,7 @@
 @push('scripts')
     @include('lotes.partials.mapa-calle-helper')
     @include('lotes.partials.mapa-superficie-helper')
+    @include('lotes.partials.mapa-ubicacion-validacion-helper')
     @include('lotes.partials.planificacion-cosecha-helper')
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
@@ -149,6 +155,14 @@
             const semillaWrap = document.getElementById('selector_wrap_lote_semilla');
             const urlSiguienteNombre = @json(route('lotes.siguiente-nombre'));
             const urlPlanificar = @json(route('lotes.planificar-cosecha'));
+            const urlValidarUbicacion = @json(route('lotes.validar-ubicacion'));
+            let nombreEditadoManual = !!(nombreInput && nombreInput.value && nombreInput.value.trim());
+
+            if (nombreInput) {
+                nombreInput.addEventListener('input', function () {
+                    nombreEditadoManual = this.value.trim() !== '';
+                });
+            }
 
             const map = L.map('map').setView([-17.7833, -63.1821], 11);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
@@ -156,29 +170,105 @@
             let marker = null;
             const circleRef = { current: null };
 
-            function redibujarCirculo() {
-                const lat = parseFloat(latInput.value);
-                const lng = parseFloat(lngInput.value);
-                window.AgroFusionLoteMapa.actualizarCirculo(map, circleRef, lat, lng, supInput.value);
+            function avisoValidacion(titulo, texto) {
+                if (window.Swal) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: titulo,
+                        text: texto,
+                        confirmButtonText: 'Entendido',
+                        confirmButtonColor: '#f59e0b',
+                    });
+                } else {
+                    window.alert(texto || titulo);
+                }
             }
 
-            async function colocarMarcador(lat, lng) {
-                latInput.value = Number(lat).toFixed(7);
-                lngInput.value = Number(lng).toFixed(7);
+            let ubicacionPendiente = null;
+            let circuloHaTimer = null;
+
+            const validadorUbicacion = window.AgroFusionLoteUbicacion.vincular({
+                urlValidar: urlValidarUbicacion,
+                onAviso: avisoValidacion,
+                onResultado: function (estado) {
+                    if (estado.ok || !ubicacionPendiente) {
+                        return;
+                    }
+                    const actual = {
+                        lat: parseFloat(latInput.value),
+                        lng: parseFloat(lngInput.value),
+                    };
+                    if (actual.lat !== ubicacionPendiente.lat || actual.lng !== ubicacionPendiente.lng) {
+                        return;
+                    }
+                    if (marker) {
+                        map.removeLayer(marker);
+                        marker = null;
+                    }
+                    latInput.value = '';
+                    lngInput.value = '';
+                    ubicacionPendiente = null;
+                    window.AgroFusionLoteMapa.actualizarCirculo(map, circleRef, NaN, NaN, supInput.value);
+                    avisoValidacion('Ubicación no válida', estado.mensaje);
+                },
+            });
+
+            function redibujarCirculo(opciones) {
+                const opts = Object.assign({ validar: false, ajustarVista: true }, opciones || {});
+                const lat = parseFloat(latInput.value);
+                const lng = parseFloat(lngInput.value);
+                if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+                    window.AgroFusionLoteMapa.actualizarCirculo(map, circleRef, NaN, NaN, supInput.value);
+                    return;
+                }
+                window.AgroFusionLoteMapa.actualizarCirculo(map, circleRef, lat, lng, supInput.value, {
+                    ajustarVista: opts.ajustarVista,
+                });
+                if (opts.validar) {
+                    validadorUbicacion.programarValidacion({ silencioso: true, espera: 1500 });
+                }
+            }
+
+            function onHectareasPlanificacion() {
+                clearTimeout(circuloHaTimer);
+                circuloHaTimer = setTimeout(function () {
+                    redibujarCirculo({ validar: false, ajustarVista: false });
+                }, 60);
+            }
+
+            function colocarMarcador(lat, lng) {
+                const latNum = Number(lat);
+                const lngNum = Number(lng);
+                ubicacionPendiente = { lat: latNum, lng: lngNum };
+
+                latInput.value = latNum.toFixed(7);
+                lngInput.value = lngNum.toFixed(7);
+
+                if (marker) {
+                    map.removeLayer(marker);
+                }
+
+                const popupInicial = ubicInput.value && !window.AgroFusionMapaCalle.esTextoGps(ubicInput.value)
+                    ? ubicInput.value
+                    : 'Parcela';
+                marker = L.marker([latNum, lngNum]).addTo(map);
+                marker.bindPopup(popupInicial).openPopup();
+                redibujarCirculo();
 
                 const debeActualizarCalle = !ubicInput.value
                     || window.AgroFusionMapaCalle.esTextoGps(ubicInput.value);
                 if (debeActualizarCalle) {
                     ubicInput.value = 'Buscando calle…';
-                    const calle = await window.AgroFusionMapaCalle.resolver(lat, lng);
-                    ubicInput.value = calle || 'Zona agrícola, Santa Cruz de la Sierra';
+                    window.AgroFusionMapaCalle.resolver(latNum, lngNum).then(function (calle) {
+                        if (!latInput.value || !lngInput.value) {
+                            return;
+                        }
+                        ubicInput.value = calle || 'Zona agrícola, Santa Cruz de la Sierra';
+                        if (marker) {
+                            marker.setPopupContent(ubicInput.value).openPopup();
+                        }
+                    });
                 }
-
-                if (marker) map.removeLayer(marker);
-
-                marker = L.marker([lat, lng]).addTo(map);
-                marker.bindPopup(ubicInput.value || 'Parcela').openPopup();
-                redibujarCirculo();
             }
 
             map.on('click', function (e) {
@@ -190,12 +280,10 @@
 
             if (latInput.value && lngInput.value) {
                 colocarMarcador(parseFloat(latInput.value), parseFloat(lngInput.value));
-            } else if (supInput.value) {
-                redibujarCirculo();
             }
 
             function actualizarNombreAutomatico(insumoId) {
-                if (!nombreInput || !insumoId) {
+                if (!nombreInput || !insumoId || nombreEditadoManual) {
                     return;
                 }
                 fetch(urlSiguienteNombre + '?insumoid=' + encodeURIComponent(insumoId), {
@@ -228,26 +316,59 @@
                 cantidadInputId: 'cantidad_semilla_planificada',
                 cantidadWrapId: 'cantidadSemillaWrap',
                 urlPlanificar: urlPlanificar,
-                onHectareasChange: redibujarCirculo,
+                onHectareasChange: onHectareasPlanificacion,
             });
 
-            document.getElementById('formNuevoLote').addEventListener('submit', function (e) {
+            const formNuevoLote = document.getElementById('formNuevoLote');
+            const btnGuardarLote = formNuevoLote?.querySelector('button[type="submit"]');
+            let guardandoLote = false;
+
+            formNuevoLote?.addEventListener('submit', async function (e) {
+                e.preventDefault();
+                if (guardandoLote) {
+                    return;
+                }
+
+                window.AgroFusionPlanificacionCosecha?.sincronizarAntesEnvio?.();
+
                 const semillaId = semillaWrap?.querySelector('.selector-catalogo-value')?.value || '';
                 if (!semillaId) {
-                    e.preventDefault();
-                    alert('Seleccione la semilla o cultivo a cosechar.');
+                    avisoValidacion('Semilla requerida', 'Seleccione la semilla o cultivo a cosechar.');
                     return;
                 }
                 if (!latInput.value || !lngInput.value) {
-                    e.preventDefault();
-                    alert('Marca la ubicación del lote haciendo clic en el mapa.');
+                    avisoValidacion('Ubicación requerida', 'Marca la ubicación del lote haciendo clic en el mapa.');
                     return;
                 }
+
                 const validacionPlan = window.AgroFusionPlanificacionCosecha?.validarEnvio?.();
                 if (validacionPlan && !validacionPlan.ok) {
-                    e.preventDefault();
-                    alert(validacionPlan.mensaje);
+                    avisoValidacion('No se puede guardar', validacionPlan.mensaje);
+                    return;
                 }
+
+                if (!validadorUbicacion.esValida()) {
+                    const validacionUbicacion = await Promise.race([
+                        validadorUbicacion.validar({ silencioso: true }),
+                        new Promise(function (resolve) {
+                            setTimeout(function () {
+                                resolve({ ok: true, omitida: true });
+                            }, 3500);
+                        }),
+                    ]);
+                    if (!validacionUbicacion.ok && !validacionUbicacion.omitida) {
+                        validadorUbicacion.mostrarErrorUi(validacionUbicacion.mensaje);
+                        avisoValidacion('Ubicación no válida', validacionUbicacion.mensaje);
+                        return;
+                    }
+                }
+
+                guardandoLote = true;
+                if (btnGuardarLote) {
+                    btnGuardarLote.disabled = true;
+                    btnGuardarLote.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Guardando…';
+                }
+                formNuevoLote.submit();
             });
 
             document.getElementById('imagen')?.addEventListener('change', function () {

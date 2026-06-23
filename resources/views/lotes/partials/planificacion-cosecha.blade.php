@@ -94,6 +94,9 @@
 
     <input type="hidden" name="catalogotamanoconteoid" id="catalogotamanoconteoid"
            value="{{ old('catalogotamanoconteoid', $catalogoTamanoConteoId ?? '') }}">
+    <input type="hidden" name="plan_modo" id="planModoHidden" value="{{ old('plan_modo', 'hectareas') }}">
+    <input type="hidden" name="plan_objetivo_empaques" id="planObjetivoEmpaquesHidden" value="{{ old('plan_objetivo_empaques', '') }}">
+    <input type="hidden" name="plan_objetivo_unidades" id="planObjetivoUnidadesHidden" value="{{ old('plan_objetivo_unidades', '') }}">
 
     <div class="form-group mb-2">
         <label class="small font-weight-bold mb-1" for="planCalibreSelect">Calibre al cosechar</label>

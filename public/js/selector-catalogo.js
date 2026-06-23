@@ -309,13 +309,12 @@
         },
 
         selectedItemId(id) {
-            const cfg = this.instances[id];
-            if (cfg && cfg.selectedItemId != null && cfg.selectedItemId !== '') {
-                return String(cfg.selectedItemId);
-            }
             const wrapper = document.getElementById('selector_wrap_' + id);
             const hidden = wrapper?.querySelector('.selector-catalogo-value');
-            return hidden?.value != null && hidden.value !== '' ? String(hidden.value) : '';
+            if (hidden?.value != null && hidden.value !== '') {
+                return String(hidden.value);
+            }
+            return '';
         },
 
         open(id) {
@@ -330,8 +329,6 @@
             if (typeof cfg.beforeOpen === 'function') {
                 cfg.beforeOpen(cfg);
             }
-
-            cfg.selectedItemId = this.selectedItemId(id);
 
             this.modalEl.querySelector('#selectorCatalogoTitulo').textContent = cfg.title || 'Buscar y seleccionar';
             this.modalEl.querySelector('#selectorCatalogoBuscar').value = '';
@@ -560,9 +557,14 @@
                 });
             }
 
-            fetch(cfg.endpoint + '?' + params.toString(), {
+            const fetchOpts = {
                 headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-            })
+            };
+            if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+                fetchOpts.signal = AbortSignal.timeout(20000);
+            }
+
+            fetch(cfg.endpoint + '?' + params.toString(), fetchOpts)
                 .then((r) => {
                     if (!r.ok) {
                         throw new Error('Error al cargar');
@@ -743,6 +745,10 @@
                 this.syncFiltrosField(wrapper, item.id, item.label);
             }
 
+            if (cfg) {
+                cfg.selectedItemId = item.id != null && item.id !== '' ? String(item.id) : '';
+            }
+
             const finalize = () => {
                 if (wrapper) {
                     wrapper.dispatchEvent(new CustomEvent('selector-catalogo:change', {
@@ -782,6 +788,10 @@
             display.classList.toggle('text-muted', !value);
             display.classList.toggle('is-empty', !value);
             this.syncFiltrosField(wrapper, value, label);
+            const cfg = this.instances[id];
+            if (cfg) {
+                cfg.selectedItemId = value != null && value !== '' ? String(value) : '';
+            }
             wrapper.dispatchEvent(new CustomEvent('selector-catalogo:change', {
                 bubbles: true,
                 detail: { id: value, label },

@@ -64,7 +64,10 @@ class CatalogoSelectorController extends Controller
         if ($request->filled('roles')) {
             $roles = array_filter(array_map('trim', explode(',', (string) $request->roles)));
             if ($roles !== []) {
-                $query->whereIn('role', $roles);
+                $query->where(function (Builder $q) use ($roles) {
+                    $q->whereIn('role', $roles)
+                        ->orWhereHas('roles', fn (Builder $r) => $r->whereIn('name', $roles));
+                });
             }
         }
 
