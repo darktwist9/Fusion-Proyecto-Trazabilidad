@@ -412,6 +412,18 @@ return [
 
         ],
 
+        'agricultor' => [
+
+            'panel_agricultor.view',
+
+            'lotes.view',
+
+            'certificaciones.view',
+
+            'inventario.view',
+
+        ],
+
         'planta' => [
 
             'panel_planta.view',

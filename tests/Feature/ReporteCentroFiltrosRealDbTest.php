@@ -9,6 +9,10 @@ class ReporteCentroFiltrosRealDbTest extends TestCase
 {
     public function test_reportes_con_filtros_en_bd_real(): void
     {
+        if (config('database.connections.sqlite.database') === ':memory:') {
+            $this->markTestSkipped('Solo aplica con BD SQLite persistida (no en CI)');
+        }
+
         $admin = Usuario::query()
             ->where('activo', true)
             ->where(function ($q) {
