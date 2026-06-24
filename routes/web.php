@@ -19,6 +19,7 @@ use App\Http\Controllers\Web\TipoActividadController;
 use App\Http\Controllers\Web\TipoInsumoController;
 use App\Http\Controllers\Web\UnidadMedidaController;
 use App\Http\Controllers\Web\GestionUsuariosController;
+use App\Http\Controllers\Web\ReporteCentroController;
 use App\Http\Controllers\Web\AuthController;
 use App\Http\Controllers\Web\PedidoController;
 use App\Http\Controllers\Web\PuntoVentaController;
@@ -535,6 +536,17 @@ Route::middleware(['auth', 'cuenta.aprobada'])->group(function () {
     Route::get('/gestion-usuarios/{usuario}', [GestionUsuariosController::class, 'show'])
         ->middleware('action.permission:usuarios,read')
         ->name('gestion.show');
+
+    // CENTRO DE REPORTES
+    Route::prefix('reportes')->name('reportes.')->group(function () {
+        Route::get('/', [ReporteCentroController::class, 'index'])->name('index');
+        Route::get('/envios-estado', [ReporteCentroController::class, 'enviosEstado'])->name('envios-estado');
+        Route::get('/stock-ambito', [ReporteCentroController::class, 'stockAmbito'])->name('stock-ambito');
+        Route::get('/transportistas', [ReporteCentroController::class, 'transportistas'])->name('transportistas');
+        Route::get('/traslados-planta-mayorista', [ReporteCentroController::class, 'trasladosPlantaMayorista'])->name('traslados-planta-mayorista');
+        Route::get('/pedidos-pdv', [ReporteCentroController::class, 'pedidosPdv'])->name('pedidos-pdv');
+        Route::get('/productos-terminados', [ReporteCentroController::class, 'productosTerminados'])->name('productos-terminados');
+    });
 
     // CRUD Usuarios
     Route::post('/gestion-usuarios/usuario', [GestionUsuariosController::class, 'storeUsuario'])

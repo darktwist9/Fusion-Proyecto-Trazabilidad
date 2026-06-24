@@ -286,6 +286,12 @@ return [
 
         ],
 
+        'reportes' => [
+
+            'read' => 'reportes.view',
+
+        ],
+
         'panel_agricultor' => [
 
             'read' => 'panel_agricultor.view',
@@ -392,11 +398,9 @@ return [
 
             'envios.view',
 
+            'reportes.view',
+
             'documentos.view',
-
-        ],
-
-        'agricultor' => [
 
             'panel_agricultor.view',
 
@@ -495,6 +499,8 @@ return [
             'usuarios.update',
 
             'usuarios.delete',
+
+            'reportes.view',
 
             'documentos.view',
 

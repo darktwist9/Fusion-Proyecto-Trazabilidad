@@ -105,16 +105,21 @@
         .ag-brand-icon {
             width: 34px;
             height: 34px;
-            background: linear-gradient(135deg, var(--brand), var(--brand-dk));
             border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
+            overflow: hidden;
             box-shadow: 0 0 0 3px rgba(16,185,129,.2);
         }
 
-        .ag-brand-icon i { color: #fff; font-size: .9rem; }
+        .ag-brand-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
 
         .ag-brand-text { overflow: hidden; transition: opacity .2s, width .22s; }
         .ag-brand-name { font-size: .88rem; font-weight: 700; color: #f1f5f9; white-space: nowrap; display: block; }
@@ -1026,7 +1031,7 @@
         {{-- Logo --}}
         <a href="{{ route('dashboard') }}" class="ag-brand">
             <div class="ag-brand-icon">
-                <i class="fas fa-seedling"></i>
+                <img src="{{ asset('images/agrofusion-logo.jpeg') }}" alt="AgroFusion">
             </div>
             <div class="ag-brand-text">
                 <span class="ag-brand-name">AgroFusion</span>
@@ -1480,7 +1485,7 @@
                 </li>
                 @endif
 
-                @if($isAdmin || auth()->user()?->can('usuarios.view'))
+                @if($isAdmin || auth()->user()?->can('usuarios.view') || \App\Support\ReporteCatalogo::usuarioTieneAcceso(auth()->user()))
                 <span class="ag-nav-label">{{ ($esJefeAgr || ($authUser && $authUser->hasRole('jefe_planta'))) && ! $isAdmin ? 'Equipo' : 'Administración' }}</span>
 
                 @if($isAdmin && $pendientesSolicitudes > 0)
@@ -1498,6 +1503,15 @@
                     <a href="{{ route('gestion.index') }}" class="ag-nav-a {{ request()->routeIs('gestion.*') ? 'active' : '' }}">
                         <i class="ag-nav-icon fas fa-users-cog"></i>
                         <span class="ag-nav-text">Gestión de usuarios</span>
+                    </a>
+                </li>
+                @endif
+
+                @if(\App\Support\ReporteCatalogo::usuarioTieneAcceso(auth()->user()))
+                <li class="ag-nav-li">
+                    <a href="{{ route('reportes.index') }}" class="ag-nav-a {{ request()->routeIs('reportes.*') ? 'active' : '' }}">
+                        <i class="ag-nav-icon fas fa-chart-bar"></i>
+                        <span class="ag-nav-text">Centro de reportes</span>
                     </a>
                 </li>
                 @endif

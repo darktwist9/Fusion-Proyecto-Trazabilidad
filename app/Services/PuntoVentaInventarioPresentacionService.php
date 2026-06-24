@@ -111,7 +111,8 @@ class PuntoVentaInventarioPresentacionService
                 if (str_starts_with($nombreInsumo, $nombre.' · ')) {
                     return true;
                 }
-                if (str_starts_with($nombre, explode(' · ', $nombreInsumo, 2)[0].' · ')) {
+                $baseInsumo = explode(' · ', $nombreInsumo, 2)[0];
+                if ($nombre === $baseInsumo) {
                     return true;
                 }
             }
